@@ -1,0 +1,2181 @@
+
+
+'use client';
+
+import React, { useState, useEffect, useMemo, useCallback, ChangeEvent, DragEvent, useRef, Suspense } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { useAdmin, useAdminData } from '@/context/AdminContext';
+import { useData } from '@/context/DataContext';
+import type { Order, CustomerInfo, Installment, Attachment, Payment, User } from '@/lib/types';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Trash, Plus, FileSpreadsheet, UserPlus, Pencil, MoreVertical, Trash2, KeyRound, Search, X, History, User as UserIcon, MapPin, Phone, FileSignature, ShieldAlert, Lock, Unlock, Users, Mail, CreditCard, Printer, Upload, FileText, CheckCircle, Undo2, CalendarIcon, ClipboardPaste, MessageSquarePlus, Clock, UserSquare, Import, Star } from 'lucide-react';
+import { BlockCustomerDialog } from '@/components/BlockCustomerDialog';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn, maskCpf, maskPhone, maskZip, onlyDigits } from '@/lib/utils';
+import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/context/AuthContext';
+import PaymentDialog from '@/components/PaymentDialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { useAudit } from '@/context/AuditContext';
+import CustomerForm from '@/components/CustomerForm';
+import { WhatsAppIcon } from '@/components/WhatsAppIcon';
+import { useSettings } from '@/context/SettingsContext';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { searchCustomersAdvancedAction, type CustomerSearchFilters } from '@/app/actions/admin/customers';
+import { getCustomerOrdersAction } from '@/app/actions/admin/orders';
+import { parseUnifiedSearchFilters } from '@/lib/customer-search';
+
+
+
+import { OrderEditDialog } from '@/components/OrderEditDialog';
+
+const getStatusVariant = (status: Order['status']): 'secondary' | 'default' | 'outline' | 'destructive' => {
+    switch (status) {
+        case 'Processando':
+            return 'secondary';
+        case 'Enviado':
+            return 'default';
+        case 'Entregue':
+            return 'outline';
+        case 'Cancelado':
+        case 'Excluído':
+            return 'destructive';
+        default:
+            return 'secondary';
+    }
+};
+
+const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+};
+
+const getCustomerKey = (customer: CustomerInfo | null) => {
+    if (!customer) return '';
+    return customer.cpf?.replace(/\D/g, '') || `${customer.name}-${customer.phone}`;
+}
+
+const normalizeText = (text: string) => {
+    return (text || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+};
+
+const normalizeDigits = (text: string) => {
+    return (text || '').replace(/\D/g, '');
+};
+
+const matchesTokens = (haystackNormalized: string, queryNormalized: string) => {
+    if (!queryNormalized) return true;
+    const tokens = queryNormalized.split(' ').filter(Boolean);
+    if (tokens.length === 0) return true;
+    return tokens.every((t) => haystackNormalized.includes(t));
+};
+
+const hasAnySearchFilter = (filters: CustomerSearchFilters) => {
+    return Object.keys(filters || {}).length > 0;
+};
+
+const customerMatchesSearchFilters = (c: CustomerInfo, filters: CustomerSearchFilters) => {
+    const qNorm = normalizeText(String(filters.q || ''));
+    const qDigits = normalizeDigits(String(filters.q || ''));
+    const addressNorm = normalizeText(String(filters.address || ''));
+    const neighborhoodNorm = normalizeText(String(filters.neighborhood || ''));
+    const cityNorm = normalizeText(String(filters.city || ''));
+    const zipDigits = normalizeDigits(String(filters.zip || ''));
+    const numberDigits = normalizeDigits(String(filters.number || ''));
+    const cpfPhoneDigits = normalizeDigits(String(filters.cpfOrPhone || ''));
+    const codeNorm = normalizeText(String(filters.code || ''));
+    const sellerNorm = normalizeText(String(filters.seller || ''));
+    const observationsNorm = normalizeText(String(filters.observations || ''));
+
+    if (qNorm || qDigits) {
+        const haystack = customerSearchText(c);
+        const okText = qNorm ? matchesTokens(haystack, qNorm) : false;
+        const okDigits = qDigits ? customerDigitsText(c).includes(qDigits) : false;
+        if (!okText && !okDigits) return false;
+    }
+
+    if (addressNorm) {
+        const addrHay = normalizeText([c.address, c.complement, c.neighborhood].filter(Boolean).join(' '));
+        if (!matchesTokens(addrHay, addressNorm)) return false;
+    }
+
+    if (neighborhoodNorm) {
+        const neighHay = normalizeText(String(c.neighborhood || ''));
+        if (!matchesTokens(neighHay, neighborhoodNorm)) return false;
+    }
+
+    if (cityNorm) {
+        const cityHay = normalizeText(String(c.city || ''));
+        if (!matchesTokens(cityHay, cityNorm)) return false;
+    }
+
+    if (codeNorm) {
+        const codeHay = normalizeText(String(c.code || ''));
+        if (!matchesTokens(codeHay, codeNorm)) return false;
+    }
+
+    if (sellerNorm) {
+        const sellerHay = normalizeText(String(c.sellerName || ''));
+        if (!matchesTokens(sellerHay, sellerNorm)) return false;
+    }
+
+    if (observationsNorm) {
+        const obsHay = normalizeText(String(c.observations || ''));
+        if (!matchesTokens(obsHay, observationsNorm)) return false;
+    }
+
+    if (zipDigits.length >= 3) {
+        const zipHay = normalizeDigits(String(c.zip || ''));
+        if (!zipHay.includes(zipDigits)) return false;
+    }
+
+    if (numberDigits.length >= 1) {
+        const numberHay = normalizeDigits([c.number, c.address].filter(Boolean).join(' '));
+        if (!numberHay.includes(numberDigits)) return false;
+    }
+
+    if (cpfPhoneDigits.length >= 3) {
+        const cpfPhoneHay = normalizeDigits([c.cpf, c.phone, c.phone2, c.phone3].filter(Boolean).join(' '));
+        if (!cpfPhoneHay.includes(cpfPhoneDigits)) return false;
+    }
+
+    return true;
+};
+
+const customerSearchText = (c: CustomerInfo) => {
+    return normalizeText([
+        c.id,
+        c.code,
+        c.name,
+        c.cpf,
+        c.phone,
+        c.phone2,
+        c.phone3,
+        c.email,
+        c.zip,
+        c.address,
+        c.number,
+        c.complement,
+        c.neighborhood,
+        c.city,
+        c.state,
+        c.observations,
+        c.sellerId,
+        c.sellerName,
+        c.blockedReason,
+        c.rating,
+    ]
+        .map((v) => (v === null || v === undefined ? '' : String(v)))
+        .join(' '));
+};
+
+const customerDigitsText = (c: CustomerInfo) => {
+    return normalizeDigits([
+        c.id,
+        c.code,
+        c.cpf,
+        c.phone,
+        c.phone2,
+        c.phone3,
+        c.zip,
+        c.number,
+    ]
+        .map((v) => (v === null || v === undefined ? '' : String(v)))
+        .join(' '));
+};
+
+const sortCustomersByRelevance = (list: CustomerInfo[], rawQuery: string) => {
+    const queryNorm = normalizeText(String(rawQuery || ''));
+    const nameCompare = (a: CustomerInfo, b: CustomerInfo) => (a.name || '').localeCompare(b.name || '');
+    if (!queryNorm) return [...list].sort(nameCompare);
+
+    const tokens = queryNorm.split(' ').filter(Boolean).slice(0, 12);
+
+    const score = (c: CustomerInfo) => {
+        const nameNorm = normalizeText(String(c.name || ''));
+        if (nameNorm === queryNorm) return 0;
+        if (nameNorm.startsWith(queryNorm)) return 5;
+        if (nameNorm.includes(queryNorm)) return 10;
+
+        let missingInName = 0;
+        for (const t of tokens) {
+            if (!nameNorm.includes(t)) missingInName++;
+        }
+
+        const hay = customerSearchText(c);
+        let missingInHay = 0;
+        for (const t of tokens) {
+            if (!hay.includes(t)) missingInHay++;
+        }
+
+        return 20 + missingInName * 2 + missingInHay;
+    };
+
+    return [...list].sort((a, b) => score(a) - score(b) || nameCompare(a, b));
+};
+
+const getCustomerListKey = (customer: CustomerInfo | null) => {
+    if (!customer) return '';
+    return customer.id || getCustomerKey(customer);
+};
+
+const isSameCustomer = (a: CustomerInfo | null, b: CustomerInfo | null) => {
+    if (!a || !b) return false;
+    if (a.id && b.id) return a.id === b.id;
+    return getCustomerKey(a) === getCustomerKey(b);
+};
+
+
+const resizeImage = (file: File, MAX_WIDTH = 1920, MAX_HEIGHT = 1080): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            if (typeof event.target?.result !== 'string') {
+                return reject(new Error('Falha ao ler o arquivo.'));
+            }
+            const img = document.createElement('img');
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    return reject(new Error('Não foi possível obter o contexto do canvas.'));
+                }
+                ctx.drawImage(img, 0, 0, width, height);
+                const dataUrl = canvas.toDataURL(file.type, 0.9);
+                resolve(dataUrl);
+            };
+            img.onerror = (err) => reject(err);
+            img.src = event.target.result as string;
+        };
+        reader.onerror = (err) => reject(err);
+        reader.readAsDataURL(file);
+    });
+};
+
+function CustomersAdminPageInner() {
+    const { products } = useData();
+    const { updateCustomer, recordInstallmentPayment, updateInstallmentDueDate, updateOrderDetails, reversePayment, importCustomers, addCustomer, deleteCustomer, restoreCustomerFromTrash, permanentlyDeleteCustomerFromTrash, permanentlyDeleteCustomer, updateOrderStatus, generateCustomerCodes, deleteOrder } = useAdmin();
+    const { customers, customerOrders, deletedCustomers } = useAdminData();
+    const { user, users } = useAuth();
+    const { settings } = useSettings();
+    const { logAction } = useAudit();
+    const { toast } = useToast();
+    const searchParams = useSearchParams();
+    const router = useRouter();
+
+    const [searchQuery, setSearchQuery] = useState('');
+    const [serverSearchResults, setServerSearchResults] = useState<CustomerInfo[]>([]);
+    const [selectedCustomer, setSelectedCustomer] = useState<CustomerInfo | null>(null);
+    const [serverCustomerOrders, setServerCustomerOrders] = useState<Record<string, Order[]>>({});
+    const [imageToView, setImageToView] = useState<string | null>(null);
+    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+    const [isAddCustomerDialogOpen, setIsAddCustomerDialogOpen] = useState(false);
+    const [newCustomerSellerId, setNewCustomerSellerId] = useState<string>('');
+    const [editedInfo, setEditedInfo] = useState<Partial<CustomerInfo>>({});
+    const [isBlockDialogOpen, setIsBlockDialogOpen] = useState(false);
+    const [openDueDatePopover, setOpenDueDatePopover] = useState<string | null>(null);
+    const [dragActive, setDragActive] = useState(false);
+    const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+    const [installmentToPay, setInstallmentToPay] = useState<Installment | null>(null);
+    const [orderForPayment, setOrderForPayment] = useState<Order | null>(null);
+    const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState('active');
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const lastAutofilledZipRef = useRef<string | null>(null);
+    const serverSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [isGeneratingCustomerCodes, setIsGeneratingCustomerCodes] = useState(false);
+    const [isOrderEditDialogOpen, setIsOrderEditDialogOpen] = useState(false);
+    const [orderToEdit, setOrderToEdit] = useState<Order | null>(null);
+
+    const [commentDialog, setCommentDialog] = useState<{
+        open: boolean;
+        orderId?: string;
+        attachmentIndex?: number;
+        currentComment?: string;
+        onSave?: (comment: string) => Promise<void>;
+    }>({ open: false });
+
+    useEffect(() => {
+        if (!newCustomerSellerId && user?.id) {
+            setNewCustomerSellerId(user.id);
+        }
+    }, [newCustomerSellerId, user?.id]);
+
+    // Effect to handle selecting a customer from URL query parameter
+    useEffect(() => {
+        const cpfFromQuery = searchParams.get('cpf');
+        if (cpfFromQuery && customers.length > 0) {
+            const customerToSelect = customers.find(c => c.cpf && c.cpf.replace(/\D/g, '') === cpfFromQuery.replace(/\D/g, ''));
+            if (customerToSelect) {
+                setSelectedCustomer(customerToSelect);
+                // Optional: clear the query param after selection
+                router.replace('/admin/clientes', undefined);
+            }
+        }
+    }, [searchParams, customers, router]);
+
+    const getStatusVariant = (status: Order['status']): 'secondary' | 'default' | 'outline' | 'destructive' => {
+        switch (status) {
+            case 'Processando':
+                return 'secondary';
+            case 'Enviado':
+                return 'default';
+            case 'Entregue':
+                return 'outline';
+            case 'Cancelado':
+                return 'destructive';
+            default:
+                return 'secondary';
+        }
+    };
+
+    const searchFilters = useMemo(() => {
+        return parseUnifiedSearchFilters(searchQuery);
+    }, [searchQuery]);
+
+    const filteredCustomers = useMemo(() => {
+        if (!customers) return [];
+
+        let result = customers;
+
+        if (user?.role === 'vendedor_cobranca') {
+            result = result.filter(c => c.sellerId === user.id);
+        }
+
+        if (activeTab === 'blocked') {
+            result = result.filter(c => c.blocked);
+        } else {
+            result = result.filter(c => !c.blocked);
+        }
+
+        if (hasAnySearchFilter(searchFilters)) {
+            const qNorm = normalizeText(String(searchFilters.q || ''));
+            const qDigits = normalizeDigits(String(searchFilters.q || ''));
+            const addressNorm = normalizeText(String(searchFilters.address || ''));
+            const neighborhoodNorm = normalizeText(String(searchFilters.neighborhood || ''));
+            const cityNorm = normalizeText(String(searchFilters.city || ''));
+            const zipDigits = normalizeDigits(String(searchFilters.zip || ''));
+            const numberDigits = normalizeDigits(String(searchFilters.number || ''));
+            const cpfPhoneDigits = normalizeDigits(String(searchFilters.cpfOrPhone || ''));
+            const codeNorm = normalizeText(String(searchFilters.code || ''));
+            const sellerNorm = normalizeText(String(searchFilters.seller || ''));
+            const observationsNorm = normalizeText(String(searchFilters.observations || ''));
+
+            result = result.filter((c) => {
+                if (qNorm || qDigits) {
+                    const haystack = customerSearchText(c);
+                    const okText = qNorm ? matchesTokens(haystack, qNorm) : false;
+                    const okDigits = qDigits ? customerDigitsText(c).includes(qDigits) : false;
+                    if (!okText && !okDigits) return false;
+                }
+
+                if (addressNorm) {
+                    const addrHay = normalizeText([c.address, c.complement, c.neighborhood].filter(Boolean).join(' '));
+                    if (!matchesTokens(addrHay, addressNorm)) return false;
+                }
+
+                if (neighborhoodNorm) {
+                    const neighHay = normalizeText(String(c.neighborhood || ''));
+                    if (!matchesTokens(neighHay, neighborhoodNorm)) return false;
+                }
+
+                if (cityNorm) {
+                    const cityHay = normalizeText(String(c.city || ''));
+                    if (!matchesTokens(cityHay, cityNorm)) return false;
+                }
+
+                if (codeNorm) {
+                    const codeHay = normalizeText(String(c.code || ''));
+                    if (!matchesTokens(codeHay, codeNorm)) return false;
+                }
+
+                if (sellerNorm) {
+                    const sellerHay = normalizeText(String(c.sellerName || ''));
+                    if (!matchesTokens(sellerHay, sellerNorm)) return false;
+                }
+
+                if (observationsNorm) {
+                    const obsHay = normalizeText(String(c.observations || ''));
+                    if (!matchesTokens(obsHay, observationsNorm)) return false;
+                }
+
+                if (zipDigits.length >= 3) {
+                    const zipHay = normalizeDigits(String(c.zip || ''));
+                    if (!zipHay.includes(zipDigits)) return false;
+                }
+
+                if (numberDigits.length >= 1) {
+                    const numberHay = normalizeDigits([c.number, c.address].filter(Boolean).join(' '));
+                    if (!numberHay.includes(numberDigits)) return false;
+                }
+
+                if (cpfPhoneDigits.length >= 3) {
+                    const cpfPhoneHay = normalizeDigits([c.cpf, c.phone, c.phone2, c.phone3].filter(Boolean).join(' '));
+                    if (!cpfPhoneHay.includes(cpfPhoneDigits)) return false;
+                }
+
+                return true;
+            });
+        }
+
+        return sortCustomersByRelevance(result, searchQuery);
+    }, [customers, searchFilters, activeTab, user, searchQuery]);
+
+    const getCustomerSource = useCallback((c: CustomerInfo) => {
+        const anyC: any = c as any;
+        if (anyC?.source) return anyC.source as CustomerInfo['source'];
+        return c.blocked ? 'blocked' : 'active';
+    }, []);
+
+    const serverResultsForTab = useMemo(() => {
+        const wanted = activeTab === 'trash' ? 'trash' : activeTab === 'blocked' ? 'blocked' : 'active';
+        return (serverSearchResults || []).filter((c) => getCustomerSource(c) === wanted);
+    }, [serverSearchResults, activeTab, getCustomerSource]);
+
+    const serverResultsOtherTabs = useMemo(() => {
+        if (activeTab === 'trash') return [];
+        const wanted = activeTab === 'blocked' ? 'blocked' : 'active';
+        return (serverSearchResults || []).filter((c) => getCustomerSource(c) !== wanted);
+    }, [serverSearchResults, activeTab, getCustomerSource]);
+
+    const serverOtherHasActive = useMemo(() => {
+        return serverResultsOtherTabs.some((c) => getCustomerSource(c) === 'active');
+    }, [serverResultsOtherTabs, getCustomerSource]);
+
+    const serverOtherHasBlocked = useMemo(() => {
+        return serverResultsOtherTabs.some((c) => getCustomerSource(c) === 'blocked');
+    }, [serverResultsOtherTabs, getCustomerSource]);
+
+    const serverOtherHasTrash = useMemo(() => {
+        return serverResultsOtherTabs.some((c) => getCustomerSource(c) === 'trash');
+    }, [serverResultsOtherTabs, getCustomerSource]);
+
+    const customersToDisplay = useMemo(() => {
+        if (!hasAnySearchFilter(searchFilters)) return filteredCustomers;
+        const byKey = new Map<string, CustomerInfo>();
+        for (const c of [...filteredCustomers, ...serverResultsForTab]) {
+            const key = getCustomerListKey(c);
+            if (key) byKey.set(key, c);
+        }
+        const merged = Array.from(byKey.values());
+        const filteredMerged = merged.filter((c) => customerMatchesSearchFilters(c, searchFilters));
+        return sortCustomersByRelevance(filteredMerged, searchQuery);
+    }, [filteredCustomers, serverResultsForTab, searchFilters, searchQuery]);
+
+    const filteredDeletedCustomers = useMemo(() => {
+        if (!deletedCustomers) return [];
+        let result = deletedCustomers;
+
+        if (user?.role === 'vendedor_cobranca') {
+            result = result.filter(c => c.sellerId === user.id);
+        }
+        if (hasAnySearchFilter(searchFilters)) {
+            result = result.filter((c) => customerMatchesSearchFilters(c, searchFilters));
+        }
+
+        return sortCustomersByRelevance(result, searchQuery);
+    }, [deletedCustomers, searchFilters, user, searchQuery]);
+
+    const deletedCustomersToDisplay = useMemo(() => {
+        if (activeTab !== 'trash') return filteredDeletedCustomers;
+        if (!hasAnySearchFilter(searchFilters)) return filteredDeletedCustomers;
+        const byKey = new Map<string, CustomerInfo>();
+        for (const c of [...filteredDeletedCustomers, ...serverResultsForTab]) {
+            const key = getCustomerListKey(c);
+            if (key) byKey.set(key, c);
+        }
+        const merged = Array.from(byKey.values());
+        const filteredMerged = merged.filter((c) => customerMatchesSearchFilters(c, searchFilters));
+        return sortCustomersByRelevance(filteredMerged, searchQuery);
+    }, [filteredDeletedCustomers, serverResultsForTab, searchFilters, activeTab, searchQuery]);
+
+    useEffect(() => {
+        let cancelled = false;
+        if (serverSearchTimeoutRef.current) {
+            clearTimeout(serverSearchTimeoutRef.current);
+            serverSearchTimeoutRef.current = null;
+        }
+        const shouldServerSearch = hasAnySearchFilter(searchFilters);
+        if (!shouldServerSearch) {
+            if (serverSearchResults.length) setServerSearchResults([]);
+            return;
+        }
+        serverSearchTimeoutRef.current = setTimeout(() => {
+            (async () => {
+                try {
+                    const res = await searchCustomersAdvancedAction(searchFilters, activeTab === 'trash' ? 'trash' : 'all', user || null);
+                    if (!cancelled && res.success && Array.isArray(res.data)) {
+                        setServerSearchResults(res.data);
+                    } else if (!cancelled) {
+                        setServerSearchResults([]);
+                    }
+                } catch {
+                    if (!cancelled) setServerSearchResults([]);
+                }
+            })();
+        }, 250);
+
+        return () => {
+            cancelled = true;
+            if (serverSearchTimeoutRef.current) {
+                clearTimeout(serverSearchTimeoutRef.current);
+                serverSearchTimeoutRef.current = null;
+            }
+        };
+    }, [searchFilters, activeTab, user, serverSearchResults.length]);
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            if (!selectedCustomer) return;
+            const key = getCustomerKey(selectedCustomer);
+            try {
+                const res = await getCustomerOrdersAction(
+                    {
+                        cpf: selectedCustomer.cpf,
+                        id: (selectedCustomer as any)?.id,
+                        code: (selectedCustomer as any)?.code,
+                        name: selectedCustomer.name,
+                        phone: selectedCustomer.phone,
+                    },
+                    user || null
+                );
+                if (cancelled) return;
+                if (res.success && Array.isArray((res as any).data)) {
+                    setServerCustomerOrders(prev => ({ ...prev, [key]: (res as any).data as Order[] }));
+                }
+            } catch {
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [selectedCustomer, user]);
+
+    const ordersForSelectedCustomer = useMemo(() => {
+        if (!selectedCustomer) return [];
+        const customerKey = getCustomerKey(selectedCustomer);
+        const localOrders = customerOrders[customerKey] || [];
+        const extraOrders = serverCustomerOrders[customerKey] || [];
+        const byId = new Map<string, Order>();
+        for (const o of [...localOrders, ...extraOrders]) {
+            if (o?.id) byId.set(o.id, o);
+        }
+        const allOrders = Array.from(byId.values());
+        // Filtrar pedidos excluídos - eles não devem aparecer na lista do cliente
+        return allOrders
+            .filter(order => order.status !== 'Excluído')
+            .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+    }, [selectedCustomer, customerOrders, serverCustomerOrders]);
+
+    const financialsForSelectedCustomer = useMemo(() => {
+        let totalComprado = 0;
+        let totalPago = 0;
+
+        for (const order of ordersForSelectedCustomer) {
+            if (order.status === 'Cancelado') continue;
+            totalComprado += Number(order.total || 0);
+
+            if (order.paymentMethod === 'Crediário') {
+                totalPago += Number(order.downPayment || 0);
+                const installments: any[] = Array.isArray((order as any).installmentDetails) ? ((order as any).installmentDetails as any[]) : [];
+                for (const inst of installments) {
+                    totalPago += Number(inst?.paidAmount || 0);
+                }
+            } else if (order.paymentMethod === 'Dinheiro' || order.paymentMethod === 'Cartão Crédito' || order.paymentMethod === 'Cartão Débito') {
+                totalPago += Number(order.total || 0);
+            } else if (order.paymentMethod === 'Pix') {
+                const asaas = (order as any)?.asaas;
+                const isLegacyPix = !asaas?.paymentId;
+                const isPaid = isLegacyPix || !!asaas?.paidAt;
+                if (isPaid) totalPago += Number(order.total || 0);
+            }
+        }
+
+        return { totalComprado, totalPago, saldoDevedor: Math.max(0, totalComprado - totalPago) };
+    }, [ordersForSelectedCustomer]);
+
+
+    useEffect(() => {
+        if (orderToEdit && selectedCustomer) {
+            const updated = ordersForSelectedCustomer.find(o => o.id === orderToEdit.id);
+            if (updated && JSON.stringify(updated) !== JSON.stringify(orderToEdit)) {
+                setOrderToEdit(updated);
+            }
+        }
+    }, [ordersForSelectedCustomer, selectedCustomer, orderToEdit]);
+
+    const handleOpenOrderEdit = (order: Order) => {
+        setOrderToEdit(order);
+        setIsOrderEditDialogOpen(true);
+    };
+
+    const handleOpenPaymentDialog = (order: Order, installment: Installment) => {
+        setOrderForPayment(order);
+        setInstallmentToPay(installment);
+        setPaymentDialogOpen(true);
+    };
+
+    const handlePaymentSubmit = async (payment: Omit<Payment, 'receivedBy'>) => {
+        if (orderForPayment && installmentToPay && user) {
+            await recordInstallmentPayment(orderForPayment.id, installmentToPay.installmentNumber, payment, logAction, user);
+            window.open(`/carnet/${orderForPayment.id}/${installmentToPay.installmentNumber}`, '_blank');
+        }
+        setPaymentDialogOpen(false);
+        setInstallmentToPay(null);
+        setOrderForPayment(null);
+    };
+
+    const handleDueDateChange = (orderId: string, installmentNumber: number, date: Date | undefined) => {
+        if (date && user) {
+            updateInstallmentDueDate(orderId, installmentNumber, date, logAction, user);
+        }
+        setOpenDueDatePopover(null);
+    };
+
+    const addAttachments = useCallback(async (order: Order, newAttachments: Omit<Attachment, 'addedAt' | 'addedBy'>[]) => {
+        if (!user) return;
+        const currentAttachments = order.attachments || [];
+
+        const processedAttachments: Attachment[] = newAttachments.map(att => ({
+            ...att,
+            addedAt: new Date().toISOString(),
+            addedBy: user?.name || 'Desconhecido'
+        }));
+
+        await updateOrderDetails(order.id, { attachments: [...currentAttachments, ...processedAttachments] }, logAction, user);
+        toast({ title: 'Anexos Adicionados!', description: 'Os novos documentos foram salvos com sucesso.' });
+    }, [updateOrderDetails, toast, user, logAction]);
+
+    const handleFileProcessing = useCallback(async (order: Order, files: File[]) => {
+        const filesToProcess = Array.from(files);
+        if (filesToProcess.length === 0) return;
+
+        toast({ title: 'Processando anexos...', description: 'Aguarde enquanto os arquivos são otimizados e enviados.' });
+
+        const attachmentsToAdd: Omit<Attachment, 'addedAt' | 'addedBy'>[] = [];
+
+        for (const file of filesToProcess) {
+            try {
+                const isImage = file.type.startsWith('image/');
+                const fileUrl = isImage ? await resizeImage(file) : await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => e.target?.result ? resolve(e.target.result as string) : reject(new Error('Falha ao ler o arquivo.'));
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+
+                attachmentsToAdd.push({
+                    name: file.name,
+                    type: isImage ? 'image' : 'pdf',
+                    url: fileUrl,
+                });
+            } catch (error) {
+                console.error("Error processing file:", error);
+                toast({ title: 'Erro ao Processar Arquivo', description: `Não foi possível processar o arquivo ${file.name}.`, variant: 'destructive' });
+            }
+        }
+
+        if (attachmentsToAdd.length === 0) return;
+
+        if (attachmentsToAdd.length > 1) {
+            await addAttachments(order, attachmentsToAdd);
+        } else {
+            setCommentDialog({
+                open: true,
+                onSave: async (comment) => {
+                    const finalAttachment = { ...attachmentsToAdd[0], comment: comment || undefined };
+                    await addAttachments(order, [finalAttachment]);
+                }
+            });
+        }
+    }, [addAttachments, toast]);
+
+
+    const handleFileChange = async (order: Order, event: ChangeEvent<HTMLInputElement>) => {
+        if (!event.target.files) return;
+        await handleFileProcessing(order, Array.from(event.target.files));
+        event.target.value = '';
+    };
+
+    const handleDrag = (e: DragEvent<HTMLElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === "dragenter" || e.type === "dragover") {
+            setDragActive(true);
+        } else if (e.type === "dragleave") {
+            setDragActive(false);
+        }
+    };
+
+    const handleDrop = async (e: DragEvent<HTMLElement>, order: Order) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(false);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            await handleFileProcessing(order, Array.from(e.dataTransfer.files));
+        }
+    };
+
+    const handlePaste = async (order: Order) => {
+        if (!navigator.clipboard?.read) {
+            toast({ title: "Navegador não suporta esta ação", description: "Seu navegador não permite colar imagens dessa forma.", variant: "destructive" });
+            return;
+        }
+        try {
+            const clipboardItems = await navigator.clipboard.read();
+            const imageFiles: File[] = [];
+
+            for (const item of clipboardItems) {
+                const imageType = item.types.find(type => type.startsWith('image/'));
+                if (imageType) {
+                    const blob = await item.getType(imageType);
+                    const fileName = `colado-${new Date().toISOString()}.png`;
+                    const file = new File([blob], fileName, { type: imageType });
+                    imageFiles.push(file);
+                }
+            }
+
+            if (imageFiles.length > 0) {
+                await handleFileProcessing(order, imageFiles);
+            } else {
+                toast({ title: "Nenhuma imagem encontrada", description: "Não há imagens na sua área de transferência para colar." });
+            }
+        } catch (err) {
+            console.error('Falha ao colar:', err);
+            toast({ title: "Falha ao colar", description: "Verifique as permissões do seu navegador para acessar a área de transferência.", variant: "destructive" });
+        }
+    };
+
+    const handleDeleteAttachment = (order: Order, indexToDelete: number) => {
+        if (!user) return;
+        const newAttachments = (order.attachments || []).filter((_, index) => index !== indexToDelete);
+        updateOrderDetails(order.id, { attachments: newAttachments }, logAction, user);
+    };
+
+    const handleEditComment = (order: Order, attachmentIndex: number) => {
+        if (!user) return;
+        const attachment = order.attachments?.[attachmentIndex];
+        if (!attachment) return;
+
+        setCommentDialog({
+            open: true,
+            currentComment: attachment.comment,
+            onSave: async (comment) => {
+                const newAttachments = [...(order.attachments || [])];
+                newAttachments[attachmentIndex] = {
+                    ...newAttachments[attachmentIndex],
+                    comment: comment || undefined,
+                    addedAt: new Date().toISOString(),
+                    addedBy: user?.name || 'Desconhecido',
+                };
+                await updateOrderDetails(order.id, { attachments: newAttachments }, logAction, user);
+                toast({ title: 'Comentário salvo!' });
+            }
+        });
+    };
+
+    const handleOpenEditDialog = () => {
+        if (selectedCustomer) {
+            setEditedInfo(selectedCustomer);
+            setIsEditDialogOpen(true);
+        }
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        if (name.startsWith('phone')) {
+            setEditedInfo(prev => ({ ...prev, [name]: maskPhone(value) }));
+        } else if (name === 'cpf') {
+            setEditedInfo(prev => ({ ...prev, [name]: maskCpf(value) }));
+        } else if (name === 'zip') {
+            const masked = maskZip(value);
+            const zipDigits = onlyDigits(masked);
+
+            setEditedInfo(prev => ({ ...prev, [name]: masked }));
+
+            if (zipDigits.length === 8 && lastAutofilledZipRef.current !== zipDigits) {
+                lastAutofilledZipRef.current = zipDigits;
+                void (async () => {
+                    try {
+                        const response = await fetch(`https://viacep.com.br/ws/${zipDigits}/json/`);
+                        if (!response.ok) throw new Error('Falha ao buscar CEP.');
+                        const data = await response.json();
+
+                        if (data.erro) {
+                            lastAutofilledZipRef.current = null;
+                            toast({ title: "CEP não encontrado", description: "Verifique o CEP e tente novamente.", variant: "destructive" });
+                            return;
+                        }
+
+                        setEditedInfo(prev => {
+                            const currentZipDigits = onlyDigits(String(prev.zip || ''));
+                            if (currentZipDigits !== zipDigits) return prev;
+
+                            return {
+                                ...prev,
+                                address: prev.address ? prev.address : (data.logradouro || ''),
+                                neighborhood: prev.neighborhood ? prev.neighborhood : (data.bairro || ''),
+                                city: prev.city ? prev.city : (data.localidade || ''),
+                                state: prev.state ? prev.state : (data.uf || ''),
+                            };
+                        });
+                    } catch {
+                        lastAutofilledZipRef.current = null;
+                        toast({ title: "Erro de Rede", description: "Não foi possível buscar o CEP.", variant: "destructive" });
+                    }
+                })();
+            }
+        } else {
+            setEditedInfo(prev => ({ ...prev, [name]: value }));
+        }
+    };
+
+    const handleSellerChange = (sellerId: string) => {
+        if (sellerId === 'none') {
+            setEditedInfo(prev => ({
+                ...prev,
+                sellerId: undefined,
+                sellerName: undefined,
+            }));
+        } else {
+            const seller = assignableSellers.find(s => s.id === sellerId);
+            if (seller) {
+                setEditedInfo(prev => ({
+                    ...prev,
+                    sellerId: seller.id,
+                    sellerName: seller.name,
+                }));
+            }
+        }
+    };
+
+    const handleSaveChanges = () => {
+        if (selectedCustomer && editedInfo && user) {
+            const updatedCustomerData = { ...selectedCustomer, ...editedInfo };
+            // Se a senha estiver vazia, não a envie na atualização, mantendo a antiga
+            if (editedInfo.password === '') {
+                delete updatedCustomerData.password;
+            }
+
+            updateCustomer(selectedCustomer, updatedCustomerData as CustomerInfo, logAction, user);
+            setSelectedCustomer(updatedCustomerData as CustomerInfo);
+            setIsEditDialogOpen(false);
+        }
+    };
+
+    const handleCommentDialogSubmit = () => {
+        const { onSave, currentComment } = commentDialog;
+
+        // Optimistically close dialog
+        setCommentDialog({ open: false });
+
+        // Perform save operation
+        onSave?.(currentComment || '');
+    };
+
+    const handleImportCustomers = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (!user) return;
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const text = e.target?.result as string;
+            await importCustomers(text, logAction, user);
+        };
+        reader.readAsText(file);
+
+        // Reset file input
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+    const handleAddCustomer = async (customerData: CustomerInfo) => {
+        if (!user) return;
+
+        const existingCustomer = customers.find(c => c.cpf && customerData.cpf && c.cpf.replace(/\D/g, '') === customerData.cpf.replace(/\D/g, ''));
+        if (existingCustomer) {
+            toast({ title: 'Erro', description: 'Um cliente com este CPF já existe.', variant: 'destructive' });
+            return;
+        }
+
+        const selectedSeller = users.find((u) => u.id === newCustomerSellerId) || user;
+        const customerSellerId = customerData.sellerId ?? selectedSeller.id;
+        const customerSellerName = customerData.sellerName ?? selectedSeller.name;
+        await addCustomer({ ...customerData, sellerId: customerSellerId, sellerName: customerSellerName }, logAction, user);
+        setIsAddCustomerDialogOpen(false);
+    };
+
+    const handleSendWhatsAppReminder = (order: Order, installment: Installment) => {
+        if (!settings.wapiInstance || !settings.wapiToken) {
+            const customerName = String(order.customer.name || '').split(' ')[0];
+            const customerPhone = order.customer.phone.replace(/\D/g, '');
+            const dueDate = format(parseISO(installment.dueDate), 'dd/MM/yyyy', { locale: ptBR });
+            const amount = formatCurrency(installment.amount - (installment.paidAmount || 0));
+
+            const message = `Olá, ${customerName}! Passando para lembrar sobre o vencimento da sua parcela nº ${installment.installmentNumber} do seu carnê (pedido ${order.id}).
+
+Vencimento: *${dueDate}*
+Valor: *${amount}*
+
+Chave pix: ${settings.pixKey}
+Adriano Cavalcante de Oliveira
+Banco: Nubank 
+
+Não esqueça de enviar o comprovante!`;
+
+            const whatsappUrl = `https://wa.me/55${customerPhone}?text=${encodeURIComponent(message)}`;
+            window.open(whatsappUrl, '_blank');
+        } else {
+            // W-API logic would go here
+        }
+    };
+
+    const handleDeleteCustomer = () => {
+        if (!selectedCustomer || !user) return;
+
+        deleteCustomer(selectedCustomer, logAction, user);
+        setSelectedCustomer(null);
+    };
+
+    const handleRestoreCustomer = (customer: CustomerInfo) => {
+        if (!user) return;
+        restoreCustomerFromTrash(customer, logAction, user);
+        const ordersToRestore = customerOrders[getCustomerKey(customer)] || [];
+        ordersToRestore.forEach(order => {
+            if (order.status === 'Excluído') {
+                updateOrderStatus(order.id, 'Processando', logAction, user);
+            }
+        });
+        toast({ title: "Cliente Restaurado!", description: `O cliente ${customer.name} e seus pedidos foram restaurados.` });
+    };
+
+    const handlePermanentDeleteCustomerFromTrash = (customer: CustomerInfo) => {
+        if (!user) return;
+        permanentlyDeleteCustomerFromTrash(customer, logAction, user);
+    };
+
+    const handlePermanentDeleteCustomer = () => {
+        if (!selectedCustomer || !user) return;
+        permanentlyDeleteCustomer(selectedCustomer.id, logAction, user);
+        setSelectedCustomer(null);
+    };
+
+    const canDeleteCustomer = (user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor' || user?.role === 'vendedor_externo');
+    const canAccessTrash = user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor' || user?.role === 'vendedor_externo' || user?.role === 'vendedor_cobranca';
+    const isAdmin = user?.role === 'admin';
+    const canReceivePayments = true; // Everyone can receive payments
+    const canReversePayments = user?.role !== 'vendedor_cobranca';
+
+    const sellersForFilter = useMemo(() => {
+        return users.filter(u => u.role === 'vendedor' || u.role === 'admin' || u.role === 'gerente' || u.role === 'vendedor_externo' || u.role === 'vendedor_cobranca');
+    }, [users]);
+
+    const assignableSellers = useMemo(() => {
+        return sellersForFilter.filter(u => u.canBeAssigned !== false);
+    }, [sellersForFilter]);
+
+    const handleAssignSeller = (order: Order, seller: User) => {
+        if (!seller) return;
+        const detailsToUpdate: Partial<Order> = {
+            sellerId: seller.id,
+            sellerName: seller.name,
+        };
+        updateOrderDetails(order.id, detailsToUpdate, logAction, user);
+        toast({
+            title: "Vendedor Atribuído!",
+            description: `O pedido #${order.id} foi atribuído a ${seller.name}.`
+        });
+    };
+
+    const handleAssignToMe = (order: Order) => {
+        if (!user) return;
+        if (user.canBeAssigned === false) return;
+        handleAssignSeller(order, user);
+    };
+
+    const handleBlockConfirm = async (reason: string) => {
+        console.log("handleBlockConfirm called. Customer:", selectedCustomer?.id, "Reason:", reason);
+        if (!selectedCustomer || !user) {
+            console.error("Missing customer or user");
+            return;
+        }
+
+        try {
+            await updateCustomer(selectedCustomer, { ...selectedCustomer, blocked: true, blockedReason: reason }, logAction, user);
+            console.log("Update success");
+            setIsBlockDialogOpen(false);
+
+            // Update local selected customer to reflect changes immediately (in addition to context update)
+            setSelectedCustomer(prev => prev ? ({ ...prev, blocked: true, blockedReason: reason }) : null);
+        } catch (error) {
+            console.error("Block error:", error);
+        }
+    };
+
+    const handleUnblockConfirm = async () => {
+        if (!selectedCustomer || !user) return;
+        await updateCustomer(selectedCustomer, { ...selectedCustomer, blocked: false, blockedReason: undefined }, logAction, user);
+
+        // Update local selected customer
+        setSelectedCustomer(prev => prev ? ({ ...prev, blocked: false, blockedReason: undefined }) : null);
+    };
+
+    return (
+        <>
+            <div className="grid lg:grid-cols-3 gap-8 items-start">
+                <Card className="lg:col-span-1">
+                    <CardHeader>
+                        <div className='flex justify-between items-center flex-wrap gap-2'>
+                            <CardTitle className="flex items-center gap-2">
+                                <Users className="h-5 w-5" />
+                                Clientes
+                            </CardTitle>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        const myAssignableId = assignableSellers.find(s => s.id === user?.id)?.id;
+                                        if (myAssignableId) {
+                                            setNewCustomerSellerId(myAssignableId);
+                                        } else if (assignableSellers[0]?.id) {
+                                            setNewCustomerSellerId(assignableSellers[0].id);
+                                        }
+                                        setIsAddCustomerDialogOpen(true);
+                                    }}
+                                >
+                                    <UserPlus className="h-4 w-4 mr-2" />
+                                    Cadastrar
+                                </Button>
+                                {isAdmin && (
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="outline" size="sm" disabled={isGeneratingCustomerCodes}>
+                                                <KeyRound className="h-4 w-4 mr-2" />
+                                                Gerar Códigos
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Gerar códigos para todos os clientes?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    Isso vai preencher o código em todos os pedidos antigos. Pode levar alguns segundos.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                    onClick={async () => {
+                                                        if (!user) return;
+                                                        try {
+                                                            setIsGeneratingCustomerCodes(true);
+                                                            await generateCustomerCodes(logAction, user);
+                                                        } finally {
+                                                            setIsGeneratingCustomerCodes(false);
+                                                        }
+                                                    }}
+                                                >
+                                                    Gerar
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                )}
+                                {isAdmin && (
+                                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                                        <Import className="h-4 w-4 mr-2" />
+                                        Importar
+                                    </Button>
+                                )}
+                            </div>
+                            {isAdmin && (
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    className="hidden"
+                                    accept=".csv"
+                                    onChange={handleImportCustomers}
+                                />
+                            )}
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <Tabs value={activeTab} onValueChange={setActiveTab}>
+                            <TabsList className={cn("grid w-full", canAccessTrash ? "grid-cols-3" : "grid-cols-2")}>
+                                <TabsTrigger value="active">Ativos</TabsTrigger>
+                                <TabsTrigger value="blocked">Bloqueados</TabsTrigger>
+                                {canAccessTrash && <TabsTrigger value="trash">Lixeira</TabsTrigger>}
+                            </TabsList>
+                            <div className="relative my-4">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="Buscar por qualquer campo do cliente..."
+                                    className="pl-10"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                                {searchQuery && (
+                                    <Button variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setSearchQuery('')}>
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                )}
+                            </div>
+                            <TabsContent value="active">
+                                {customersToDisplay.length > 0 ? (
+                                    <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-2">
+                                        {customersToDisplay.map((customer) => (
+                                            <Button
+                                                key={getCustomerListKey(customer)}
+                                                variant={isSameCustomer(selectedCustomer, customer) ? 'secondary' : 'ghost'}
+                                                className="justify-start w-full text-left h-auto py-2"
+                                                onClick={() => setSelectedCustomer(customer)}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="bg-muted rounded-full p-2">
+                                                        <UserIcon className="h-5 w-5 text-muted-foreground" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-semibold">{customer.name}</p>
+                                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                            <span>
+                                                                {customer.code ? `${customer.code.replace(/^CLI-/i, '')} • ` : ''}
+                                                                {customer.cpf}
+                                                            </span>
+                                                            {(() => {
+                                                                const rating = customer.rating;
+                                                                if (rating === 1) return <Badge variant="destructive" className="text-[10px] h-4 px-1 py-0">RUIM</Badge>;
+                                                                if (rating === 2) return <Badge variant="secondary" className="bg-yellow-500 text-white hover:bg-yellow-600 border-none text-[10px] h-4 px-1 py-0">REGULAR</Badge>;
+                                                                if (rating === 3) return <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-[10px] h-4 px-1 py-0">EXCELENTE</Badge>;
+                                                                return null;
+                                                            })()}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </Button>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-10 text-muted-foreground border-2 border-dashed rounded-lg">
+                                        <Users className="mx-auto h-10 w-10" />
+                                        <h3 className="mt-4 text-md font-semibold">Nenhum cliente ativo</h3>
+                                        <p className="mt-1 text-xs">
+                                            {searchQuery ? 'Tente uma busca diferente ou verifique Bloqueados/Lixeira.' : 'Os clientes aparecerão aqui.'}
+                                        </p>
+                                        {searchQuery && (serverOtherHasBlocked || (canAccessTrash && serverOtherHasTrash)) && (
+                                            <div className="mt-3 flex justify-center gap-2 flex-wrap">
+                                                {serverOtherHasBlocked && (
+                                                    <Button variant="outline" size="sm" onClick={() => setActiveTab('blocked')}>
+                                                        Ver em Bloqueados
+                                                    </Button>
+                                                )}
+                                                {canAccessTrash && serverOtherHasTrash && (
+                                                    <Button variant="outline" size="sm" onClick={() => setActiveTab('trash')}>
+                                                        Ver na Lixeira
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </TabsContent>
+                            <TabsContent value="blocked">
+                                {customersToDisplay.length > 0 ? (
+                                    <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-2">
+                                        {customersToDisplay.map((customer) => (
+                                            <Button
+                                                key={getCustomerListKey(customer)}
+                                                variant={isSameCustomer(selectedCustomer, customer) ? 'secondary' : 'ghost'}
+                                                className="justify-start w-full text-left h-auto py-2"
+                                                onClick={() => setSelectedCustomer(customer)}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="bg-red-100 rounded-full p-2">
+                                                        <UserIcon className="h-5 w-5 text-red-600" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-semibold">{customer.name}</p>
+                                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                            <span>
+                                                                {customer.code ? `${customer.code.replace(/^CLI-/i, '')} • ` : ''}
+                                                                {customer.cpf}
+                                                            </span>
+                                                            {(() => {
+                                                                const rating = customer.rating;
+                                                                if (rating === 1) return <Badge variant="destructive" className="text-[10px] h-4 px-1 py-0">RUIM</Badge>;
+                                                                if (rating === 2) return <Badge variant="secondary" className="bg-yellow-500 text-white hover:bg-yellow-600 border-none text-[10px] h-4 px-1 py-0">REGULAR</Badge>;
+                                                                if (rating === 3) return <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-[10px] h-4 px-1 py-0">EXCELENTE</Badge>;
+                                                                return null;
+                                                            })()}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </Button>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-10 text-muted-foreground border-2 border-dashed rounded-lg">
+                                        <ShieldAlert className="mx-auto h-10 w-10" />
+                                        <h3 className="mt-4 text-md font-semibold">Nenhum cliente bloqueado</h3>
+                                        <p className="mt-1 text-xs">{searchQuery ? 'Tente uma busca diferente.' : 'Clientes bloqueados aparecerão aqui.'}</p>
+                                        {searchQuery && (serverOtherHasActive || (canAccessTrash && serverOtherHasTrash)) && (
+                                            <div className="mt-3 flex justify-center gap-2 flex-wrap">
+                                                {serverOtherHasActive && (
+                                                    <Button variant="outline" size="sm" onClick={() => setActiveTab('active')}>
+                                                        Ver em Ativos
+                                                    </Button>
+                                                )}
+                                                {canAccessTrash && serverOtherHasTrash && (
+                                                    <Button variant="outline" size="sm" onClick={() => setActiveTab('trash')}>
+                                                        Ver na Lixeira
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </TabsContent>
+                            {canAccessTrash && (
+                                <TabsContent value="trash">
+                                    {deletedCustomersToDisplay.length > 0 ? (
+                                        <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-2">
+                                            {deletedCustomersToDisplay.map((customer) => (
+                                                <div key={getCustomerListKey(customer)} className="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-muted/50">
+                                                    <div className="flex items-center gap-3 overflow-hidden">
+                                                        <div className="bg-destructive/10 rounded-full p-2 flex-shrink-0">
+                                                            <Trash className="h-5 w-5 text-destructive" />
+                                                        </div>
+                                                        <div className="flex-grow overflow-hidden">
+                                                            <p className="font-semibold truncate" title={customer.name}>{customer.name}</p>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                {customer.code ? `${customer.code.replace(/^CLI-/i, '')} • ` : ''}
+                                                                {customer.cpf}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <Button variant="ghost" size="sm" onClick={() => handleRestoreCustomer(customer)}>
+                                                            <History className="mr-2 h-4 w-4" /> Restaurar
+                                                        </Button>
+                                                        {isAdmin && (
+                                                            <AlertDialog>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                                                                        <Trash2 className="mr-2 h-4 w-4" /> Excluir
+                                                                    </Button>
+                                                                </AlertDialogTrigger>
+                                                                <AlertDialogContent>
+                                                                    <AlertDialogHeader>
+                                                                        <AlertDialogTitle>Excluir contato da lixeira?</AlertDialogTitle>
+                                                                        <AlertDialogDescription>
+                                                                            Essa ação remove o cliente da lixeira e não pode ser desfeita.
+                                                                        </AlertDialogDescription>
+                                                                    </AlertDialogHeader>
+                                                                    <AlertDialogFooter>
+                                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                                        <AlertDialogAction
+                                                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                                            onClick={() => handlePermanentDeleteCustomerFromTrash(customer)}
+                                                                        >
+                                                                            Excluir
+                                                                        </AlertDialogAction>
+                                                                    </AlertDialogFooter>
+                                                                </AlertDialogContent>
+                                                            </AlertDialog>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-10 text-muted-foreground border-2 border-dashed rounded-lg">
+                                            <Trash className="mx-auto h-10 w-10" />
+                                            <h3 className="mt-4 text-md font-semibold">Lixeira vazia</h3>
+                                            <p className="mt-1 text-xs">Clientes excluídos aparecerão aqui.</p>
+                                        </div>
+                                    )}
+                                </TabsContent>
+                            )}
+                        </Tabs>
+                    </CardContent>
+                </Card>
+
+                <Card className="lg:col-span-2">
+                    <CardHeader>
+                        <CardTitle>Detalhes do Cliente</CardTitle>
+                        <CardDescription>Informações cadastrais, situação do crediário e pedidos.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {selectedCustomer ? (
+                            <div className="space-y-8">
+                                <div>
+                                    <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-lg font-semibold flex items-center gap-2">
+                                                <UserIcon className="h-5 w-5 text-primary" />
+                                                Informações Pessoais
+                                            </h3>
+                                            {selectedCustomer.rating && selectedCustomer.rating > 0 && (
+                                                (() => {
+                                                    const rating = selectedCustomer.rating;
+                                                    if (rating === 1) return <Badge variant="destructive" className="ml-2 text-[10px] h-5 px-1 py-0">RUIM</Badge>;
+                                                    if (rating === 2) return <Badge variant="secondary" className="ml-2 bg-yellow-500 text-white hover:bg-yellow-600 border-none text-[10px] h-5 px-1 py-0">REGULAR</Badge>;
+                                                    if (rating === 3) return <Badge variant="default" className="ml-2 bg-green-600 hover:bg-green-700 text-[10px] h-5 px-1 py-0">EXCELENTE</Badge>;
+                                                    return null;
+                                                })()
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button variant="outline" size="sm" onClick={handleOpenEditDialog}>
+                                                <Pencil className="mr-2 h-4 w-4" />
+                                                Editar
+                                            </Button>
+
+                                            {canDeleteCustomer && (
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                            <MoreVertical className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                                                    <Trash2 className="mr-2 h-4 w-4" />
+                                                                    Mover para Lixeira
+                                                                </DropdownMenuItem>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>Mover para lixeira?</AlertDialogTitle>
+                                                                    <AlertDialogDescription>
+                                                                        Esta ação moverá o cliente <span className="font-bold">{selectedCustomer.name}</span> para a lixeira.
+                                                                    </AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                                    <AlertDialogAction onClick={handleDeleteCustomer}>
+                                                                        Sim, Mover
+                                                                    </AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
+
+                                                        {user?.role === 'admin' && (
+                                                            <>
+                                                                <DropdownMenuSeparator />
+                                                                <AlertDialog>
+                                                                    <AlertDialogTrigger asChild>
+                                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive font-bold">
+                                                                            <ShieldAlert className="mr-2 h-4 w-4" />
+                                                                            Excluir Permanentemente
+                                                                        </DropdownMenuItem>
+                                                                    </AlertDialogTrigger>
+                                                                    <AlertDialogContent>
+                                                                        <AlertDialogHeader>
+                                                                            <AlertDialogTitle className="text-destructive">Excluir Permanentemente?</AlertDialogTitle>
+                                                                            <AlertDialogDescription>
+                                                                                Essa ação apagará <strong>DEFINITIVAMENTE</strong> o cliente <span className="font-bold">{selectedCustomer.name}</span> e todos os seus dados.
+                                                                                <br /><br />
+                                                                                Isso não pode ser desfeito.
+                                                                            </AlertDialogDescription>
+                                                                        </AlertDialogHeader>
+                                                                        <AlertDialogFooter>
+                                                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                                            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handlePermanentDeleteCustomer}>
+                                                                                Sim, Apagar Tudo
+                                                                            </AlertDialogAction>
+                                                                        </AlertDialogFooter>
+                                                                    </AlertDialogContent>
+                                                                </AlertDialog>
+                                                            </>
+                                                        )}
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            )}
+                                            {selectedCustomer.blocked ? (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
+                                                    onClick={handleUnblockConfirm}
+                                                >
+                                                    <Unlock className="mr-2 h-4 w-4" />
+                                                    Desbloquear
+                                                </Button>
+                                            ) : (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300"
+                                                    onClick={() => setIsBlockDialogOpen(true)}
+                                                >
+                                                    <Lock className="mr-2 h-4 w-4" />
+                                                    Bloquear
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                                        <div className="flex items-center gap-2">
+                                            <UserIcon className="h-4 w-4 text-muted-foreground" />
+                                            <span className="flex items-center gap-2 flex-wrap">
+                                                <span>{selectedCustomer.name}</span>
+                                                {!!selectedCustomer.code && (
+                                                    <span className="text-muted-foreground font-mono text-xs">{selectedCustomer.code.replace(/^CLI-/i, '')}</span>
+                                                )}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Mail className="h-4 w-4 text-muted-foreground" />
+                                            <span>{selectedCustomer.email || 'Não informado'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Phone className="h-4 w-4 text-muted-foreground" />
+                                            <span>{selectedCustomer.phone} (WhatsApp)</span>
+                                        </div>
+                                        {selectedCustomer.phone2 && (
+                                            <div className="flex items-center gap-2">
+                                                <Phone className="h-4 w-4 text-muted-foreground" />
+                                                <span>{selectedCustomer.phone2}</span>
+                                            </div>
+                                        )}
+                                        {selectedCustomer.phone3 && (
+                                            <div className="flex items-center gap-2">
+                                                <Phone className="h-4 w-4 text-muted-foreground" />
+                                                <span>{selectedCustomer.phone3}</span>
+                                            </div>
+                                        )}
+                                        <div className="flex items-center gap-2">
+                                            <strong className="text-muted-foreground font-mono text-xs">CPF</strong>
+                                            <span>{selectedCustomer.cpf || 'Não informado'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <strong className="text-muted-foreground font-mono text-xs">CÓD</strong>
+                                            <span>{selectedCustomer.code ? selectedCustomer.code.replace(/^CLI-/i, '') : '—'}</span>
+                                        </div>
+                                        {selectedCustomer.sellerName && (
+                                            <div className="flex items-center gap-2">
+                                                <UserIcon className="h-4 w-4 text-muted-foreground" />
+                                                <span className="font-semibold">Vendedor: <strong>{selectedCustomer.sellerName}</strong></span>
+                                            </div>
+                                        )}
+                                        {selectedCustomer.blocked && (
+                                            <div className="col-span-full mt-2 p-3 bg-red-100 border border-red-400 text-red-700 rounded-md">
+                                                <div className="flex items-center gap-2 font-bold uppercase mb-1">
+                                                    <X className="h-4 w-4" />
+                                                    Cliente Bloqueado
+                                                </div>
+                                                {selectedCustomer.blockedReason && (
+                                                    <p className="text-sm">Motivo: {selectedCustomer.blockedReason}</p>
+                                                )}
+                                            </div>
+                                        )}
+                                        <div className="flex items-start col-span-full gap-2 mt-2">
+                                            <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                                            <div>
+                                                <p>{`${selectedCustomer.address}, ${selectedCustomer.number}${selectedCustomer.complement ? ` - ${selectedCustomer.complement}` : ''}`}</p>
+                                                <p className="text-muted-foreground">{`${selectedCustomer.neighborhood}, ${selectedCustomer.city}/${selectedCustomer.state} - CEP: ${selectedCustomer.zip}`}</p>
+                                            </div>
+                                        </div>
+                                        {selectedCustomer.observations && (
+                                            <div className="flex items-start col-span-full gap-2 mt-2 pt-4 border-t">
+                                                <FileSignature className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                                                <div>
+                                                    <p className="font-semibold text-foreground">Observações</p>
+                                                    <p className="text-muted-foreground whitespace-pre-line">{selectedCustomer.observations}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                                        <CreditCard className="h-5 w-5 text-primary" />
+                                        Situação do Crediário
+                                    </h3>
+                                    <div className="grid gap-4 md:grid-cols-3 mb-6">
+                                        <Card className="bg-muted/50">
+                                            <CardHeader className="pb-2">
+                                                <CardTitle className="text-sm font-medium">Total Comprado</CardTitle>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <p className="text-xl font-bold">{formatCurrency(financialsForSelectedCustomer.totalComprado)}</p>
+                                            </CardContent>
+                                        </Card>
+                                        <Card className="bg-green-500/10 border-green-500/20">
+                                            <CardHeader className="pb-2">
+                                                <CardTitle className="text-sm font-medium">Total Pago</CardTitle>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <p className="text-xl font-bold text-green-600">{formatCurrency(financialsForSelectedCustomer.totalPago)}</p>
+                                            </CardContent>
+                                        </Card>
+                                        <Card className="bg-amber-500/10 border-amber-500/20">
+                                            <CardHeader className="pb-2">
+                                                <CardTitle className="text-sm font-medium">Saldo Devedor</CardTitle>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <p className="text-xl font-bold text-amber-600">{formatCurrency(financialsForSelectedCustomer.saldoDevedor)}</p>
+                                            </CardContent>
+                                        </Card>
+                                    </div>
+                                    {ordersForSelectedCustomer.length > 0 ? (
+                                        <Accordion type="single" collapsible className="w-full space-y-2">
+                                            {ordersForSelectedCustomer.map((order) => {
+                                                const isCrediario = !order.paymentMethod || order.paymentMethod === 'Crediário';
+                                                const allInstallmentsPaid = isCrediario &&
+                                                    order.installmentDetails &&
+                                                    order.installmentDetails.length > 0 &&
+                                                    order.installmentDetails.every(inst => inst.status === 'Pago');
+
+                                                const isLegacyPix = order.paymentMethod === 'Pix' && !order.asaas?.paymentId;
+                                                const isPixPaid = order.paymentMethod === 'Pix' && (isLegacyPix || !!order.asaas?.paidAt);
+                                                const isImmediatePaid = order.paymentMethod === 'Dinheiro' || isPixPaid;
+                                                const isPaidOff = allInstallmentsPaid || isImmediatePaid;
+                                                const productNames = order.items.map(item => {
+                                                    const product = products.find(p => p.id === item.id);
+                                                    return product?.code ? `${item.name} (Cód: ${product.code})` : item.name;
+                                                }).join(', ');
+
+                                                return (
+                                                    <AccordionItem value={order.id} key={order.id} className="border-b-0 rounded-lg border bg-background">
+                                                        <AccordionTrigger className="p-4 hover:no-underline rounded-t-lg data-[state=open]:bg-muted/50 data-[state=open]:rounded-b-none">
+                                                            <div className="flex justify-between items-center w-full">
+                                                                <div className="text-left space-y-1">
+                                                                    <p className="font-bold">Pedido: <span className="font-mono">{order.id}</span></p>
+                                                                    <p className="text-xs text-muted-foreground italic truncate max-w-xs">{productNames}</p>
+                                                                    <p className="text-sm text-muted-foreground">{format(new Date(order.date), "dd/MM/yyyy", { locale: ptBR })}</p>
+                                                                </div>
+                                                                <div className="text-right flex flex-col items-end gap-1">
+                                                                    <p className="font-bold">{formatCurrency(order.total)}</p>
+                                                                    {isPaidOff ? (
+                                                                        <Badge className="bg-green-600 hover:bg-green-700 text-primary-foreground">Quitado</Badge>
+                                                                    ) : (
+                                                                        <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
+                                                                    )}
+                                                                    {order.sellerName && <Badge variant="outline">{order.sellerName}</Badge>}
+                                                                </div>
+                                                            </div>
+                                                        </AccordionTrigger>
+                                                        <AccordionContent>
+                                                            <div className="p-4 pt-0 space-y-6">
+                                                                {(order.installmentDetails && order.installmentDetails.length > 0) ? (
+                                                                    <Table>
+                                                                        <TableBody>
+                                                                            {(order.installmentDetails || []).map((inst) => {
+                                                                                const uniqueKey = `${order.id}-${inst.installmentNumber}`;
+                                                                                const isExpanded = expandedHistory === uniqueKey;
+                                                                                const remainingAmount = inst.amount - (inst.paidAmount || 0);
+                                                                                const isOverdue = inst.status === 'Pendente' && new Date(inst.dueDate) < new Date();
+
+                                                                                let statusText: string = inst.status;
+                                                                                if (inst.status === 'Pendente' && (inst.paidAmount || 0) > 0) {
+                                                                                    statusText = `Parcial (${formatCurrency(remainingAmount)} pendente)`;
+                                                                                } else if (isOverdue) {
+                                                                                    statusText = 'Atrasado';
+                                                                                }
+                                                                                const statusVariant = inst.status === 'Pago' ? 'default' : isOverdue ? 'destructive' : 'secondary';
+
+                                                                                return (
+                                                                                    <React.Fragment key={uniqueKey}>
+                                                                                        <TableRow>
+                                                                                            <TableCell colSpan={5} className="p-0">
+                                                                                                <div className='flex items-center justify-between p-3 gap-2 text-sm w-full'>
+                                                                                                    <div className="whitespace-nowrap"><span className="font-medium">Parcela:</span> {inst.installmentNumber}/{order.installments}</div>
+                                                                                                    <Popover open={openDueDatePopover === uniqueKey} onOpenChange={(isOpen) => setOpenDueDatePopover(isOpen ? uniqueKey : null)}>
+                                                                                                        <PopoverTrigger asChild>
+                                                                                                            <Button variant={"outline"} className="w-[135px] justify-start text-left font-normal text-xs px-2" disabled={inst.status === 'Pago'}>
+                                                                                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                                                                                Venc: {format(new Date(inst.dueDate), 'dd/MM/yyyy')}
+                                                                                                            </Button>
+                                                                                                        </PopoverTrigger>
+                                                                                                        <PopoverContent className="w-auto p-0">
+                                                                                                            <Calendar
+                                                                                                                locale={ptBR}
+                                                                                                                mode="single"
+                                                                                                                selected={new Date(inst.dueDate)}
+                                                                                                                defaultMonth={new Date(inst.dueDate)}
+                                                                                                                onSelect={(date) => handleDueDateChange(order.id, inst.installmentNumber, date)}
+                                                                                                            />
+                                                                                                        </PopoverContent>
+                                                                                                    </Popover>
+                                                                                                    <div className="whitespace-nowrap"><span className="font-medium">Valor:</span> {formatCurrency(inst.amount)}</div>
+                                                                                                    <div className="min-w-[80px] text-right"><Badge variant={statusVariant}>{statusText}</Badge></div>
+
+                                                                                                    <div className="flex gap-1 justify-end ml-auto">
+                                                                                                        <Button variant="ghost" size="icon" className="bg-green-500/10 text-green-700 hover:bg-green-500/20 hover:text-green-800 h-8 w-8" onClick={() => handleSendWhatsAppReminder(order, inst)}>
+                                                                                                            <WhatsAppIcon />
+                                                                                                        </Button>
+                                                                                                        {user && (
+                                                                                                            <>
+                                                                                                                {(inst.payments && inst.payments.length > 0) && (
+                                                                                                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpandedHistory(isExpanded ? null : uniqueKey)} title="Histórico">
+                                                                                                                        <History className="h-4 w-4" />
+                                                                                                                    </Button>
+                                                                                                                )}
+                                                                                                                {canReceivePayments && (
+                                                                                                                    <Button variant="outline" size="sm" className="px-2" onClick={() => handleOpenPaymentDialog(order, inst)} disabled={inst.status === 'Pago'}>
+                                                                                                                        <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
+                                                                                                                        Pagar
+                                                                                                                    </Button>
+                                                                                                                )}
+                                                                                                            </>
+                                                                                                        )}
+                                                                                                        <Button variant="outline" size="sm" className="px-2" asChild>
+                                                                                                            <Link href={`/carnet/${order.id}/${inst.installmentNumber}`} target="_blank" rel="noopener noreferrer">
+                                                                                                                <Printer className="mr-2 h-4 w-4" />
+                                                                                                                Ver
+                                                                                                            </Link>
+                                                                                                        </Button>
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            </TableCell>
+                                                                                        </TableRow>
+                                                                                        {isExpanded && (
+                                                                                            <TableRow>
+                                                                                                <TableCell colSpan={5} className="p-0 border-none">
+                                                                                                    <div className="p-3 bg-muted/30 border-t">
+                                                                                                        <h4 className="font-semibold text-sm mb-2">Histórico de Pagamentos da Parcela</h4>
+                                                                                                        {(inst.payments && inst.payments.length > 0) ? (
+                                                                                                            <Table>
+                                                                                                                <TableHeader>
+                                                                                                                    <TableRow>
+                                                                                                                        <TableHead>Data</TableHead>
+                                                                                                                        <TableHead>Recebido por</TableHead>
+                                                                                                                        <TableHead>Método</TableHead>
+                                                                                                                        <TableHead>Valor</TableHead>
+                                                                                                                        <TableHead className='text-right'>Ação</TableHead>
+                                                                                                                    </TableRow>
+                                                                                                                </TableHeader>
+                                                                                                                <TableBody>
+                                                                                                                    {inst.payments.map((p, index) => (
+                                                                                                                        <TableRow key={`${p.id}-${index}`}>
+                                                                                                                            <TableCell>{format(parseISO(p.date), "dd/MM/yyyy 'às' HH:mm")}</TableCell>
+                                                                                                                            <TableCell>{p.receivedBy}</TableCell>
+                                                                                                                            <TableCell>{p.method}</TableCell>
+                                                                                                                            <TableCell>{formatCurrency(p.amount)}</TableCell>
+                                                                                                                            <TableCell className="text-right">
+                                                                                                                                {user && canReversePayments && (
+                                                                                                                                    <AlertDialog>
+                                                                                                                                        <AlertDialogTrigger asChild>
+                                                                                                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
+                                                                                                                                                <Undo2 className="h-4 w-4" />
+                                                                                                                                            </Button>
+                                                                                                                                        </AlertDialogTrigger>
+                                                                                                                                        <AlertDialogContent>
+                                                                                                                                            <AlertDialogHeader>
+                                                                                                                                                <AlertDialogTitle>Confirmar Estorno?</AlertDialogTitle>
+                                                                                                                                                <AlertDialogDescription>
+                                                                                                                                                    Esta ação irá reverter o pagamento de {formatCurrency(p.amount)} feito em {format(parseISO(p.date), 'dd/MM/yy')}. Isso não pode ser desfeito.
+                                                                                                                                                </AlertDialogDescription>
+                                                                                                                                            </AlertDialogHeader>
+                                                                                                                                            <AlertDialogFooter>
+                                                                                                                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                                                                                                                <AlertDialogAction onClick={() => reversePayment(order.id, inst.installmentNumber, p.id, logAction, user)}>
+                                                                                                                                                    Sim, Estornar
+                                                                                                                                                </AlertDialogAction>
+                                                                                                                                            </AlertDialogFooter>
+                                                                                                                                        </AlertDialogContent>
+                                                                                                                                    </AlertDialog>
+                                                                                                                                )}
+                                                                                                                            </TableCell>
+                                                                                                                        </TableRow>
+                                                                                                                    ))}
+                                                                                                                </TableBody>
+                                                                                                            </Table>
+                                                                                                        ) : <p className='text-xs text-muted-foreground'>Nenhum pagamento registrado para esta parcela.</p>}
+                                                                                                    </div>
+                                                                                                </TableCell>
+                                                                                            </TableRow>
+                                                                                        )}
+                                                                                    </React.Fragment>
+                                                                                );
+                                                                            })}
+                                                                        </TableBody>
+                                                                    </Table>
+                                                                ) : (
+                                                                    <p className="text-muted-foreground text-sm text-center py-4">Este pedido foi pago por {order.paymentMethod} e não possui parcelas.</p>
+                                                                )}
+                                                                <div className="flex items-center mt-4 pt-4 border-t flex-wrap gap-2">
+                                                                    <div className="flex gap-2 items-center">
+                                                                        <Button variant="outline" size="sm" onClick={() => handleOpenOrderEdit(order)}>
+                                                                            <Pencil className="mr-2 h-4 w-4" />
+                                                                            Editar
+                                                                        </Button>
+
+                                                                        <DropdownMenu>
+                                                                            <DropdownMenuTrigger asChild>
+                                                                                <Button variant="outline" size="sm">
+                                                                                    <UserPlus className="mr-2 h-4 w-4" />
+                                                                                    Atribuir
+                                                                                </Button>
+                                                                            </DropdownMenuTrigger>
+                                                                            <DropdownMenuContent align="start">
+                                                                                <DropdownMenuLabel>Atribuir Pedido</DropdownMenuLabel>
+                                                                                <DropdownMenuItem onClick={() => handleAssignToMe(order)}>
+                                                                                    Atribuir a Mim
+                                                                                </DropdownMenuItem>
+                                                                                <DropdownMenuSeparator />
+                                                                                <DropdownMenuLabel>Outros Vendedores</DropdownMenuLabel>
+                                                                                {assignableSellers.length > 0 ? (
+                                                                                    assignableSellers.map(s => (
+                                                                                        <DropdownMenuItem key={s.id} onClick={() => handleAssignSeller(order, s)}>
+                                                                                            {s.name}
+                                                                                        </DropdownMenuItem>
+                                                                                    ))
+                                                                                ) : (
+                                                                                    <DropdownMenuItem disabled>Nenhum vendedor disponível</DropdownMenuItem>
+                                                                                )}
+                                                                            </DropdownMenuContent>
+                                                                        </DropdownMenu>
+                                                                    </div>
+
+                                                                    {order.paymentMethod === 'Crediário' && (
+                                                                        <Button variant="ghost" size="sm" asChild>
+                                                                            <Link href={`/carnet/${order.id}`} target="_blank" rel="noopener noreferrer">
+                                                                                <FileText className="mr-2 h-4 w-4" />
+                                                                                Carnê
+                                                                            </Link>
+                                                                        </Button>
+                                                                    )}
+                                                                    {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && (
+                                                                        <AlertDialog>
+                                                                            <AlertDialogTrigger asChild>
+                                                                                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive ml-auto">
+                                                                                    <Trash2 className="mr-2 h-4 w-4" />
+                                                                                    Excluir
+                                                                                </Button>
+                                                                            </AlertDialogTrigger>
+                                                                            <AlertDialogContent>
+                                                                                <AlertDialogHeader>
+                                                                                    <AlertDialogTitle>Excluir este pedido?</AlertDialogTitle>
+                                                                                    <AlertDialogDescription>
+                                                                                        Esta ação moverá o pedido <span className="font-bold">{order.id}</span> para a lixeira.
+                                                                                    </AlertDialogDescription>
+                                                                                </AlertDialogHeader>
+                                                                                <AlertDialogFooter>
+                                                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                                                    <AlertDialogAction
+                                                                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                                                        onClick={() => deleteOrder(order.id, logAction, user)}
+                                                                                    >
+                                                                                        Sim, Excluir
+                                                                                    </AlertDialogAction>
+                                                                                </AlertDialogFooter>
+                                                                            </AlertDialogContent>
+                                                                        </AlertDialog>
+                                                                    )}
+                                                                </div>
+
+                                                                <div className="space-y-4 pt-4 border-t">
+                                                                    <h4 className="font-semibold flex items-center gap-2 text-sm">
+                                                                        <Upload className="h-4 w-4 text-primary" />
+                                                                        Documentos e Anexos do Pedido
+                                                                    </h4>
+                                                                    <div className="grid gap-4">
+                                                                        <label
+                                                                            htmlFor={`file-upload-${order.id}`}
+                                                                            className={cn(
+                                                                                "relative flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors",
+                                                                                dragActive ? "border-primary bg-primary/10" : "border-muted-foreground/30"
+                                                                            )}
+                                                                            onDragEnter={handleDrag}
+                                                                            onDragLeave={handleDrag}
+                                                                            onDragOver={handleDrag}
+                                                                            onDrop={(e) => handleDrop(e, order)}
+                                                                        >
+                                                                            <div className="text-center space-y-2 pointer-events-none">
+                                                                                <p className="text-sm text-muted-foreground">Arraste arquivos ou clique para adicionar</p>
+                                                                                <Button variant="outline" size="sm" type="button">
+                                                                                    <Upload className="mr-2 h-4 w-4" />
+                                                                                    Selecionar
+                                                                                </Button>
+                                                                            </div>
+                                                                            <Input id={`file-upload-${order.id}`} type="file" className="sr-only" multiple accept="image/*,application/pdf" onChange={(e) => handleFileChange(order, e)} />
+                                                                        </label>
+                                                                        <Button variant="outline" size="sm" onClick={() => handlePaste(order)} className="w-fit self-center">
+                                                                            <ClipboardPaste className="mr-2 h-4 w-4" />
+                                                                            Colar da área de transferência
+                                                                        </Button>
+                                                                        {(order.attachments && order.attachments.length > 0) ? (
+                                                                            <div className="space-y-2">
+                                                                                {order.attachments.map((file, index) => (
+                                                                                    <div key={index} className="flex items-start justify-between p-2 rounded-md border bg-muted/50">
+                                                                                        <div className="flex-grow overflow-hidden">
+                                                                                            {file.type === 'image' ? (
+                                                                                                <button onClick={() => setImageToView(file.url)} className="flex items-start gap-3 group text-left w-full">
+                                                                                                    <Image src={file.url} alt={file.name} width={40} height={40} className="h-10 w-10 rounded-md object-cover flex-shrink-0" />
+                                                                                                    <div className="flex-grow">
+                                                                                                        <span className="text-sm font-medium group-hover:underline break-words" title={file.name}>
+                                                                                                            {file.name}
+                                                                                                        </span>
+                                                                                                        {file.comment && <p className="text-xs text-muted-foreground mt-1 italic">"{file.comment}"</p>}
+                                                                                                        {file.addedAt && (
+                                                                                                            <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                                                                                                <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{format(parseISO(file.addedAt), 'dd/MM/yy HH:mm')}</span>
+                                                                                                                <span className="flex items-center gap-1"><UserSquare className="h-3 w-3" />{file.addedBy}</span>
+                                                                                                            </div>
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                </button>
+                                                                                            ) : (
+                                                                                                <a href={file.url} download={file.name} className="flex items-start gap-3 group w-full">
+                                                                                                    <FileText className="h-8 w-8 text-muted-foreground flex-shrink-0" />
+                                                                                                    <div className="flex-grow">
+                                                                                                        <span className="text-sm font-medium group-hover:underline break-words" title={file.name}>
+                                                                                                            {file.name}
+                                                                                                        </span>
+                                                                                                        {file.comment && <p className="text-xs text-muted-foreground mt-1 italic">"{file.comment}"</p>}
+                                                                                                        {file.addedAt && (
+                                                                                                            <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                                                                                                <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{format(parseISO(file.addedAt), 'dd/MM/yy HH:mm')}</span>
+                                                                                                                <span className="flex items-center gap-1"><UserSquare className="h-3 w-3" />{file.addedBy}</span>
+                                                                                                            </div>
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                </a>
+                                                                                            )}
+                                                                                        </div>
+                                                                                        <div className="flex-shrink-0 flex items-center">
+                                                                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditComment(order, index)}>
+                                                                                                <MessageSquarePlus className="h-4 w-4" />
+                                                                                            </Button>
+                                                                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteAttachment(order, index)}>
+                                                                                                <X className="h-4 w-4" />
+                                                                                            </Button>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <p className="text-center text-sm text-muted-foreground">Nenhum documento anexado a este pedido.</p>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </AccordionContent>
+                                                    </AccordionItem>
+                                                );
+                                            })}
+                                        </Accordion>
+                                    ) : (
+                                        <p className="text-muted-foreground text-sm text-center py-8">Nenhum pedido encontrado para este cliente.</p>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-center py-24 text-muted-foreground border-2 border-dashed rounded-lg">
+                                <UserIcon className="mx-auto h-12 w-12" />
+                                <p className="mt-4">Selecione um cliente na lista ao lado para visualizar seus detalhes.</p>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+
+            <Dialog open={!!imageToView} onOpenChange={() => setImageToView(null)}>
+                <DialogContent className="max-w-4xl h-[80vh] p-2 sm:p-4">
+                    <DialogHeader>
+                        <DialogTitle>Visualizador de Imagem</DialogTitle>
+                    </DialogHeader>
+                    <div className="relative w-full h-full my-4">
+                        {imageToView && (
+                            <Image src={imageToView} alt="Visualização do anexo" fill className="object-contain" />
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                <DialogContent className="sm:max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>Editar Informações do Cliente</DialogTitle>
+                        <DialogDescription>
+                            Faça alterações nos dados cadastrais do cliente aqui. Clique em salvar quando terminar.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-6 py-4 max-h-[70vh] overflow-y-auto px-1">
+                        <div className="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="name">Nome Completo</Label>
+                                <Input id="name" name="name" value={editedInfo.name || ''} onChange={handleInputChange} />
+                            </div>
+                            <div>
+                                <Label htmlFor="cpf">CPF</Label>
+                                <Input id="cpf" name="cpf" value={editedInfo.cpf || ''} onChange={handleInputChange} inputMode="numeric" maxLength={14} />
+                            </div>
+                        </div>
+                        <div className="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="phone">Telefone (WhatsApp)</Label>
+                                <Input id="phone" name="phone" value={editedInfo.phone || ''} onChange={handleInputChange} inputMode="tel" maxLength={15} />
+                            </div>
+                            <div>
+                                <Label htmlFor="phone2">Telefone 2</Label>
+                                <Input id="phone2" name="phone2" value={editedInfo.phone2 || ''} onChange={handleInputChange} inputMode="tel" maxLength={15} />
+                            </div>
+                            <div>
+                                <Label htmlFor="phone3">Telefone 3</Label>
+                                <Input id="phone3" name="phone3" value={editedInfo.phone3 || ''} onChange={handleInputChange} inputMode="tel" maxLength={15} />
+                            </div>
+                            <div>
+                                <Label htmlFor="email">Email</Label>
+                                <Input id="email" name="email" type="email" value={editedInfo.email || ''} onChange={handleInputChange} />
+                            </div>
+                        </div>
+                        <div className="grid md:grid-cols-6 gap-4">
+                            <div className="md:col-span-2">
+                                <Label htmlFor="zip">CEP</Label>
+                                <Input id="zip" name="zip" value={editedInfo.zip || ''} onChange={handleInputChange} placeholder="00000-000" inputMode="numeric" maxLength={9} />
+                            </div>
+                            <div className="md:col-span-4">
+                                <Label htmlFor="address">Endereço</Label>
+                                <Input id="address" name="address" value={editedInfo.address || ''} onChange={handleInputChange} />
+                            </div>
+                            <div className="md:col-span-2">
+                                <Label htmlFor="number">Número</Label>
+                                <Input id="number" name="number" value={editedInfo.number || ''} onChange={handleInputChange} />
+                            </div>
+                            <div className="md:col-span-4">
+                                <Label htmlFor="complement">Complemento</Label>
+                                <Input id="complement" name="complement" value={editedInfo.complement || ''} onChange={handleInputChange} />
+                            </div>
+                            <div className="md:col-span-3">
+                                <Label htmlFor="neighborhood">Bairro</Label>
+                                <Input id="neighborhood" name="neighborhood" value={editedInfo.neighborhood || ''} onChange={handleInputChange} />
+                            </div>
+                            <div className="md:col-span-3">
+                                <Label htmlFor="city">Cidade</Label>
+                                <Input id="city" name="city" value={editedInfo.city || ''} onChange={handleInputChange} />
+                            </div>
+                            <div className="md:col-span-6">
+                                <Label htmlFor="state">Estado</Label>                            <Input id="state" name="state" value={editedInfo.state || ''} onChange={handleInputChange} />
+                            </div>
+                        </div>
+                        <div>
+                            <Label htmlFor="sellerId">Vendedor Responsável</Label>
+                            <Select value={editedInfo.sellerId || 'none'} onValueChange={handleSellerChange}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione um vendedor" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">Nenhum</SelectItem>
+                                    {assignableSellers.map(s => (
+                                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div>
+                            <Label htmlFor="observations">Observações</Label>
+                            <Textarea id="observations" name="observations" value={editedInfo.observations || ''} onChange={handleInputChange} />
+                        </div>
+                        <div className="pt-4 border-t">
+                            <Label htmlFor="password" className="flex items-center gap-2 mb-2"><KeyRound className="h-4 w-4" /> Senha de Acesso</Label>
+                            <Input id="password" name="password" type="text" onChange={handleInputChange} placeholder="Deixe em branco para não alterar" />
+                        </div>
+                        <div className="pt-4 border-t space-y-4">
+                            <div>
+                                <Label className="mb-2 block">Classificação do Cliente</Label>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditedInfo(prev => ({ ...prev, rating: 1 }))}
+                                        className={cn(
+                                            "px-4 py-2 rounded-md text-sm font-medium transition-colors border",
+                                            (editedInfo.rating === 1)
+                                                ? "bg-destructive text-destructive-foreground border-destructive"
+                                                : "bg-background hover:bg-muted text-muted-foreground border-input"
+                                        )}
+                                    >
+                                        RUIM
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditedInfo(prev => ({ ...prev, rating: 2 }))}
+                                        className={cn(
+                                            "px-4 py-2 rounded-md text-sm font-medium transition-colors border",
+                                            (editedInfo.rating === 2)
+                                                ? "bg-yellow-500 text-white border-yellow-500 hover:bg-yellow-600"
+                                                : "bg-background hover:bg-muted text-muted-foreground border-input"
+                                        )}
+                                    >
+                                        REGULAR
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditedInfo(prev => ({ ...prev, rating: 3 }))}
+                                        className={cn(
+                                            "px-4 py-2 rounded-md text-sm font-medium transition-colors border",
+                                            (editedInfo.rating === 3)
+                                                ? "bg-green-600 text-white border-green-600 hover:bg-green-700"
+                                                : "bg-background hover:bg-muted text-muted-foreground border-input"
+                                        )}
+                                    >
+                                        EXCELENTE
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                    <Label className="text-base">Bloquear Cliente</Label>
+                                    <p className="text-sm text-muted-foreground">Impedir que este cliente faça novos pedidos.</p>
+                                </div>
+                                <Switch
+                                    checked={editedInfo.blocked || false}
+                                    onCheckedChange={(checked) => setEditedInfo(prev => ({ ...prev, blocked: checked }))}
+                                />
+                            </div>
+                            {editedInfo.blocked && (
+                                <div>
+                                    <Label htmlFor="blockedReason">Motivo do Bloqueio</Label>
+                                    <Textarea
+                                        id="blockedReason"
+                                        name="blockedReason"
+                                        value={editedInfo.blockedReason || ''}
+                                        onChange={handleInputChange}
+                                        placeholder="Descreva o motivo pelo qual este cliente está bloqueado..."
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
+                        <Button type="submit" onClick={handleSaveChanges}>Salvar Alterações</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={commentDialog.open} onOpenChange={(open) => !open && setCommentDialog({ open: false })}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{commentDialog.onSave ? 'Adicionar Comentário ao Anexo' : 'Editar Comentário'}</DialogTitle>
+                        <DialogDescription>
+                            Adicione ou edite um comentário para o anexo.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <Label htmlFor="comment-text">Comentário</Label>
+                        <Textarea
+                            id="comment-text"
+                            value={commentDialog.currentComment || ''}
+                            onChange={(e) => setCommentDialog(prev => ({ ...prev, currentComment: e.target.value }))}
+                            placeholder="Ex: Comprovante de endereço, RG frente, etc."
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setCommentDialog({ open: false })}>Cancelar</Button>
+                        <Button onClick={handleCommentDialogSubmit}>Salvar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isAddCustomerDialogOpen} onOpenChange={setIsAddCustomerDialogOpen}>
+                <DialogContent className="max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>Cadastrar Novo Cliente</DialogTitle>
+                        <DialogDescription>
+                            Preencha as informações abaixo para adicionar um novo cliente ao sistema.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-2">
+                        <Label>Vendedor Responsável</Label>
+                        <Select value={newCustomerSellerId} onValueChange={setNewCustomerSellerId}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Selecione o vendedor" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {assignableSellers.map((s) => (
+                                    <SelectItem key={s.id} value={s.id}>
+                                        {s.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <CustomerForm onSave={handleAddCustomer} onCancel={() => setIsAddCustomerDialogOpen(false)} />
+                </DialogContent>
+            </Dialog>
+
+            {installmentToPay && orderForPayment && (
+                <PaymentDialog
+                    isOpen={paymentDialogOpen}
+                    onOpenChange={setPaymentDialogOpen}
+                    installment={installmentToPay}
+                    orderId={orderForPayment.id}
+                    customerName={orderForPayment.customer.name}
+                    onSubmit={handlePaymentSubmit}
+                />
+            )}
+            {/* Dialog de Bloqueio Rápido */}
+            <BlockCustomerDialog
+                open={isBlockDialogOpen}
+                onOpenChange={setIsBlockDialogOpen}
+                onConfirm={handleBlockConfirm}
+                customerName={selectedCustomer?.name}
+            />
+
+            <OrderEditDialog
+                open={isOrderEditDialogOpen}
+                onOpenChange={setIsOrderEditDialogOpen}
+                order={orderToEdit}
+            />
+        </>
+    );
+}
+
+export default function CustomersAdminPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="flex justify-center items-center py-24">
+                    <p>Carregando...</p>
+                </div>
+            }
+        >
+            <CustomersAdminPageInner />
+        </Suspense>
+    );
+}

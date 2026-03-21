@@ -1,0 +1,251 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  username      String   @unique
+  password      String?
+  name          String
+  role          String
+  active        Boolean  @default(true)
+  canBeAssigned Boolean  @default(true) @map("can_be_assigned")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Product {
+  id               String   @id @default(uuid())
+  code             String?
+  name             String
+  description      String?  @db.Text
+  longDescription  String?  @db.LongText @map("long_description")
+  price            Float
+  originalPrice    Float?   @map("original_price")
+  cost             Float?
+  onSale           Boolean  @default(false) @map("on_sale")
+  promotionEndDate String?  @map("promotion_end_date")
+  isHidden         Boolean  @default(false) @map("is_hidden")
+  category         String?
+  subcategory      String?
+  stock            Int      @default(0)
+  minStock         Int?     @map("min_stock")
+  unit             String?
+  imageUrl         String?  @map("image_url")
+  imageUrls        Json?    @map("image_urls")
+  maxInstallments  Int?     @map("max_installments")
+  paymentCondition String?  @map("payment_condition")
+  commissionType   String?  @map("commission_type")
+  commissionValue  Float?   @map("commission_value")
+  dimensions       String?  @map("dimensions")
+  dataAiHint       String?  @map("data_ai_hint")
+  deletedAt        String?  @map("deleted_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("products")
+}
+
+model Category {
+  id            String   @id @default(uuid())
+  name          String
+  order         Int      @default(0)
+  subcategories Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("categories")
+}
+
+model Customer {
+  id            String   @id @default(uuid())
+  code          String?  @unique
+  name          String
+  cpf           String?  @unique
+  phone         String
+  phone2        String?
+  phone3        String?
+  email         String?
+  zip           String?
+  address       String?
+  number        String?
+  complement    String?
+  neighborhood  String?
+  city          String?
+  state         String?
+  password      String?
+  observations  String?
+  sellerId      String?  @map("seller_id")
+  sellerName    String?  @map("seller_name")
+  blocked       Boolean  @default(false)
+  blockedReason String?  @map("blocked_reason")
+  rating        Int?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([name])
+  @@index([phone])
+  @@index([zip])
+  @@index([city])
+  @@index([sellerId])
+  @@index([blocked])
+  @@map("customers")
+}
+
+model CustomerTrash {
+  id        String   @id
+  cpf       String?
+  data      Json
+  deletedAt DateTime @default(now()) @map("deleted_at")
+
+  @@map("customers_trash")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  timestamp String
+  userId    String?  @map("user_id")
+  userName  String?  @map("user_name")
+  userRole  String?  @map("user_role")
+  action    String
+  details   String?
+
+  @@map("audit_logs")
+}
+
+model Config {
+  key   String @id
+  value Json
+
+  @@map("config")
+}
+
+model Order {
+  id                     String   @id @default(uuid())
+  customer               Json
+  items                  Json
+  total                  Float
+  subtotal               Float?
+  discount               Float?
+  downPayment            Float?   @map("down_payment")
+  deliveryFee            Float?   @map("delivery_fee")
+  installments           Int?
+  installmentValue       Float?   @map("installment_value")
+  date                   String
+  firstDueDate           String?  @map("first_due_date")
+  status                 String
+  paymentMethod          String?  @map("payment_method")
+  installmentDetails     Json?    @map("installment_details")
+  installmentCardDetails Json?    @map("installment_card_details")
+  trackingCode           String?  @map("tracking_code")
+  attachments            Json?
+  sellerId               String?  @map("seller_id")
+  sellerName             String?  @map("seller_name")
+  commission             Float?
+  commissionDate         String?  @map("commission_date")
+  commissionPaid         Boolean? @map("commission_paid")
+  isCommissionManual     Boolean? @map("is_commission_manual")
+  observations           String?
+  source                 String?
+  createdById            String?  @map("created_by_id")
+  createdByName          String?  @map("created_by_name")
+  createdByRole          String?  @map("created_by_role")
+  createdIp              String?  @map("created_ip")
+  asaas                  Json?
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@map("orders")
+}
+
+model CommissionPayment {
+  id          String   @id @default(uuid())
+  sellerId    String   @map("seller_id")
+  sellerName  String   @map("seller_name")
+  amount      Float
+  paymentDate String   @map("payment_date")
+  period      String
+  orderIds    Json     @map("order_ids")
+
+  @@map("commission_payments")
+}
+
+model StockAudit {
+  id            String   @id @default(uuid())
+  month         String
+  year          String
+  createdAt     DateTime @default(now()) @map("created_at")
+  auditedBy     String   @map("audited_by")
+  auditedByName String   @map("audited_by_name")
+  products      Json
+
+  @@map("stock_audits")
+}
+
+model Avaria {
+  id            String   @id @default(uuid())
+  createdAt     DateTime @default(now()) @map("created_at")
+  createdBy     String   @map("created_by")
+  createdByName String   @map("created_by_name")
+  customerId    String   @map("customer_id")
+  customerName  String   @map("customer_name")
+  productId     String   @map("product_id")
+  productName   String   @map("product_name")
+  description   String
+
+  @@map("avarias")
+}
+
+model ChatSession {
+  id              String        @id @default(uuid())
+  visitorId       String        @map("visitor_id")
+  visitorName     String?       @map("visitor_name")
+  status          String        @default("open")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  lastMessageAt   DateTime      @default(now()) @map("last_message_at")
+  lastMessageText String        @map("last_message_text")
+  sellerId        String?       @map("seller_id")
+  sellerName      String?       @map("seller_name")
+  unreadBySeller  Boolean       @default(false) @map("unread_by_seller")
+  unreadByVisitor Boolean       @default(false) @map("unread_by_visitor")
+  satisfaction    String?
+  messages        ChatMessage[]
+
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id         String      @id @default(uuid())
+  sessionId  String      @map("session_id")
+  session    ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  text       String
+  timestamp  DateTime    @default(now())
+  sender     String
+  senderName String      @map("sender_name")
+  attachment Json?
+  type       String?
+  rating     String?
+
+  @@map("chat_messages")
+}
+
+model TemporaryOrder {
+  id             String   @id @default(uuid())
+  data           Json
+  createdAt      DateTime @default(now()) @map("created_at")
+  deletedAt      DateTime? @map("deleted_at")
+  rejectedAt     DateTime? @map("rejected_at")
+  rejectedById   String?  @map("rejected_by_id")
+  rejectedByName String?  @map("rejected_by_name")
+  rejectedByRole String?  @map("rejected_by_role")
+  rejectReason   String?  @map("reject_reason") @db.Text
+
+  @@map("temporary_orders_data")
+}

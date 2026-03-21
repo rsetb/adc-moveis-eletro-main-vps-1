@@ -1,0 +1,22 @@
+{
+    "name": "ADC Admin",
+    "short_name": "ADC Admin",
+    "description": "Painel Administrativo ADC",
+    "start_url": "/admin",
+    "scope": "/admin",
+    "display": "standalone",
+    "background_color": "#1f2937",
+    "theme_color": "#0f172a",
+    "icons": [
+        {
+            "src": "/admin-icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/admin-icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
