@@ -5,6 +5,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useRef } from 'react';
 import type { Product, Category } from '@/lib/types';
 import { getProductsAction, getCategoriesAction } from '@/app/actions/data';
+import { useRealtimeUpdates } from '@/hooks/useRealtimeUpdates';
 
 // This context now only handles PUBLIC data.
 // Admin-related data has been moved to AdminContext for performance optimization.
@@ -96,6 +97,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       isPolling.current = false;
     };
   }, [fetchData]);
+
+  useRealtimeUpdates((changed) => {
+    if (changed.includes('products')) fetchData(false);
+  });
 
   const refreshData = React.useCallback(() => {
     fetchData(false);

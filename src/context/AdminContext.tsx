@@ -21,6 +21,7 @@ import { resetOrdersAction, resetProductsAction, resetFinancialsAction, resetAll
 import { addCustomerAction, getCustomersAction, getDeletedCustomersAction, updateCustomerAction, deleteCustomerAction, restoreCustomerFromTrashAction, permanentlyDeleteCustomerFromTrashAction, permanentlyDeleteCustomerAction, generateCustomerCodesAction } from '@/app/actions/admin/customers';
 import { payCommissionAction, reverseCommissionPaymentAction, getCommissionPaymentsAction } from '@/app/actions/admin/financials';
 import { addCategoryAction, deleteCategoryAction, updateCategoryNameAction, addSubcategoryAction, updateSubcategoryAction, deleteSubcategoryAction } from '@/app/actions/admin/categories';
+import { useRealtimeUpdates } from '@/hooks/useRealtimeUpdates';
 
 type LogAction = (action: string, details: string, user: User | null) => void;
 
@@ -194,6 +195,27 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     fetchData();
     const interval = setInterval(fetchData, 15000); // 15s polling to reduce server load
     return () => clearInterval(interval);
+  }, [fetchData]);
+
+  useRealtimeUpdates((changed) => {
+    if (changed.includes('orders') || changed.includes('customers') || changed.includes('products')) {
+      lastUpdateRef.current = 0;
+      fetchData();
+    }
+  });
+
+  // Set up event listener for forced updates
+  useEffect(() => {
+    const handleOrderUpdated = () => {
+      console.log("[AdminContext] Order update event received, refreshing data...");
+      lastUpdateRef.current = 0;
+      fetchData();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('order-updated', handleOrderUpdated);
+      return () => window.removeEventListener('order-updated', handleOrderUpdated);
+    }
   }, [fetchData]);
 
   const loadMoreOrders = async () => {
@@ -467,22 +489,28 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     }
   };
   const updateInstallmentDueDate = async (orderId: string, installmentNumber: number, newDueDate: Date, logAction: LogAction, user: User | null) => {
+    lastUpdateRef.current = Date.now(); // Update timestamp to pause polling
+
+    // Local update to reflect change immediately (Optimistic Update)
+    const updateOrderList = (prev: Order[]) => prev.map(o => {
+      if (o.id === orderId) {
+        const updatedInstallments = o.installmentDetails?.map(inst =>
+          inst.installmentNumber === installmentNumber ? { ...inst, dueDate: toIsoNoon(newDueDate) } : inst
+        );
+        return { ...o, installmentDetails: updatedInstallments };
+      }
+      return o;
+    });
+
+    setOrders(updateOrderList);
+
     const res = await updateInstallmentDueDateAction(orderId, installmentNumber, newDueDate.toISOString(), user);
     if (res.success) {
-      lastUpdateRef.current = Date.now(); // Update timestamp to pause polling
       logAction('Vencimento de Parcela Atualizado', `Vencimento da parcela ${installmentNumber} do pedido ${orderId} alterado.`, user);
-      // Local update to reflect change immediately (optional if polling is fast enough, but good for UI responsiveness)
-      setOrders(prev => prev.map(o => {
-        if (o.id === orderId) {
-          const updatedInstallments = o.installmentDetails?.map(inst =>
-            inst.installmentNumber === installmentNumber ? { ...inst, dueDate: toIsoNoon(newDueDate) } : inst
-          );
-          return { ...o, installmentDetails: updatedInstallments };
-        }
-        return o;
-      }));
     } else {
       toast({ title: "Erro", description: (res as any).error || 'Erro desconhecido', variant: 'destructive' });
+      // Refresh to revert state correctly from server
+      fetchData();
     }
   };
 
@@ -793,16 +821,40 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
   const reorderSubcategories = async () => { };
   const moveSubcategory = async () => { };
   const payCommissions = async (sellerId: string, sellerName: string, amount: number, orderIds: string[], period: string, logAction: LogAction, user: User | null) => {
+    lastUpdateRef.current = Date.now();
     const res = await payCommissionAction(sellerId, sellerName, amount, orderIds, period, user);
     if (res.success) {
       logAction('Pagamento de Comissão', `Pagamento de R$ ${amount.toFixed(2)} para ${sellerName}.`, user);
+      
+      // Real-time update
+      const newPayment = (res as any).data;
+      if (newPayment) {
+        setCommissionPayments(prev => [newPayment, ...prev]);
+        setOrders(prev => prev.map(o => orderIds.includes(o.id) ? { ...o, commissionPaid: true } : o));
+      }
+      
       return res.data;
     }
     return null;
   };
   const reverseCommissionPayment = async (paymentId: string, logAction: LogAction, user: User | null) => {
+    lastUpdateRef.current = Date.now();
     const res = await reverseCommissionPaymentAction(paymentId, user);
-    if (res.success) logAction('Estorno de Comissão', `Pagamento ${paymentId} estornado.`, user);
+    if (res.success) {
+      logAction('Estorno de Comissão', `Pagamento ${paymentId} estornado.`, user);
+      
+      // Real-time update
+      const paymentToReverse = commissionPayments.find(p => p.id === paymentId);
+      if (paymentToReverse) {
+        const orderIds = paymentToReverse.orderIds || [];
+        setCommissionPayments(prev => prev.filter(p => p.id !== paymentId));
+        setOrders(prev => prev.map(o => orderIds.includes(o.id) ? { ...o, commissionPaid: false } : o));
+      }
+      
+      toast({ title: "Sucesso", description: "Estorno realizado com sucesso." });
+    } else {
+      toast({ title: "Erro", description: (res as any).error || "Erro ao estornar pagamento.", variant: "destructive" });
+    }
   };
   const saveStockAudit = async (audit: StockAudit, logAction: LogAction, user: User | null) => {
     const res = await saveStockAuditAction(audit, user);
