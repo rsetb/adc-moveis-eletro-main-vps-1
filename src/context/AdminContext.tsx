@@ -307,6 +307,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
     console.log('[AdminContext.updateOrderStatus] Local update', { orderId, status });
 
+    const originalStatus = orders.find(o => o.id === orderId)?.status;
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
 
     const res = await updateOrderStatusAction(orderId, status, user);
@@ -324,6 +325,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
         setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
       }
     } else {
+      if (originalStatus) setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: originalStatus } : o));
       toast({ title: "Erro", description: (res as any).error || 'Erro desconhecido', variant: 'destructive' });
     }
   };
@@ -888,20 +890,24 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
   };
   const emptyTrash = async (logAction: LogAction, user: User | null) => {
     lastUpdateRef.current = Date.now();
-    await emptyTrashAction(user);
+    const res = await emptyTrashAction(user);
+    if ((res as any)?.success === false) {
+      toast({ title: 'Erro', description: (res as any).error || 'Erro ao esvaziar lixeira', variant: 'destructive' });
+      return;
+    }
     logAction('Lixeira Esvaziada', 'Lixeira de produtos e pedidos esvaziada.', user);
-    // Clear 'Excluído' orders from local state
     setOrders(prev => prev.filter(o => o.status !== 'Excluído'));
     toast({ title: 'Lixeira Esvaziada', description: 'Todos os itens excluídos foram removidos permanentemente.' });
   };
   const restoreProduct = async (product: Product, logAction: LogAction, user: User | null) => {
-    await restoreProductAction(product.id, user);
+    const res = await restoreProductAction(product.id, user);
+    if (!(res as any)?.success) { toast({ title: 'Erro ao restaurar produto', variant: 'destructive' }); return; }
     logAction('Produto Restaurado', `Produto ${product.name} restaurado.`, user);
-    // Local update helper if needed, but polling works
     updateProductLocally({ ...product, deletedAt: undefined });
   };
   const permanentlyDeleteProduct = async (productId: string, logAction: LogAction, user: User | null) => {
-    await permanentlyDeleteProductWithIdAction(productId, user);
+    const res = await permanentlyDeleteProductWithIdAction(productId, user);
+    if (!(res as any)?.success) { toast({ title: 'Erro ao excluir produto', variant: 'destructive' }); return; }
     logAction('Produto Excluído Permanentemente', `Produto ${productId} apagado.`, user);
     deleteProductLocally(productId);
   };

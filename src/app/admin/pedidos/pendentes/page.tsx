@@ -258,7 +258,7 @@ function PendingOrdersContent() {
                             </CardContent>
                         </Card>
                     ) : (
-                        <Card>
+                        <Card className="overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -303,7 +303,7 @@ function PendingOrdersContent() {
                                 </CardContent>
                             </Card>
                         ) : (
-                            <Card>
+                            <Card className="overflow-x-auto">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>

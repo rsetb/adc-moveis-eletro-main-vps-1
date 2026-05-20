@@ -44,6 +44,7 @@ function PendingOrdersContent() {
     const targetId = searchParams.get('id');
     const { user } = useAuth();
     const canViewTrash = user?.role === 'admin' || user?.role === 'gerente';
+    const canReject = user?.role === 'admin' || user?.role === 'gerente';
 
     const fetchPendingOrders = async () => {
         setIsLoading(true);
@@ -259,7 +260,7 @@ function PendingOrdersContent() {
                             </CardContent>
                         </Card>
                     ) : (
-                        <Card>
+                        <Card className="overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -303,7 +304,7 @@ function PendingOrdersContent() {
                                 </CardContent>
                             </Card>
                         ) : (
-                            <Card>
+                            <Card className="overflow-x-auto">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
@@ -493,7 +494,7 @@ function PendingOrdersContent() {
                             </>
                         ) : (
                             <>
-                                <AlertDialog>
+                                {canReject && <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <Button
                                             variant="destructive"
@@ -525,7 +526,7 @@ function PendingOrdersContent() {
                                             </AlertDialogAction>
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
-                                </AlertDialog>
+                                </AlertDialog>}
                                 <Button
                                     className="bg-green-600 hover:bg-green-700 text-white"
                                     onClick={() => selectedOrder && handleConfirm(selectedOrder.id)}

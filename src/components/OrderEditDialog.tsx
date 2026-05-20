@@ -35,8 +35,14 @@ import {
     DollarSign,
     Trash2,
     History,
-    Printer
+    Printer,
+    Loader2,
+    ExternalLink,
+    RefreshCw,
+    Zap
 } from 'lucide-react';
+import { generateAsaasChargesAction, syncAsaasStatusesAction, cancelAsaasChargeAction } from '@/app/actions/admin/asaas';
+import type { AsaasInstallmentCharge } from '@/lib/types';
 import {
     Table,
     TableBody,
@@ -115,11 +121,17 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
     const [downPaymentInput, setDownPaymentInput] = useState(0);
     const [isDiscountUpdating, setIsDiscountUpdating] = useState(false);
     const [isDownPaymentUpdating, setIsDownPaymentUpdating] = useState(false);
+    const [isObservationsUpdating, setIsObservationsUpdating] = useState(false);
     const [editingInstallment, setEditingInstallment] = useState<{ number: number, value: string } | null>(null);
     const [datePopoverOpen, setDatePopoverOpen] = useState<number | null>(null);
     const [orderDateInput, setOrderDateInput] = useState<Date | undefined>(undefined);
     const [orderDatePopoverOpen, setOrderDatePopoverOpen] = useState(false);
     const [isOrderDateUpdating, setIsOrderDateUpdating] = useState(false);
+
+    // Asaas state
+    const [asaasCharges, setAsaasCharges] = useState<AsaasInstallmentCharge[]>([]);
+    const [isGeneratingAsaas, setIsGeneratingAsaas] = useState(false);
+    const [isSyncingAsaas, setIsSyncingAsaas] = useState(false);
 
     // Payment Popover State
     const [paymentPopoverOpen, setPaymentPopoverOpen] = useState<number | null>(null);
@@ -146,6 +158,7 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
             setDiscountInput(order.discount || 0);
             setDownPaymentInput(0);
             setOrderDateInput(safeParseDate(order.createdAt || order.date));
+            setAsaasCharges((order.asaas?.charges as AsaasInstallmentCharge[]) || []);
         }
     }, [order?.id]);
 
@@ -316,10 +329,15 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
         }
     };
 
-    const handleUpdateObservations = () => {
+    const handleUpdateObservations = async () => {
         if (!order || !user) return;
-        updateOrderDetails(order.id, { observations: observationsInput }, auditLogAction, user);
-        toast({ title: 'Observações Atualizadas', description: 'As observações foram salvas com sucesso.' });
+        setIsObservationsUpdating(true);
+        try {
+            await updateOrderDetails(order.id, { observations: observationsInput }, auditLogAction, user);
+            toast({ title: 'Observações Atualizadas', description: 'As observações foram salvas com sucesso.' });
+        } finally {
+            setIsObservationsUpdating(false);
+        }
     };
 
     const handleSaveInstallmentAmount = async () => {
@@ -404,6 +422,50 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
 
         const encodedMessage = encodeURIComponent(message);
         window.open(`https://wa.me/55${phone}?text=${encodedMessage}`, '_blank');
+    };
+
+    const handleGenerateAsaasCharges = async () => {
+        if (!order || !user || isGeneratingAsaas) return;
+        setIsGeneratingAsaas(true);
+        try {
+            const res = await generateAsaasChargesAction(order.id, user);
+            if (res.success) {
+                setAsaasCharges((res as any).data.charges || []);
+                toast({ title: 'Cobranças geradas!', description: 'As cobranças foram criadas no Asaas com sucesso.' });
+            } else {
+                toast({ title: 'Erro', description: (res as any).error, variant: 'destructive' });
+            }
+        } finally {
+            setIsGeneratingAsaas(false);
+        }
+    };
+
+    const handleSyncAsaasStatuses = async () => {
+        if (!order || !user || isSyncingAsaas) return;
+        setIsSyncingAsaas(true);
+        try {
+            const res = await syncAsaasStatusesAction(order.id, user);
+            if (res.success) {
+                setAsaasCharges((res as any).data.charges || []);
+                toast({ title: 'Status sincronizado!', description: 'Status das cobranças atualizado do Asaas.' });
+            } else {
+                toast({ title: 'Erro', description: (res as any).error, variant: 'destructive' });
+            }
+        } finally {
+            setIsSyncingAsaas(false);
+        }
+    };
+
+    const handleCancelAsaasCharge = async (installmentNumber: number) => {
+        if (!order || !user) return;
+        if (!confirm(`Cancelar a cobrança da parcela ${installmentNumber} no Asaas?`)) return;
+        const res = await cancelAsaasChargeAction(order.id, installmentNumber, user);
+        if (res.success) {
+            setAsaasCharges((res as any).data.charges || []);
+            toast({ title: 'Cobrança cancelada', description: `Parcela ${installmentNumber} cancelada no Asaas.` });
+        } else {
+            toast({ title: 'Erro', description: (res as any).error, variant: 'destructive' });
+        }
     };
 
     if (!order) return null;
@@ -649,7 +711,7 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
                                                     <Popover open={datePopoverOpen === installment.installmentNumber} onOpenChange={(open) => setDatePopoverOpen(open ? installment.installmentNumber : null)}>
                                                         <PopoverTrigger asChild>
                                                             <Button variant="ghost" className="h-8 w-full justify-start text-left font-normal p-0 hover:bg-transparent">
-                                                                {format(parseISO(installment.dueDate), 'dd/MM/yyyy')}
+                                                                {installment.dueDate ? format(parseISO(installment.dueDate), 'dd/MM/yyyy') : '-'}
                                                                 {installment.status === 'Pendente' && canEditInstallments && <Pencil className="ml-2 h-3 w-3 opacity-50" />}
                                                             </Button>
                                                         </PopoverTrigger>
@@ -784,7 +846,7 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
                                                                                         <div key={p.id} className="flex justify-between items-center text-xs bg-muted/50 p-1.5 rounded bg-slate-50 border">
                                                                                             <div className="flex flex-col">
                                                                                                 <span className="font-bold">{formatCurrency(p.amount)}</span>
-                                                                                                <span className="text-[10px] text-muted-foreground">{format(parseISO(p.date), 'dd/MM/yy HH:mm')} - {p.method}</span>
+                                                                                                <span className="text-[10px] text-muted-foreground">{p.date ? format(parseISO(p.date), 'dd/MM/yy HH:mm') : '-'} - {p.method}</span>
                                                                                             </div>
                                                                                             <Button
                                                                                                 variant="ghost"
@@ -830,6 +892,86 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
                         </Card>
                     )}
 
+                    {order.paymentMethod === 'Crediário' && isManagerOrAdmin && (
+                        <Card>
+                            <CardHeader className="flex-row items-center justify-between space-y-0 pb-4">
+                                <div className="flex items-center gap-4">
+                                    <Zap className="w-8 h-8 text-violet-600" />
+                                    <div>
+                                        <CardTitle className="text-lg">Cobranças Asaas</CardTitle>
+                                        <p className="text-xs text-muted-foreground mt-0.5">Gere cobranças por parcela via PIX/Boleto</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    {asaasCharges.length > 0 && (
+                                        <Button size="sm" variant="outline" onClick={handleSyncAsaasStatuses} disabled={isSyncingAsaas}>
+                                            {isSyncingAsaas ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                                            Sincronizar
+                                        </Button>
+                                    )}
+                                    <Button size="sm" onClick={handleGenerateAsaasCharges} disabled={isGeneratingAsaas} className="bg-violet-600 hover:bg-violet-700 text-white">
+                                        {isGeneratingAsaas ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
+                                        Gerar Cobranças
+                                    </Button>
+                                </div>
+                            </CardHeader>
+                            {asaasCharges.length > 0 && (
+                                <CardContent>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Parcela</TableHead>
+                                                <TableHead>Status</TableHead>
+                                                <TableHead className="text-right">Ações</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {asaasCharges.map((charge) => {
+                                                const statusMap: Record<string, { label: string; color: string }> = {
+                                                    PENDING: { label: 'Pendente', color: 'bg-yellow-100 text-yellow-800' },
+                                                    RECEIVED: { label: 'Pago', color: 'bg-green-100 text-green-800' },
+                                                    CONFIRMED: { label: 'Confirmado', color: 'bg-green-100 text-green-800' },
+                                                    OVERDUE: { label: 'Vencida', color: 'bg-red-100 text-red-800' },
+                                                    REFUNDED: { label: 'Estornado', color: 'bg-gray-100 text-gray-800' },
+                                                    CANCELLED: { label: 'Cancelado', color: 'bg-gray-100 text-gray-800' },
+                                                };
+                                                const s = statusMap[charge.status] || { label: charge.status, color: 'bg-gray-100 text-gray-800' };
+                                                const isCancellable = !['RECEIVED', 'CONFIRMED', 'REFUNDED', 'CANCELLED'].includes(charge.status);
+                                                return (
+                                                    <TableRow key={charge.installmentNumber}>
+                                                        <TableCell className="font-medium">{charge.installmentNumber}ª Parcela</TableCell>
+                                                        <TableCell>
+                                                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${s.color}`}>
+                                                                {s.label}
+                                                            </span>
+                                                        </TableCell>
+                                                        <TableCell className="text-right">
+                                                            <div className="flex justify-end gap-2">
+                                                                {charge.invoiceUrl && (
+                                                                    <Button size="sm" variant="outline" className="h-8 gap-1 text-violet-700 border-violet-200 hover:bg-violet-50" asChild>
+                                                                        <a href={charge.invoiceUrl} target="_blank" rel="noopener noreferrer">
+                                                                            <ExternalLink className="h-3.5 w-3.5" />
+                                                                            Fatura
+                                                                        </a>
+                                                                    </Button>
+                                                                )}
+                                                                {isCancellable && (
+                                                                    <Button size="sm" variant="outline" className="h-8 w-8 p-0 text-destructive border-destructive/20 hover:bg-destructive/10" onClick={() => handleCancelAsaasCharge(charge.installmentNumber)}>
+                                                                        <X className="h-4 w-4" />
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </TableBody>
+                                    </Table>
+                                </CardContent>
+                            )}
+                        </Card>
+                    )}
+
                     <Card>
                         <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
                             <MessageSquare className="w-8 h-8 text-primary" />
@@ -843,8 +985,8 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
                                     onChange={(e) => setObservationsInput(e.target.value)}
                                     rows={2}
                                 />
-                                <Button size="sm" variant="outline" onClick={handleUpdateObservations} className="self-end">
-                                    <Save className="mr-2 h-4 w-4" /> Salvar
+                                <Button size="sm" variant="outline" onClick={handleUpdateObservations} disabled={isObservationsUpdating} className="self-end">
+                                    {isObservationsUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Salvar
                                 </Button>
                             </div>
                         </CardContent>

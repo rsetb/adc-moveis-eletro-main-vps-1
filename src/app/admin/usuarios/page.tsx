@@ -6,11 +6,10 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { PlusCircle, Edit, Users, KeyRound, Trash2 } from 'lucide-react';
+import { PlusCircle, Edit, Users, KeyRound, Trash2, Eye, EyeOff } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import type { User, UserRole } from '@/lib/types';
 import { useForm } from 'react-hook-form';
@@ -65,6 +64,10 @@ export default function ManageUsersPage() {
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [userToEdit, setUserToEdit] = useState<User | null>(null);
+    const [showEditPassword, setShowEditPassword] = useState(false);
+    const [showEditConfirmPassword, setShowEditConfirmPassword] = useState(false);
+    const [showCreatePassword, setShowCreatePassword] = useState(false);
+    const [showCreateConfirmPassword, setShowCreateConfirmPassword] = useState(false);
 
     const editForm = useForm<z.infer<typeof userEditFormSchema>>({
         resolver: zodResolver(userEditFormSchema),
@@ -109,8 +112,10 @@ export default function ManageUsersPage() {
             canBeAssigned: user.canBeAssigned ?? true,
             active: user.active ?? true,
             password: '',
-            confirmPassword: ''
+            confirmPassword: '',
         });
+        setShowEditPassword(false);
+        setShowEditConfirmPassword(false);
         setIsEditDialogOpen(true);
     };
 
@@ -169,7 +174,7 @@ export default function ManageUsersPage() {
                     </Button>
                 </CardHeader>
                 <CardContent>
-                    <div className="rounded-md border">
+                    <div className="rounded-md border overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -203,7 +208,7 @@ export default function ManageUsersPage() {
                                                 </Button>
                                                 <AlertDialog>
                                                     <AlertDialogTrigger asChild>
-                                                        <Button variant="destructive" outline size="sm" disabled={currentUser?.id === user.id}>
+                                                        <Button variant="destructive" size="sm" disabled={currentUser?.id === user.id}>
                                                             <Trash2 className="mr-2 h-4 w-4" />
                                                             Excluir
                                                         </Button>
@@ -327,7 +332,14 @@ export default function ManageUsersPage() {
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Senha</FormLabel>
-                                        <FormControl><Input type="password" placeholder="Mínimo 6 caracteres" {...field} /></FormControl>
+                                        <FormControl>
+                                            <div className="relative">
+                                                <Input type={showCreatePassword ? 'text' : 'password'} placeholder="Mínimo 6 caracteres" {...field} className="pr-10" />
+                                                <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowCreatePassword(v => !v)} tabIndex={-1}>
+                                                    {showCreatePassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                                </button>
+                                            </div>
+                                        </FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}
@@ -338,7 +350,14 @@ export default function ManageUsersPage() {
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Confirmar Senha</FormLabel>
-                                        <FormControl><Input type="password" {...field} /></FormControl>
+                                        <FormControl>
+                                            <div className="relative">
+                                                <Input type={showCreateConfirmPassword ? 'text' : 'password'} {...field} className="pr-10" />
+                                                <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowCreateConfirmPassword(v => !v)} tabIndex={-1}>
+                                                    {showCreateConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                                </button>
+                                            </div>
+                                        </FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}
@@ -448,9 +467,14 @@ export default function ManageUsersPage() {
                                     name="password"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Nova Senha</FormLabel>
+                                            <FormLabel>Senha</FormLabel>
                                             <FormControl>
-                                                <Input type="password" placeholder="Mínimo 6 caracteres" {...field} />
+                                                <div className="relative">
+                                                    <Input type={showEditPassword ? 'text' : 'password'} placeholder="Mínimo 6 caracteres" {...field} className="pr-10" />
+                                                    <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowEditPassword(v => !v)} tabIndex={-1}>
+                                                        {showEditPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                                    </button>
+                                                </div>
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -461,9 +485,14 @@ export default function ManageUsersPage() {
                                     name="confirmPassword"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Confirmar Nova Senha</FormLabel>
+                                            <FormLabel>Confirmar Senha</FormLabel>
                                             <FormControl>
-                                                <Input type="password" {...field} />
+                                                <div className="relative">
+                                                    <Input type={showEditConfirmPassword ? 'text' : 'password'} {...field} className="pr-10" />
+                                                    <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowEditConfirmPassword(v => !v)} tabIndex={-1}>
+                                                        {showEditConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                                    </button>
+                                                </div>
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>

@@ -5,13 +5,14 @@ export const ALL_SECTIONS: { id: AppSection, label: string }[] = [
     { id: 'cobrancas', label: 'Cobranças' },
     { id: 'pedidos', label: 'Pedidos' },
     { id: 'criar-pedido', label: 'Criar Pedido' },
-    { id: 'solicitacoes', label: 'Solicitações' }, // Added
+    { id: 'solicitacoes', label: 'Solicitações' },
     { id: 'clientes', label: 'Clientes' },
     { id: 'produtos', label: 'Produtos' },
     { id: 'categorias', label: 'Categorias' },
     { id: 'avarias', label: 'Avarias' },
     { id: 'financeiro', label: 'Financeiro' },
     { id: 'minhas-comissoes', label: 'Minhas Comissões' },
+    { id: 'pastas', label: 'Pastas' },
     { id: 'auditoria', label: 'Auditoria' },
     { id: 'configuracao', label: 'Configurações' },
     { id: 'usuarios', label: 'Usuários' },
@@ -21,23 +22,26 @@ export const initialPermissions: RolePermissions = {
     vendedor: [
         'pedidos',
         'criar-pedido',
-        'solicitacoes', // Added
+        'solicitacoes',
         'clientes',
         'produtos',
         'minhas-comissoes',
         'avarias',
+        'pastas',
     ],
     vendedor_cobranca: [
         'pedidos',
         'cobrancas',
         'criar-pedido',
-        'solicitacoes', // Added
+        'solicitacoes',
         'clientes',
         'produtos',
         'minhas-comissoes',
+        'pastas',
     ],
     vendedor_externo: [
         'minhas-comissoes',
+        'pastas',
     ],
     gerente: [
         'pedidos',
@@ -50,6 +54,7 @@ export const initialPermissions: RolePermissions = {
         'avarias',
         'financeiro',
         'minhas-comissoes',
+        'pastas',
         'auditoria',
         'configuracao',
     ],
@@ -64,6 +69,7 @@ export const initialPermissions: RolePermissions = {
         'avarias',
         'financeiro',
         'minhas-comissoes',
+        'pastas',
         'auditoria',
         'configuracao',
         'usuarios',
@@ -72,7 +78,7 @@ export const initialPermissions: RolePermissions = {
 
 
 export function hasAccess(role: UserRole, section: AppSection, permissions: RolePermissions): boolean {
-    if (role === 'vendedor_externo') return section === 'minhas-comissoes';
+    if (role === 'vendedor_externo') return section === 'minhas-comissoes' || section === 'pastas';
     if (role === 'admin') return true; // Admin always has access
     if (role === 'gerente' && section === 'financeiro') return true;
     if (role === 'vendedor' && section === 'produtos') return true;

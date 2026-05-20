@@ -1,8 +1,3 @@
-const withPWA = require('@ducanh2912/next-pwa').default({
-  dest: 'public',
-  disable: process.env.NODE_ENV === 'development',
-});
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -27,8 +22,7 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // No-cache para TODAS as rotas
-        source: '/:path*',
+        source: '/(.*)',
         headers: [
           {
             key: 'Cache-Control',
@@ -48,4 +42,4 @@ const nextConfig = {
   },
 };
 
-module.exports = withPWA(nextConfig);
+module.exports = nextConfig;

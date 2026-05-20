@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useAdmin, useAdminData } from '@/context/AdminContext';
 import type { Order, Installment, PaymentMethod, User, Payment, Product } from '@/lib/types';
 import { useAuth } from '@/context/AuthContext';
-import { searchOrdersAction } from '@/app/actions/admin/orders';
+import { searchOrdersAction, getBillingDashboardAction, type BillingDashboardSummary } from '@/app/actions/admin/orders';
 import { getPendingOrdersAction } from '@/app/actions/admin/pending-orders';
 import {
     Table,
@@ -134,21 +134,36 @@ export default function OrdersAdminPage() {
     const [openDueDatePopover, setOpenDueDatePopover] = useState<string | null>(null);
     const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
     const [installmentToPay, setInstallmentToPay] = useState<Installment | null>(null);
-    const [filters, setFilters] = useState({
-        search: '',
-        status: 'all',
-        seller: 'all',
-        showOverdue: false,
-        showOnTime: false,
-        showPaidOff: false,
-        dueDateRange: 'all',
-        month: '',
-        year: '',
+    const [filters, setFilters] = useState(() => {
+        const today = new Date();
+        const day = today.getDate();
+        let defaultRange = 'all';
+        
+        if (day >= 1 && day <= 5) defaultRange = '1-5';
+        else if (day >= 6 && day <= 10) defaultRange = '6-10';
+        else if (day >= 11 && day <= 15) defaultRange = '11-15';
+        else if (day >= 16 && day <= 20) defaultRange = '16-20';
+        else if (day >= 21 && day <= 25) defaultRange = '21-25';
+        else if (day >= 26) defaultRange = '26-31';
+
+        return {
+            search: '',
+            status: 'all',
+            seller: 'all',
+            showOverdue: false,
+            showOnTime: false,
+            showPaidOff: false,
+            dueDateRange: 'all',
+            vencimentoTabRange: defaultRange, // Separate state for the Vencimento tab
+            month: '',
+            year: '',
+        };
     });
     const [activeTab, setActiveTab] = useState('active');
     const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
     const [activePage, setActivePage] = useState(1);
     const [deletedPage, setDeletedPage] = useState(1);
+    const [vencimentoPage, setVencimentoPage] = useState(1);
     const [viewedOrders, setViewedOrders] = useState<Set<string>>(new Set());
     const [serverSearchResults, setServerSearchResults] = useState<Order[]>([]);
     const [isSearchingServer, setIsSearchingServer] = useState(false);
@@ -308,7 +323,7 @@ export default function OrdersAdminPage() {
             const onTimeMatch = !filters.showOnTime || (!isOverdue && (hasPendingInstallments || isPaidOff));
             const paidOffMatch = !filters.showPaidOff || isPaidOff;
 
-            const dueDateMatch = filters.dueDateRange === 'all' || (o.installmentDetails || []).some(inst => {
+            const dueDateMatch = activeTab === 'vencimento' ? true : (filters.dueDateRange === 'all' || (o.installmentDetails || []).some(inst => {
                 if (inst.status !== 'Pendente') return false;
                 const dueDate = parseISO(inst.dueDate);
                 const today = new Date();
@@ -319,7 +334,7 @@ export default function OrdersAdminPage() {
                 const dayOfMonth = getDate(dueDate);
                 const [start, end] = String(filters.dueDateRange || '').split('-').map(Number);
                 return dayOfMonth >= start && dayOfMonth <= end;
-            });
+            }));
 
             const roleMatch = (() => {
                 if (user?.role === 'vendedor_cobranca') {
@@ -331,7 +346,7 @@ export default function OrdersAdminPage() {
 
             return searchMatch && statusMatch && sellerMatch && dateMatch && overdueMatch && onTimeMatch && paidOffMatch && dueDateMatch && roleMatch;
         });
-    }, [orders, filters, serverSearchResults]);
+    }, [orders, filters, serverSearchResults, activeTab, user]);
 
     const { activeOrders, deletedOrders } = useMemo(() => {
         const active: Order[] = [];
@@ -347,17 +362,96 @@ export default function OrdersAdminPage() {
             }
         });
 
+        // Apply sorting to active orders based on due date if a specific range is selected
+        let sortedActive = [...active];
+        if (filters.dueDateRange !== 'all') {
+            const today = new Date();
+            const currentMonth = getMonth(today);
+            const currentYear = getYear(today);
+
+            sortedActive.sort((a, b) => {
+                const getTargetDate = (order: any) => {
+                    const installments = (order.installmentDetails || [])
+                        .filter((inst: any) => {
+                            if (inst.status !== 'Pendente') return false;
+                            const dueDate = parseISO(inst.dueDate);
+                            return getMonth(dueDate) === currentMonth && getYear(dueDate) === currentYear;
+                        })
+                        .sort((i1: any, i2: any) => new Date(i1.dueDate).getTime() - new Date(i2.dueDate).getTime());
+                    
+                    return installments.length > 0 ? new Date(installments[0].dueDate).getTime() : 0;
+                };
+
+                return getTargetDate(a) - getTargetDate(b);
+            });
+        } else {
+            // Default sorting (newest first)
+            sortedActive.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        }
+
         return {
-            activeOrders: active.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+            activeOrders: sortedActive,
             deletedOrders: deleted.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
         };
-    }, [filteredOrders]);
+    }, [filteredOrders, filters.dueDateRange]);
+
+    const vencimentoOrders = useMemo(() => {
+        const today = new Date();
+        const currentMonth = getMonth(today);
+        const currentYear = getYear(today);
+
+        return activeOrders.filter(o => {
+            const hasPendingInCurrentMonth = (o.installmentDetails || []).some(inst => {
+                if (inst.status !== 'Pendente') return false;
+                const dueDate = parseISO(inst.dueDate);
+                
+                const monthMatch = getMonth(dueDate) === currentMonth;
+                const yearMatch = getYear(dueDate) === currentYear;
+                
+                if (!monthMatch || !yearMatch) return false;
+
+                if (filters.vencimentoTabRange === 'all') return true;
+                
+                const dayOfMonth = getDate(dueDate);
+                const [start, end] = String(filters.vencimentoTabRange).split('-').map(Number);
+                return dayOfMonth >= start && dayOfMonth <= end;
+            });
+
+            return hasPendingInCurrentMonth;
+        }).sort((a, b) => {
+            const today = new Date();
+            const currentMonth = getMonth(today);
+            const currentYear = getYear(today);
+
+            const getTargetDate = (order: any) => {
+                const installments = (order.installmentDetails || [])
+                    .filter((inst: any) => {
+                        if (inst.status !== 'Pendente') return false;
+                        const dueDate = parseISO(inst.dueDate);
+                        return getMonth(dueDate) === currentMonth && getYear(dueDate) === currentYear;
+                    })
+                    .sort((i1: any, i2: any) => new Date(i1.dueDate).getTime() - new Date(i2.dueDate).getTime());
+                
+                return installments.length > 0 ? new Date(installments[0].dueDate).getTime() : 0;
+            };
+
+            return getTargetDate(a) - getTargetDate(b);
+        });
+    }, [activeOrders, filters.vencimentoTabRange]);
+
+    useEffect(() => {
+        setVencimentoPage(1);
+    }, [filters.vencimentoTabRange]);
+
+    const { paginatedVencimentoOrders, totalVencimentoPages } = useMemo(() => {
+        const total = Math.ceil(vencimentoOrders.length / ORDERS_PER_PAGE);
+        const paginated = vencimentoOrders.slice((vencimentoPage - 1) * ORDERS_PER_PAGE, vencimentoPage * ORDERS_PER_PAGE);
+        return { paginatedVencimentoOrders: paginated, totalVencimentoPages: total };
+    }, [vencimentoOrders, vencimentoPage]);
 
     const { paginatedActiveOrders, totalActivePages } = useMemo(() => {
         const total = Math.ceil(activeOrders.length / ORDERS_PER_PAGE);
         const paginated = activeOrders.slice((activePage - 1) * ORDERS_PER_PAGE, activePage * ORDERS_PER_PAGE);
-
-        console.log('[OrdersAdminPage] activeOrders statuses', activeOrders.map(o => ({ id: o.id, status: o.status })));
 
         return { paginatedActiveOrders: paginated, totalActivePages: total };
     }, [activeOrders, activePage]);
@@ -367,6 +461,19 @@ export default function OrdersAdminPage() {
         const paginated = deletedOrders.slice((deletedPage - 1) * ORDERS_PER_PAGE, deletedPage * ORDERS_PER_PAGE);
         return { paginatedDeletedOrders: paginated, totalDeletedPages: total };
     }, [deletedOrders, deletedPage]);
+
+    const [delinquencyStats, setDelinquencyStats] = useState<BillingDashboardSummary | null>(null);
+
+    useEffect(() => {
+        const canSee = user?.role === 'admin' || user?.role === 'gerente';
+        if (!canSee || !user) return;
+        const timer = setTimeout(() => {
+            getBillingDashboardAction({}, user).then(res => {
+                if (res.success) setDelinquencyStats((res as any).data.summary);
+            }).catch(() => {});
+        }, 6000);
+        return () => clearTimeout(timer);
+    }, [user]);
 
     const filteredPendingOrders = useMemo(() => {
         if (!user || user.role !== 'vendedor_cobranca') {
@@ -400,7 +507,7 @@ export default function OrdersAdminPage() {
     };
 
     const clearFilters = () => {
-        setFilters({
+        setFilters(prev => ({
             search: '',
             status: 'all',
             seller: 'all',
@@ -408,19 +515,25 @@ export default function OrdersAdminPage() {
             showOnTime: false,
             showPaidOff: false,
             dueDateRange: 'all',
+            vencimentoTabRange: prev.vencimentoTabRange,
             month: '',
             year: '',
-        });
+        }));
+        setActivePage(1);
+        setDeletedPage(1);
     };
 
+    const selectedOrderId = selectedOrder?.id;
     useEffect(() => {
-        if (selectedOrder) {
-            const updatedOrderInList = orders.find(o => o.id === selectedOrder.id);
-            if (updatedOrderInList && JSON.stringify(updatedOrderInList) !== JSON.stringify(selectedOrder)) {
-                setSelectedOrder(updatedOrderInList);
-            }
+        if (!selectedOrderId) return;
+        const updatedOrderInList = orders.find(o => o.id === selectedOrderId);
+        if (updatedOrderInList) {
+            setSelectedOrder(prev => {
+                if (!prev || JSON.stringify(updatedOrderInList) === JSON.stringify(prev)) return prev;
+                return updatedOrderInList;
+            });
         }
-    }, [orders, selectedOrder]);
+    }, [orders, selectedOrderId]);
 
     const handleOpenDetails = (order: Order) => {
         markAsViewed(order.id);
@@ -535,6 +648,7 @@ Não esqueça de enviar o comprovante!`;
     const handleSaveInstallmentValue = (instNumber: number) => {
         if (!selectedOrder) return;
         const editedValue = editedInstallmentValues[instNumber];
+        if (!editedValue) return;
         const newAmount = parseFloat(editedValue.replace(/\./g, '').replace(',', '.'));
 
         if (isNaN(newAmount) || newAmount < 0) {
@@ -573,22 +687,37 @@ Não esqueça de enviar o comprovante!`;
                         <CardTitle>Gerenciamento de Pedidos</CardTitle>
                         <CardDescription>Visualize e atualize o status dos pedidos recentes.</CardDescription>
                     </CardHeader>
+                    {delinquencyStats && (
+                        <div className="px-6 pb-4 grid grid-cols-2 gap-3">
+                            <div className="rounded-lg border bg-muted/40 px-4 py-3">
+                                <p className="text-xs text-muted-foreground mb-1">Taxa de Inadimplência</p>
+                                <p className="text-2xl font-bold text-destructive">{(delinquencyStats.delinquencyRate * 100).toFixed(1)}%</p>
+                            </div>
+                            <div className="rounded-lg border bg-muted/40 px-4 py-3">
+                                <p className="text-xs text-muted-foreground mb-1">Clientes em Atraso</p>
+                                <p className="text-2xl font-bold">{delinquencyStats.overdueCustomers}</p>
+                            </div>
+                        </div>
+                    )}
                     <CardContent>
                         <Tabs value={activeTab} onValueChange={setActiveTab}>
-                            <TabsList className="mb-4">
-                                <TabsTrigger value="active">Pedidos Ativos</TabsTrigger>
-                                <TabsTrigger value="web-requests" className="relative">
-                                    Solicitações Web
-                                    {filteredPendingOrders.length > 0 && (
-                                        <Badge variant="destructive" className="ml-2 h-5 w-5 p-0 flex items-center justify-center rounded-full text-[10px]">
-                                            {filteredPendingOrders.length}
-                                        </Badge>
-                                    )}
-                                </TabsTrigger>
-                                {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && <TabsTrigger value="deleted">Lixeira</TabsTrigger>}
-                            </TabsList>
+                            <div className="overflow-x-auto mb-4">
+                                <TabsList className="w-full justify-start md:w-auto">
+                                    <TabsTrigger value="active">Pedidos Ativos</TabsTrigger>
+                                    <TabsTrigger value="web-requests" className="relative">
+                                        Solicitações Web
+                                        {filteredPendingOrders.length > 0 && (
+                                            <Badge variant="destructive" className="ml-2 h-5 w-5 p-0 flex items-center justify-center rounded-full text-[10px]">
+                                                {filteredPendingOrders.length}
+                                            </Badge>
+                                        )}
+                                    </TabsTrigger>
+                                    {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && <TabsTrigger value="vencimento">Vencimento</TabsTrigger>}
+                                    {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && <TabsTrigger value="deleted">Lixeira</TabsTrigger>}
+                                </TabsList>
+                            </div>
                             <TabsContent value="web-requests">
-                                <div className="rounded-md border">
+                                <div className="rounded-md border overflow-x-auto">
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
@@ -627,6 +756,119 @@ Não esqueça de enviar o comprovante!`;
                                         </TableBody>
                                     </Table>
                                 </div>
+                            </TabsContent>
+                            <TabsContent value="vencimento">
+                                <div className="flex flex-wrap gap-4 mb-6 p-4 border rounded-lg bg-muted/50">
+                                    <div className="flex-grow min-w-[200px]">
+                                        <Select value={filters.vencimentoTabRange} onValueChange={(value) => handleFilterChange('vencimentoTabRange', value)}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Selecione o intervalo de dias" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {dueDateRanges.map(range => (
+                                                    <SelectItem key={range.value} value={range.value}>{range.label}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        Exibindo pedidos com parcelas pendentes para o mês de <strong>{format(new Date(), 'MMMM', { locale: ptBR })}</strong>.
+                                    </div>
+                                </div>
+
+                                {paginatedVencimentoOrders.length > 0 ? (
+                                    <>
+                                        <div className="rounded-md border overflow-x-auto">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead className="w-[120px] p-2">Pedido</TableHead>
+                                                        <TableHead className="p-2">Cliente</TableHead>
+                                                        <TableHead className="p-2">Vendedor</TableHead>
+                                                        <TableHead className="w-[100px] p-2">Vencimento</TableHead>
+                                                        <TableHead className="text-right p-2">Valor Parcela</TableHead>
+                                                        <TableHead className="text-right p-2">Total Pedido</TableHead>
+                                                        <TableHead className="text-right w-[150px] p-2">Ações</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {paginatedVencimentoOrders.map((order) => {
+                                                        const today = new Date();
+                                                        const currentMonth = getMonth(today);
+                                                        const currentYear = getYear(today);
+                                                        
+                                                        const currentMonthInstallments = (order.installmentDetails || [])
+                                                            .filter(inst => {
+                                                                if (inst.status !== 'Pendente') return false;
+                                                                const dueDate = parseISO(inst.dueDate);
+                                                                return getMonth(dueDate) === currentMonth && getYear(dueDate) === currentYear;
+                                                            })
+                                                            .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+                                                        const targetInstallment = currentMonthInstallments[0];
+
+                                                        return (
+                                                            <TableRow key={order.id} className="text-sm">
+                                                                <TableCell className="p-2 font-medium font-mono text-xs">{order.id}</TableCell>
+                                                                <TableCell className="p-2">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="truncate max-w-[200px] font-semibold">{order.customer.name}</span>
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell className="p-2 truncate max-w-[120px]">{order.sellerName}</TableCell>
+                                                                <TableCell className="p-2 font-semibold text-blue-600">
+                                                                    {targetInstallment ? format(parseISO(targetInstallment.dueDate), 'dd/MM/yy') : '-'}
+                                                                </TableCell>
+                                                                <TableCell className="p-2 text-right font-bold text-blue-600">
+                                                                    {targetInstallment ? formatCurrency(targetInstallment.amount - (targetInstallment.paidAmount || 0)) : '-'}
+                                                                </TableCell>
+                                                                <TableCell className="p-2 text-right">{formatCurrency(order.total)}</TableCell>
+                                                                <TableCell className="p-2 text-right">
+                                                                    <div className="flex items-center justify-end gap-1">
+                                                                        {targetInstallment && (
+                                                                            <Button variant="ghost" size="icon" className="h-7 w-7 bg-green-500/10 text-green-700 hover:bg-green-500/20 hover:text-green-800" onClick={() => handleSendWhatsAppReminder(order, targetInstallment)}>
+                                                                                <WhatsAppIcon />
+                                                                            </Button>
+                                                                        )}
+                                                                        <Button variant="outline" size="sm" onClick={() => handleOpenDetails(order)}>
+                                                                            <Eye className="h-4 w-4 mr-1" /> Detalhes
+                                                                        </Button>
+                                                                    </div>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        )
+                                                    })}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                        {totalVencimentoPages > 1 && (
+                                            <div className="flex flex-col gap-4 mt-4">
+                                                <div className="flex justify-between items-center">
+                                                    <div className="text-xs text-muted-foreground">
+                                                        Exibindo {paginatedVencimentoOrders.length} de {vencimentoOrders.length} pedidos com vencimento
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Button variant="outline" size="sm" onClick={() => setVencimentoPage(p => Math.max(1, p - 1))} disabled={vencimentoPage === 1}>
+                                                            Anterior
+                                                        </Button>
+                                                        <span className="text-sm">
+                                                            Página {vencimentoPage} de {totalVencimentoPages}
+                                                        </span>
+                                                        <Button variant="outline" size="sm" onClick={() => setVencimentoPage(p => Math.min(totalVencimentoPages, p + 1))} disabled={vencimentoPage === totalVencimentoPages}>
+                                                            Próxima
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="text-center py-16 text-muted-foreground border-2 border-dashed rounded-lg">
+                                        <CalendarIcon className="mx-auto h-12 w-12" />
+                                        <h3 className="mt-4 text-lg font-semibold">Nenhum vencimento encontrado</h3>
+                                        <p className="mt-1 text-sm">Não há parcelas pendentes para o intervalo e mês selecionados.</p>
+                                    </div>
+                                )}
                             </TabsContent>
                             <TabsContent value="active">
                                 <div className="flex flex-wrap gap-4 mb-6 p-4 border rounded-lg bg-muted/50">

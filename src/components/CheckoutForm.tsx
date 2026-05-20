@@ -807,6 +807,14 @@ Confirmação de Entrega: O pedido será enviado para o endereço acima.${vencTe
                 </div>
               </div>
             </div>
+            <div className="mt-3 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-800">
+              <span className="text-lg leading-none mt-0.5">⚠️</span>
+              <p className="text-sm">
+                <strong>Atenção:</strong> Na entrega do produto, você deverá pagar a entrada no valor de{' '}
+                <strong>{formatCurrency(total / maxAllowedInstallments)}</strong>{' '}
+                (equivalente ao valor de 1 parcela).
+              </p>
+            </div>
           </div>
           <div>
             <h3 className="text-xl font-semibold mb-4 font-headline">Informações do Cliente</h3>
@@ -890,6 +898,13 @@ Confirmação de Entrega: O pedido será enviado para o endereço acima.${vencTe
                 )}
               />
             </div>
+          </div>
+
+          <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-blue-800">
+            <span className="text-lg leading-none mt-0.5">🚚</span>
+            <p className="text-sm">
+              <strong>Taxa de entrega:</strong> O valor da entrega pode variar conforme sua localização. Consulte o vendedor ao finalizar o pedido para confirmar a taxa da sua região.
+            </p>
           </div>
 
           <div className="flex justify-end">

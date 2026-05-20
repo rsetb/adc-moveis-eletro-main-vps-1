@@ -224,7 +224,7 @@ export default function AvariasPage() {
                     <CardDescription>Lista de todas as avarias registradas no sistema.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="rounded-md border">
+                    <div className="rounded-md border overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow>

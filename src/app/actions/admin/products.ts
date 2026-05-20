@@ -3,6 +3,7 @@
 import { db } from '@/lib/db';
 import type { Product, User } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
+import { notifyChange } from '@/lib/change-notifier';
 
 export async function addProductAction(productData: any, user: User | null) {
     try {
@@ -28,6 +29,7 @@ export async function addProductAction(productData: any, user: User | null) {
 
         const created = await db.product.create({ data: newProduct });
         revalidatePath('/admin/produtos');
+        notifyChange('products');
         return {
             success: true,
             data: {
@@ -100,11 +102,31 @@ export async function updateProductAction(product: Product, user: User | null) {
             updateData.stock = stockValue;
         }
 
+        // Registrar alteração de preço se houver
+        const existingProduct = await db.product.findUnique({
+            where: { id },
+            select: { price: true, name: true }
+        });
+
+        if (existingProduct && existingProduct.price !== product.price) {
+            await (db as any).priceChange.create({
+                data: {
+                    productId: id,
+                    productName: existingProduct.name,
+                    oldPrice: existingProduct.price,
+                    newPrice: product.price,
+                    userId: user?.id,
+                    userName: user?.name,
+                }
+            });
+        }
+
         await db.product.update({
             where: { id },
             data: updateData
         });
         revalidatePath('/admin/produtos');
+        notifyChange('products');
         return { success: true };
     } catch (error: any) {
         console.error('updateProductAction failed:', error);
@@ -119,6 +141,7 @@ export async function deleteProductAction(productId: string, user: User | null) 
             data: { deletedAt: new Date().toISOString() } as any
         });
         revalidatePath('/admin/produtos');
+        notifyChange('products');
         return { success: true };
     } catch (error: any) {
         console.error('deleteProductAction failed:', error);

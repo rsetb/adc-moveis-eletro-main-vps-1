@@ -14,6 +14,10 @@ export const metadata: Metadata = {
   title: 'ADC MÓVEIS E ELETROS',
   description: 'ADC MÓVEIS E ELETROS - Sua loja de móveis e eletrodomésticos.',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/icon-192x192.png',
+    apple: '/icon-192x192.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',

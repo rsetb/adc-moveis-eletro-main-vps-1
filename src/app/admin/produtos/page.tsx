@@ -249,7 +249,7 @@ export default function ManageProductsPage() {
                     {isLoadingTrash && showTrash ? (
                         <div className="text-center py-8">Carregando lixeira...</div>
                     ) : filteredProducts.length > 0 ? (
-                        <div className="rounded-md border">
+                        <div className="rounded-md border overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>

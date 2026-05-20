@@ -54,33 +54,12 @@ export function PendingOrderReviewDialog({ isOpen, onClose, order, onSuccess }: 
                     description: `Pedido confirmado! ID: ${orderId}`,
                 });
                 
-                // Optional: Redirect to permanent order details or generate WhatsApp link
-                if (orderId && order.details?.customerData?.phone) {
-                     // Generate WhatsApp Link logic
-                     const customer = order.details.customerData;
-                     const orderData = order.details.orderData;
-                     
-                     const productsText = orderData.items.map((item: any) => 
-                        `• ${item.name}\n  ${item.quantity}x ${formatCurrency(item.price)} = ${formatCurrency(item.quantity * item.price)}`
-                     ).join('\n');
-
-                     const addressText = `${customer.address}, ${customer.number}\n${customer.neighborhood} - ${customer.city}/${customer.state}`;
-
-                     const message = `*PEDIDO CONFIRMADO!*\n\n` +
-                        `Olá *${customer.name}*, seu pedido *#${orderId}* foi aprovado com sucesso!\n\n` +
-                        `*RESUMO DO PEDIDO:*\n${productsText}\n\n` +
-                        `*TOTAL:* ${formatCurrency(order.total)}\n` +
-                        `*PAGAMENTO:* ${orderData.paymentMethod}${orderData.installments ? ` (${orderData.installments}x)` : ''}\n\n` +
-                        `*ENTREGA EM:*\n${addressText}\n\n` +
-                        `Obrigado pela preferência! Em breve enviaremos atualizações sobre a entrega.`;
-
-                     let phone = customer.phone.replace(/\D/g, '');
-                     if (!phone.startsWith('55')) {
-                        phone = `55${phone}`;
-                     }
-                     const whatsappLink = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-                     window.open(whatsappLink, '_blank');
+                // Força atualização da lista de pedidos no contexto global
+                if (typeof window !== 'undefined') {
+                    // Dispatch a custom event that the admin context can listen to
+                    window.dispatchEvent(new Event('order-updated'));
                 }
+                
                 onSuccess();
                 onClose();
             } else {

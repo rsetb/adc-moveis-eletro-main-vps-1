@@ -1,23 +1,26 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import type { User } from '@/lib/types';
-import { getUsersAction, createUserAction, updateUserAction, deleteUserAction, restoreUsersAction } from '@/app/actions/auth';
+import {
+  getUsersAction,
+  createUserAction,
+  updateUserAction,
+  deleteUserAction,
+  restoreUsersAction,
+  loginAction,
+  logoutAction,
+  getSessionAction,
+  changeMyPasswordAction,
+} from '@/app/actions/auth';
 import { useAudit } from './AuditContext';
-
-const initialUsers: User[] = [
-  { id: 'user-1', username: 'admin', password: 'adminpassword', name: 'Administrador', role: 'admin', canBeAssigned: true },
-  { id: 'user-2', username: 'gerente', password: 'gerentepassword', name: 'Gerente Loja', role: 'gerente', canBeAssigned: true },
-  { id: 'user-3', username: 'vendedor', password: 'vendedorpassword', name: 'Vendedor Teste', role: 'vendedor', canBeAssigned: true },
-];
 
 interface AuthContextType {
   user: User | null;
   users: User[];
-  login: (user: string, pass: string) => void;
+  login: (username: string, pass: string) => Promise<void>;
   logout: () => void;
   addUser: (data: Omit<User, 'id'>) => Promise<boolean>;
   updateUser: (userId: string, data: Partial<Omit<User, 'id'>>) => Promise<void>;
@@ -37,211 +40,113 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
   const { toast } = useToast();
   const { logAction } = useAudit();
-
-  // Ref to track if we should polling
   const isPolling = useRef(true);
 
-  // Function to fetch users centralizing logic
-  const fetchUsers = async (showLoading = false) => {
-    if (showLoading) setIsLoading(true);
-    try {
-      const result = await getUsersAction();
-
-      if (!result.success || !result.data) {
-        console.error('Error fetching users:', result.error);
-        return;
-      }
-
-      setUsers(result.data);
-
-      // Validate session against DB data
-      try {
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          const parsedUser = JSON.parse(storedUser) as User;
-          const validUser = result.data.find(u => u.id === parsedUser.id);
-
-          if (validUser && validUser.active === false) {
-            // User inactivated while logged in
-            console.warn("User account inactivated. Logging out.");
-            localStorage.removeItem('user');
-            setUser(null);
-            toast({ title: 'Sessão Encerrada', description: 'Sua conta foi inativada pelo administrador.', variant: 'destructive' });
-            return;
-          }
-
-          if (validUser) {
-            // Update session with fresh data
-            const updatedUser = { ...validUser };
-            delete updatedUser.password;
-
-            // Only update state if data actually changed to avoid render loops (simple check)
-            setUser(prev => {
-              if (JSON.stringify(prev) !== JSON.stringify(updatedUser)) {
-                localStorage.setItem('user', JSON.stringify(updatedUser));
-                return updatedUser;
-              }
-              return prev;
-            });
-          } else {
-            // User deleted
-            localStorage.removeItem('user');
-            setUser(null);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to validate session:", error);
-        localStorage.removeItem('user');
-        setUser(null);
-      }
-    } finally {
-      if (showLoading) setIsLoading(false);
+  const fetchUsers = async () => {
+    const result = await getUsersAction();
+    if (result.success && result.data) {
+      setUsers(result.data as User[]);
     }
   };
 
-  useEffect(() => {
-    // Initial fetch
-    fetchUsers(true);
+  const validateSession = async (): Promise<boolean> => {
+    const result = await getSessionAction();
+    if (!result.success || !result.user) {
+      setUser(null);
+      setUsers([]);
+      return false;
+    }
+    setUser(result.user as User);
+    return true;
+  };
 
-    // Polling interval (Replace Realtime)
-    const intervalId = setInterval(() => {
-      if (isPolling.current) {
-        fetchUsers(false);
-      }
-    }, 30000); // Poll every 30 seconds
+  useEffect(() => {
+    const init = async () => {
+      setIsLoading(true);
+      const valid = await validateSession();
+      if (valid) await fetchUsers();
+      setIsLoading(false);
+    };
+    init();
+
+    const intervalId = setInterval(async () => {
+      if (!isPolling.current) return;
+      await validateSession();
+      await fetchUsers();
+    }, 30000);
 
     return () => {
       clearInterval(intervalId);
       isPolling.current = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-
-  const login = (username: string, pass: string) => {
-    // Logic remains same - client side filtering of fetched users
-    // (This matches previous implementation)
-    const foundUser = users.find(u => u.username.toLowerCase() === username.toLowerCase());
-
-    if (!foundUser) {
-      toast({ title: 'Falha no Login', description: 'Usuário não encontrado.', variant: 'destructive' });
-      return;
-    }
-
-    if (foundUser.active === false) {
-      toast({ title: 'Falha no Login', description: 'Esta conta está inativada. Entre em contato com o administrador.', variant: 'destructive' });
-      return;
-    }
-
-    if (!foundUser.password) {
-      toast({ title: 'Falha no Login', description: 'Usuário sem senha cadastrada.', variant: 'destructive' });
-      return;
-    }
-
-    const isPasswordValid = foundUser.password === pass;
-    if (isPasswordValid) {
-      const userToStore = { ...foundUser };
-      delete userToStore.password;
-
-      setUser(userToStore);
-      localStorage.setItem('user', JSON.stringify(userToStore));
-      logAction('Login', `Usuário "${foundUser.name}" realizou login.`, userToStore);
+  const login = async (username: string, pass: string): Promise<void> => {
+    const result = await loginAction(username, pass);
+    if (result.success && result.user) {
+      setUser(result.user as User);
+      await fetchUsers();
+      logAction('Login', `Usuário "${result.user.name}" realizou login.`, result.user as User);
       router.push('/admin');
-      toast({
-        title: 'Login bem-sucedido!',
-        description: `Bem-vindo(a), ${foundUser.name}.`,
-      });
+      toast({ title: 'Login bem-sucedido!', description: `Bem-vindo(a), ${result.user.name}.` });
     } else {
-      toast({
-        title: 'Falha no Login',
-        description: 'Senha inválida.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Falha no Login', description: result.error ?? 'Credenciais inválidas.', variant: 'destructive' });
     }
   };
 
   const logout = () => {
-    if (user) {
-      logAction('Logout', `Usuário "${user.name}" realizou logout.`, user);
-    }
-    setUser(null);
-    localStorage.removeItem('user');
-    router.push('/login');
+    if (user) logAction('Logout', `Usuário "${user.name}" realizou logout.`, user);
+    logoutAction().then(() => {
+      setUser(null);
+      setUsers([]);
+      router.push('/login');
+    });
   };
 
   const addUser = async (data: Omit<User, 'id'>): Promise<boolean> => {
     const isUsernameTaken = users.some(u => u.username.toLowerCase() === data.username.toLowerCase());
     if (isUsernameTaken) {
-      toast({
-        title: 'Erro ao Criar Usuário',
-        description: 'Este nome de usuário já está em uso.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Erro ao Criar Usuário', description: 'Este nome de usuário já está em uso.', variant: 'destructive' });
       return false;
     }
-
     const result = await createUserAction(data);
-
     if (result.success && result.data) {
-      const newUser = result.data as User;
-      setUsers((prev) => [...prev, newUser]);
+      setUsers(prev => [...prev, result.data as User]);
       logAction('Criação de Usuário', `Novo usuário "${data.name}" (Perfil: ${data.role}) foi criado.`, user);
-      toast({
-        title: 'Usuário Criado!',
-        description: `O usuário ${data.name} foi criado com sucesso.`,
-      });
+      toast({ title: 'Usuário Criado!', description: `O usuário ${data.name} foi criado com sucesso.` });
       return true;
     } else {
-      toast({
-        title: 'Erro ao Criar Usuário',
-        description: 'Não foi possível salvar o novo usuário. ' + result.error,
-        variant: 'destructive',
-      });
+      toast({ title: 'Erro ao Criar Usuário', description: result.error ?? 'Não foi possível salvar o novo usuário.', variant: 'destructive' });
       return false;
     }
   };
 
   const updateUser = async (userId: string, data: Partial<Omit<User, 'id'>>) => {
     if (data.username) {
-      const isUsernameTaken = users.some(u => u.id !== userId && u.username.toLowerCase() === data.username?.toLowerCase());
-      if (isUsernameTaken) {
-        toast({
-          title: 'Erro ao Atualizar',
-          description: 'Este nome de usuário já está em uso por outra conta.',
-          variant: 'destructive',
-        });
+      const isTaken = users.some(u => u.id !== userId && u.username.toLowerCase() === data.username?.toLowerCase());
+      if (isTaken) {
+        toast({ title: 'Erro ao Atualizar', description: 'Este nome de usuário já está em uso por outra conta.', variant: 'destructive' });
         return;
       }
     }
-
-    const updatedUser = users.find(u => u.id === userId);
-    if (updatedUser) {
-      let details = `Dados do usuário "${updatedUser.name}" foram alterados.`;
-      if (data.name && data.name !== updatedUser.name) details += ` Nome: de "${updatedUser.name}" para "${data.name}".`;
+    const existing = users.find(u => u.id === userId);
+    if (existing) {
+      let details = `Dados do usuário "${existing.name}" foram alterados.`;
+      if (data.name && data.name !== existing.name) details += ` Nome: de "${existing.name}" para "${data.name}".`;
       logAction('Atualização de Usuário', details, user);
     }
-
     const result = await updateUserAction(userId, data);
-
     if (result.success) {
-      setUsers((prev) => prev.map((u) => (u.id === userId ? ({ ...u, ...data } as User) : u)));
-
+      setUsers(prev => prev.map(u => (u.id === userId ? { ...u, ...data } as User : u)));
       if (user?.id === userId) {
-        const updatedCurrentUser = { ...user, ...data };
-        delete updatedCurrentUser.password;
-        setUser(updatedCurrentUser);
-        localStorage.setItem('user', JSON.stringify(updatedCurrentUser));
+        const updated = { ...user, ...data };
+        delete updated.password;
+        setUser(updated);
       }
-
-      toast({
-        title: 'Usuário Atualizado!',
-        description: 'As informações do usuário foram salvas com sucesso.',
-      });
+      toast({ title: 'Usuário Atualizado!', description: 'As informações do usuário foram salvas com sucesso.' });
     } else {
-      toast({
-        title: 'Erro ao Atualizar',
-        description: 'Não foi possível salvar as alterações do usuário. ' + result.error,
-        variant: 'destructive',
-      });
+      toast({ title: 'Erro ao Atualizar', description: result.error ?? 'Não foi possível salvar as alterações.', variant: 'destructive' });
       throw new Error(result.error);
     }
   };
@@ -251,51 +156,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       toast({ title: 'Ação não permitida', description: 'Você não pode excluir seu próprio usuário.', variant: 'destructive' });
       return;
     }
-
-    const userToDelete = users.find(u => u.id === userId);
+    const toDelete = users.find(u => u.id === userId);
     const result = await deleteUserAction(userId);
-
     if (result.success) {
-      setUsers((prev) => prev.filter((u) => u.id !== userId));
-      if (userToDelete) {
-        logAction('Exclusão de Usuário', `Usuário "${userToDelete.name}" foi excluído.`, user);
-      }
-      toast({
-        title: 'Usuário Excluído!',
-        description: 'O usuário foi removido do sistema.',
-        variant: 'destructive',
-        duration: 5000,
-      });
+      setUsers(prev => prev.filter(u => u.id !== userId));
+      if (toDelete) logAction('Exclusão de Usuário', `Usuário "${toDelete.name}" foi excluído.`, user);
+      toast({ title: 'Usuário Excluído!', description: 'O usuário foi removido do sistema.', variant: 'destructive', duration: 5000 });
     } else {
-      toast({
-        title: 'Erro ao Excluir',
-        description: 'Não foi possível excluir o usuário. ' + result.error,
-        variant: 'destructive',
-      });
+      toast({ title: 'Erro ao Excluir', description: result.error ?? 'Não foi possível excluir o usuário.', variant: 'destructive' });
       throw new Error(result.error);
     }
   };
 
   const changeMyPassword = async (currentPassword: string, newPassword: string): Promise<boolean> => {
-    if (!user) {
-      toast({ title: "Erro", description: "Você não está logado.", variant: "destructive" });
-      return false;
-    }
-
-    const currentUserInDB = users.find(u => u.id === user.id);
-    if (!currentUserInDB || currentUserInDB.password !== currentPassword) {
-      toast({ title: "Erro", description: "A senha atual está incorreta.", variant: "destructive" });
-      return false;
-    }
-
-    // Reuse updateUser
-    const result = await updateUserAction(user.id, { password: newPassword });
+    const result = await changeMyPasswordAction(currentPassword, newPassword);
     if (result.success) {
-      logAction('Alteração de Senha', `O usuário "${user.name}" alterou a própria senha.`, user);
-      toast({ title: "Senha Alterada!", description: "Sua senha foi atualizada com sucesso." });
-      // Update local state is handled by updateUser (or next poll)
+      logAction('Alteração de Senha', `O usuário "${user?.name}" alterou a própria senha.`, user);
+      toast({ title: 'Senha Alterada!', description: 'Sua senha foi atualizada com sucesso.' });
       return true;
     }
+    toast({ title: 'Erro', description: result.error ?? 'Não foi possível alterar a senha.', variant: 'destructive' });
     return false;
   };
 
@@ -303,8 +183,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const result = await restoreUsersAction(usersToRestore);
     if (result.success) {
       logAction('Restauração de Usuários', 'Todos os usuários foram restaurados a partir de um backup.', user);
-      toast({ title: "Usuários Restaurados!", description: "A lista de usuários foi substituída com sucesso." });
-      fetchUsers(false); // Immediate refresh
+      toast({ title: 'Usuários Restaurados!', description: 'A lista de usuários foi substituída com sucesso.' });
+      await fetchUsers();
     } else {
       toast({ title: 'Erro', description: result.error, variant: 'destructive' });
     }

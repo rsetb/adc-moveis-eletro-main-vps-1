@@ -7,6 +7,7 @@ import { useTheme } from 'next-themes';
 import { PermissionsProvider } from '@/context/PermissionsContext';
 import { AdminProvider } from '@/context/AdminContext';
 import AdminNav from '@/components/AdminNav';
+import { PriceChangeAlerts } from '@/components/PriceChangeAlerts';
 import { useAuth } from '@/context/AuthContext';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -115,6 +116,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
 
                     <main className="container mx-auto p-4">
                         <AdminNav />
+                        <PriceChangeAlerts />
                         {children}
                     </main>
                 </div>

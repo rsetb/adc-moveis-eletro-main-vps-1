@@ -14,13 +14,11 @@ function assertTrashPermission(user: User | null) {
 
 export async function createTemporaryOrderAction(payload: { orderData: any; customerData: any }) {
     try {
-        // Clean up expired orders (lazy cleanup)
-        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        // Clean up expired non-trashed orders after 7 days
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
         await db.temporaryOrder.deleteMany({
             where: {
-                createdAt: {
-                    lt: yesterday
-                },
+                createdAt: { lt: sevenDaysAgo },
                 deletedAt: null
             }
         });
@@ -39,6 +37,10 @@ export async function createTemporaryOrderAction(payload: { orderData: any; cust
 }
 
 export async function confirmTemporaryOrderAction(tempId: string) {
+    const session = await import('@/lib/session').then(m => m.getSession());
+    if (!session) return { success: false, error: 'Permissão negada.' };
+    const canConfirm = ['admin', 'gerente', 'vendedor', 'vendedor_externo'].includes(session.role);
+    if (!canConfirm) return { success: false, error: 'Permissão negada.' };
     try {
         const tempOrder = await db.temporaryOrder.findUnique({
             where: { id: tempId }

@@ -116,8 +116,19 @@ export type Installment = {
 
 export type PaymentMethod = 'Crediário' | 'Pix' | 'Dinheiro' | 'Cartão Crédito' | 'Cartão Débito';
 
+export type AsaasInstallmentCharge = {
+  installmentNumber: number;
+  chargeId: string;
+  status: string;
+  invoiceUrl: string;
+  createdAt: string;
+};
+
 export type AsaasPaymentInfo = {
   customerId?: string;
+  // Per-installment charges (new flow)
+  charges?: AsaasInstallmentCharge[];
+  // Legacy single-payment fields
   paymentId?: string;
   status?: string | null;
   lastEvent?: string;
@@ -219,7 +230,31 @@ export type AppSection =
   | 'auditoria'
   | 'configuracao'
   | 'usuarios'
-  | 'avarias';
+  | 'avarias'
+  | 'pastas';
+
+export type FolderFile = {
+  id: string;
+  folderId: string;
+  name: string;
+  fileType: 'image' | 'document';
+  mimeType?: string;
+  size?: number;
+  dataUrl: string;
+  observations?: string;
+  createdAt: string;
+};
+
+export type PersonFolder = {
+  id: string;
+  name: string;
+  observations?: string;
+  createdById?: string;
+  createdByName?: string;
+  createdAt: string;
+  updatedAt: string;
+  files: FolderFile[];
+};
 
 export type RolePermissions = Record<UserRole, AppSection[]>;
 

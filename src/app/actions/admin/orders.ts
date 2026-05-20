@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import type { Order, User } from '@/lib/types';
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
 import { computeStockDeltas, getBillingPriority } from '@/lib/utils';
+import { notifyChange } from '@/lib/change-notifier';
 
 /**
  * Maps raw database fields (snake_case) to Order type fields (camelCase).
@@ -453,6 +454,7 @@ export async function updateOrderStatusAction(orderId: string, status: Order['st
             console.log('[updateOrderStatusAction] Success:', updatedOrder.status);
 
             revalidatePath('/admin/pedidos');
+            notifyChange('orders');
             return { success: true, data: updatedOrder as unknown as Order };
         });
 
@@ -548,6 +550,7 @@ export async function recordInstallmentPaymentAction(orderId: string, installmen
         });
 
         revalidatePath('/admin/pedidos');
+        notifyChange('orders');
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message };

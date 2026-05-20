@@ -16,6 +16,7 @@ import { useData } from '@/context/DataContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCart } from '@/context/CartContext';
 import { useSearchParams } from 'next/navigation';
+import { PackageSearch, LayoutGrid } from 'lucide-react';
 
 
 const formatCurrency = (value: number) => {
@@ -332,19 +333,48 @@ export default function Home() {
       )}
 
       <div id="catalog" className="container mx-auto px-4 py-8">
-
+        {/* Cabeçalho da seção */}
+        {!isLoading && (
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <LayoutGrid className="h-5 w-5 text-primary" />
+              <h2 className="text-xl font-bold text-foreground">
+                {filters.category !== 'all'
+                  ? <span className="capitalize">{filters.category}{filters.subcategory !== 'all' ? ` › ${filters.subcategory}` : ''}</span>
+                  : filters.search
+                    ? `Resultados para "${filters.search}"`
+                    : 'Todos os Produtos'
+                }
+              </h2>
+            </div>
+            {filteredAndSortedProducts.length > 0 && (
+              <span className="text-sm text-muted-foreground hidden sm:block">
+                {filteredAndSortedProducts.length} {filteredAndSortedProducts.length === 1 ? 'produto' : 'produtos'}
+              </span>
+            )}
+          </div>
+        )}
 
         {isLoading ? (
           <ProductGridSkeleton />
         ) : filteredAndSortedProducts.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredAndSortedProducts.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
           </div>
         ) : (
-          <div className="text-center py-16">
-            <p className="text-lg text-muted-foreground">Nenhum produto encontrado.</p>
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <PackageSearch className="h-16 w-16 text-muted-foreground/40" />
+            <p className="text-lg font-medium text-muted-foreground">Nenhum produto encontrado.</p>
+            {(filters.category !== 'all' || filters.search) && (
+              <Button
+                variant="outline"
+                onClick={() => handleFilterChange({ category: 'all', subcategory: 'all', search: '' })}
+              >
+                Limpar filtros
+              </Button>
+            )}
           </div>
         )}
       </div>

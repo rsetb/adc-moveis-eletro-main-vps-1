@@ -44,6 +44,7 @@ import { parseUnifiedSearchFilters } from '@/lib/customer-search';
 
 
 import { OrderEditDialog } from '@/components/OrderEditDialog';
+import WhatsappHistory from '@/components/WhatsappHistory';
 
 const getStatusVariant = (status: Order['status']): 'secondary' | 'default' | 'outline' | 'destructive' => {
     switch (status) {
@@ -91,6 +92,15 @@ const matchesTokens = (haystackNormalized: string, queryNormalized: string) => {
     return tokens.every((t) => haystackNormalized.includes(t));
 };
 
+// Mais fiel: cada token deve ser prefixo de uma palavra (não substring no meio de outra)
+const matchesTokensWordStart = (haystackNormalized: string, queryNormalized: string) => {
+    if (!queryNormalized) return true;
+    const tokens = queryNormalized.split(' ').filter(Boolean);
+    if (tokens.length === 0) return true;
+    const words = haystackNormalized.split(/\s+/);
+    return tokens.every(t => words.some(w => w.startsWith(t)));
+};
+
 const hasAnySearchFilter = (filters: CustomerSearchFilters) => {
     return Object.keys(filters || {}).length > 0;
 };
@@ -110,7 +120,7 @@ const customerMatchesSearchFilters = (c: CustomerInfo, filters: CustomerSearchFi
 
     if (qNorm || qDigits) {
         const haystack = customerSearchText(c);
-        const okText = qNorm ? matchesTokens(haystack, qNorm) : false;
+        const okText = qNorm ? matchesTokensWordStart(haystack, qNorm) : false;
         const okDigits = qDigits ? customerDigitsText(c).includes(qDigits) : false;
         if (!okText && !okDigits) return false;
     }
@@ -324,6 +334,18 @@ function CustomersAdminPageInner() {
     const [isGeneratingCustomerCodes, setIsGeneratingCustomerCodes] = useState(false);
     const [isOrderEditDialogOpen, setIsOrderEditDialogOpen] = useState(false);
     const [orderToEdit, setOrderToEdit] = useState<Order | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    const handleOpenPaymentDialog = (order: Order, installment: Installment) => {
+        setOrderForPayment(order);
+        setInstallmentToPay(installment);
+        setPaymentDialogOpen(true);
+    };
+
+    const handleOpenOrderEdit = (order: Order) => {
+        setOrderToEdit(order);
+        setIsOrderEditDialogOpen(true);
+    };
 
     const [commentDialog, setCommentDialog] = useState<{
         open: boolean;
@@ -402,7 +424,7 @@ function CustomersAdminPageInner() {
             result = result.filter((c) => {
                 if (qNorm || qDigits) {
                     const haystack = customerSearchText(c);
-                    const okText = qNorm ? matchesTokens(haystack, qNorm) : false;
+                    const okText = qNorm ? matchesTokensWordStart(haystack, qNorm) : false;
                     const okDigits = qDigits ? customerDigitsText(c).includes(qDigits) : false;
                     if (!okText && !okDigits) return false;
                 }
@@ -609,7 +631,7 @@ function CustomersAdminPageInner() {
         let totalPago = 0;
 
         for (const order of ordersForSelectedCustomer) {
-            if (order.status === 'Cancelado') continue;
+            if (order.status === 'Cancelado' || order.status === 'Excluído') continue;
             totalComprado += Number(order.total || 0);
 
             if (order.paymentMethod === 'Crediário') {
@@ -631,43 +653,101 @@ function CustomersAdminPageInner() {
         return { totalComprado, totalPago, saldoDevedor: Math.max(0, totalComprado - totalPago) };
     }, [ordersForSelectedCustomer]);
 
+    const handleUpdateInstallmentDueDate = async (orderId: string, installmentNumber: number, date: Date | undefined) => {
+        if (date && user) {
+            try {
+                // Atualização local imediata (Optimistic Update)
+                if (selectedCustomer) {
+                    const customerKey = getCustomerKey(selectedCustomer);
+                    const updateCustomerOrders = (prevOrders: Order[]) => prevOrders.map(o => {
+                        if (o.id === orderId) {
+                            const updatedInstallments = o.installmentDetails?.map(inst =>
+                                inst.installmentNumber === installmentNumber ? { ...inst, dueDate: date.toISOString() } : inst
+                            );
+                            return { ...o, installmentDetails: updatedInstallments };
+                        }
+                        return o;
+                    });
 
-    useEffect(() => {
-        if (orderToEdit && selectedCustomer) {
-            const updated = ordersForSelectedCustomer.find(o => o.id === orderToEdit.id);
-            if (updated && JSON.stringify(updated) !== JSON.stringify(orderToEdit)) {
-                setOrderToEdit(updated);
+                    setServerCustomerOrders(prev => ({
+                        ...prev,
+                        [customerKey]: updateCustomerOrders(prev[customerKey] || [])
+                    }));
+                }
+
+                setIsProcessing(true);
+                const res = await updateInstallmentDueDate(orderId, installmentNumber, date, logAction, user);
+                
+                toast({ title: "Sucesso", description: "Vencimento atualizado com sucesso." });
+            } catch (error: any) {
+                toast({ title: "Erro", description: error.message || "Erro ao atualizar vencimento.", variant: "destructive" });
+                // Em caso de erro, o AdminContext.tsx (que chama updateInstallmentDueDate) 
+                // já tem lógica para dar fetch no server ou podemos forçar um refresh aqui se necessário
+            } finally {
+                setIsProcessing(false);
             }
         }
-    }, [ordersForSelectedCustomer, selectedCustomer, orderToEdit]);
-
-    const handleOpenOrderEdit = (order: Order) => {
-        setOrderToEdit(order);
-        setIsOrderEditDialogOpen(true);
-    };
-
-    const handleOpenPaymentDialog = (order: Order, installment: Installment) => {
-        setOrderForPayment(order);
-        setInstallmentToPay(installment);
-        setPaymentDialogOpen(true);
+        setOpenDueDatePopover(null);
     };
 
     const handlePaymentSubmit = async (payment: Omit<Payment, 'receivedBy'>) => {
         if (orderForPayment && installmentToPay && user) {
-            await recordInstallmentPayment(orderForPayment.id, installmentToPay.installmentNumber, payment, logAction, user);
-            window.open(`/carnet/${orderForPayment.id}/${installmentToPay.installmentNumber}`, '_blank');
+            try {
+                setIsProcessing(true);
+                await recordInstallmentPayment(orderForPayment.id, installmentToPay.installmentNumber, payment, logAction, user);
+                
+                // Atualização local do estado serverCustomerOrders para refletir o pagamento imediatamente
+                if (selectedCustomer) {
+                    const customerKey = getCustomerKey(selectedCustomer);
+                    setServerCustomerOrders(prev => {
+                        const currentOrders = prev[customerKey] || [];
+                        const updatedOrders = currentOrders.map(o => {
+                            if (o.id === orderForPayment.id) {
+                                const updatedInstallments = o.installmentDetails?.map(inst => {
+                                    if (inst.installmentNumber === installmentToPay.installmentNumber) {
+                                        const currentPaid = inst.paidAmount || 0;
+                                        const newPaid = currentPaid + payment.amount;
+                                        const isPaid = newPaid >= (inst.amount - 0.01);
+                                        return {
+                                            ...inst,
+                                            paidAmount: newPaid,
+                                            status: (isPaid ? 'Pago' : 'Parcial') as Installment['status'],
+                                            payments: [...(inst.payments || []), { ...payment, receivedBy: user.name }]
+                                        };
+                                    }
+                                    return inst;
+                                });
+                                return { ...o, installmentDetails: updatedInstallments };
+                            }
+                            return o;
+                        });
+                        return { ...prev, [customerKey]: updatedOrders };
+                    });
+                }
+
+                window.open(`/carnet/${orderForPayment.id}/${installmentToPay.installmentNumber}`, '_blank');
+                toast({ title: "Sucesso", description: "Pagamento registrado com sucesso." });
+            } catch (error: any) {
+                toast({ title: "Erro", description: error.message || "Erro ao registrar pagamento.", variant: "destructive" });
+            } finally {
+                setIsProcessing(false);
+            }
         }
         setPaymentDialogOpen(false);
         setInstallmentToPay(null);
         setOrderForPayment(null);
     };
 
-    const handleDueDateChange = (orderId: string, installmentNumber: number, date: Date | undefined) => {
-        if (date && user) {
-            updateInstallmentDueDate(orderId, installmentNumber, date, logAction, user);
+    useEffect(() => {
+        if (orderToEdit && selectedCustomer) {
+            const customerKey = getCustomerKey(selectedCustomer);
+            const currentOrders = serverCustomerOrders[customerKey] || [];
+            const updated = currentOrders.find(o => o.id === orderToEdit.id);
+            if (updated && JSON.stringify(updated) !== JSON.stringify(orderToEdit)) {
+                setOrderToEdit(updated);
+            }
         }
-        setOpenDueDatePopover(null);
-    };
+    }, [serverCustomerOrders, selectedCustomer, orderToEdit]);
 
     const addAttachments = useCallback(async (order: Order, newAttachments: Omit<Attachment, 'addedAt' | 'addedBy'>[]) => {
         if (!user) return;
@@ -1599,7 +1679,7 @@ Não esqueça de enviar o comprovante!`;
                                                             </div>
                                                         </AccordionTrigger>
                                                         <AccordionContent>
-                                                            <div className="p-4 pt-0 space-y-6">
+                                                            <div className="p-4 pt-0 space-y-6 overflow-x-auto">
                                                                 {(order.installmentDetails && order.installmentDetails.length > 0) ? (
                                                                     <Table>
                                                                         <TableBody>
@@ -1636,7 +1716,7 @@ Não esqueça de enviar o comprovante!`;
                                                                                                                 mode="single"
                                                                                                                 selected={new Date(inst.dueDate)}
                                                                                                                 defaultMonth={new Date(inst.dueDate)}
-                                                                                                                onSelect={(date) => handleDueDateChange(order.id, inst.installmentNumber, date)}
+                                                                                                                onSelect={(date) => handleUpdateInstallmentDueDate(order.id, inst.installmentNumber, date)}
                                                                                                             />
                                                                                                         </PopoverContent>
                                                                                                     </Popover>
@@ -1675,10 +1755,10 @@ Não esqueça de enviar o comprovante!`;
                                                                                         {isExpanded && (
                                                                                             <TableRow>
                                                                                                 <TableCell colSpan={5} className="p-0 border-none">
-                                                                                                    <div className="p-3 bg-muted/30 border-t">
-                                                                                                        <h4 className="font-semibold text-sm mb-2">Histórico de Pagamentos da Parcela</h4>
-                                                                                                        {(inst.payments && inst.payments.length > 0) ? (
-                                                                                                            <Table>
+                                                                                                    <div className="p-3 bg-muted/30 border-t overflow-x-auto">
+                                                                        <h4 className="font-semibold text-sm mb-2">Histórico de Pagamentos da Parcela</h4>
+                                                                        {(inst.payments && inst.payments.length > 0) ? (
+                                                                            <Table>
                                                                                                                 <TableHeader>
                                                                                                                     <TableRow>
                                                                                                                         <TableHead>Data</TableHead>
@@ -1712,7 +1792,49 @@ Não esqueça de enviar o comprovante!`;
                                                                                                                                             </AlertDialogHeader>
                                                                                                                                             <AlertDialogFooter>
                                                                                                                                                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                                                                                                                <AlertDialogAction onClick={() => reversePayment(order.id, inst.installmentNumber, p.id, logAction, user)}>
+                                                                                                                                                <AlertDialogAction onClick={async () => {
+                                                                                                                                                    await reversePayment(order.id, inst.installmentNumber, p.id, logAction, user);
+                                                                                                                                                    
+                                                                                                                                                    // Atualização local do estado serverCustomerOrders para refletir o estorno imediatamente
+                                                                                                                                                    if (selectedCustomer) {
+                                                                                                                                                        const customerKey = getCustomerKey(selectedCustomer);
+                                                                                                                                                        setServerCustomerOrders(prev => {
+                                                                                                                                                            const currentOrders = prev[customerKey] || [];
+                                                                                                                                                            const updatedOrders = currentOrders.map(o => {
+                                                                                                                                                                if (o.id === order.id) {
+                                                                                                                                                                    const updatedInstallments = o.installmentDetails?.map(instDetail => {
+                                                                                                                                                                        if (instDetail.installmentNumber === inst.installmentNumber) {
+                                                                                                                                                                            const paymentToRemove = instDetail.payments.find(pay => pay.id === p.id);
+                                                                                                                                                                            if (!paymentToRemove) return instDetail;
+
+                                                                                                                                                                            const currentPaid = instDetail.paidAmount || 0;
+                                                                                                                                                                            const newPaid = Math.max(0, currentPaid - paymentToRemove.amount);
+                                                                                                                                                                            let newStatus: Installment['status'] = 'Pendente';
+                                                                                                                                                                            if (newPaid >= (instDetail.amount - 0.01)) {
+                                                                                                                                                                                newStatus = 'Pago';
+                                                                                                                                                                            } else if (newPaid > 0) {
+                                                                                                                                                                                newStatus = 'Parcial';
+                                                                                                                                                                            }
+
+                                                                                                                                                                            const updatedPayments = instDetail.payments.filter(pay => pay.id !== p.id);
+
+                                                                                                                                                                            return {
+                                                                                                                                                                                ...instDetail,
+                                                                                                                                                                                paidAmount: newPaid,
+                                                                                                                                                                                status: newStatus,
+                                                                                                                                                                                payments: updatedPayments
+                                                                                                                                                                            };
+                                                                                                                                                                        }
+                                                                                                                                                                        return instDetail;
+                                                                                                                                                                    });
+                                                                                                                                                                    return { ...o, installmentDetails: updatedInstallments };
+                                                                                                                                                                }
+                                                                                                                                                                return o;
+                                                                                                                                                            });
+                                                                                                                                                            return { ...prev, [customerKey]: updatedOrders };
+                                                                                                                                                        });
+                                                                                                                                                    }
+                                                                                                                                                }}>
                                                                                                                                                     Sim, Estornar
                                                                                                                                                 </AlertDialogAction>
                                                                                                                                             </AlertDialogFooter>
@@ -1902,6 +2024,10 @@ Não esqueça de enviar o comprovante!`;
                                     ) : (
                                         <p className="text-muted-foreground text-sm text-center py-8">Nenhum pedido encontrado para este cliente.</p>
                                     )}
+                                    <WhatsappHistory
+                                        customerId={selectedCustomer.id}
+                                        customerName={selectedCustomer.name}
+                                    />
                                 </div>
                             </div>
                         ) : (

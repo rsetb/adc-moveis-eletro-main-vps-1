@@ -249,3 +249,75 @@ model TemporaryOrder {
 
   @@map("temporary_orders_data")
 }
+
+model PriceChange {
+  id          String   @id @default(uuid())
+  productId   String   @map("product_id")
+  productName String   @map("product_name")
+  oldPrice    Float    @map("old_price")
+  newPrice    Float    @map("new_price")
+  userId      String?  @map("user_id")
+  userName    String?  @map("user_name")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("price_changes")
+}
+
+model WhatsappSession {
+  id           String            @id @default(uuid())
+  customerId   String            @map("customer_id")
+  title        String
+  importedAt   DateTime          @default(now()) @map("imported_at")
+  importedBy   String?           @map("imported_by")
+  messageCount Int               @default(0) @map("message_count")
+  messages     WhatsappMessage[]
+
+  @@index([customerId])
+  @@map("whatsapp_sessions")
+}
+
+model WhatsappMessage {
+  id        String          @id @default(uuid())
+  sessionId String          @map("session_id")
+  session   WhatsappSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  timestamp DateTime
+  sender    String
+  content   String          @db.Text
+  mediaData String?         @map("media_data") @db.LongText
+  mediaType String?         @map("media_type")
+  mediaName String?         @map("media_name")
+
+  @@index([sessionId])
+  @@index([timestamp])
+  @@map("whatsapp_messages")
+}
+
+model PersonFolder {
+  id            String       @id @default(uuid())
+  name          String
+  observations  String?      @db.Text
+  createdById   String?      @map("created_by_id")
+  createdByName String?      @map("created_by_name")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  files         FolderFile[]
+
+  @@index([name])
+  @@map("person_folders")
+}
+
+model FolderFile {
+  id           String       @id @default(uuid())
+  folderId     String       @map("folder_id")
+  folder       PersonFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  name         String
+  fileType     String       @map("file_type")
+  mimeType     String?      @map("mime_type")
+  size         Int?
+  dataUrl      String       @map("data_url") @db.LongText
+  observations String?      @db.Text
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  @@index([folderId])
+  @@map("folder_files")
+}

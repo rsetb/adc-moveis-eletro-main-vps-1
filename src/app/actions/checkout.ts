@@ -3,6 +3,7 @@
 import { db } from '@/lib/db';
 import type { CustomerInfo, Order } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
+import { notifyChange } from '@/lib/change-notifier';
 
 export async function findCustomerByCpfAction(cpf: string) {
     try {
@@ -215,6 +216,8 @@ export async function createOrderAction(orderData: any, customerData: any) {
         if (result.success) {
             revalidatePath('/admin/pedidos');
             revalidatePath('/admin/clientes');
+            notifyChange('orders');
+            notifyChange('customers');
         }
 
         return result;

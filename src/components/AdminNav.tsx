@@ -24,8 +24,8 @@ export default function AdminNav() {
   const hasUnreadMessages = chatSessions.some(session => session.unreadBySeller);
 
   return (
-    <div className="mb-8 md:overflow-x-auto">
-      <nav className="flex flex-col gap-1 md:flex-row md:h-10 md:items-center md:justify-start rounded-md bg-muted p-1 text-muted-foreground">
+    <div className="mb-8 overflow-x-auto">
+      <nav className="flex flex-row gap-1 h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground min-w-max">
         {accessibleNavItems.map(item => {
           const isActive = pathname.startsWith(`/admin/${item.id}`);
           

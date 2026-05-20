@@ -612,7 +612,12 @@ export default function ConfiguracaoPage() {
                         <FormControl>
                           <Input placeholder="sandbox ou production" {...field} />
                         </FormControl>
-                        <FormDescription>Use sandbox para testes e production para produção.</FormDescription>
+                        <FormDescription>
+                          Use <strong>sandbox</strong> para testes e <strong>production</strong> para produção.{' '}
+                          <a href="https://sandbox.asaas.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">Acessar sandbox</a>
+                          {' · '}
+                          <a href="https://www.asaas.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">Acessar produção</a>
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -622,7 +627,11 @@ export default function ConfiguracaoPage() {
                     <FormControl>
                       <Input value={asaasWebhookUrl} readOnly />
                     </FormControl>
-                    <FormDescription>Cadastre esta URL no painel do Asaas.</FormDescription>
+                    <FormDescription>
+                      Cadastre esta URL em{' '}
+                      <a href="https://www.asaas.com/config/notificacoes/webhook" target="_blank" rel="noopener noreferrer" className="text-primary underline">Minha Conta → Integrações → Webhook</a>{' '}
+                      no painel do Asaas.
+                    </FormDescription>
                   </FormItem>
                 </div>
 
@@ -636,7 +645,11 @@ export default function ConfiguracaoPage() {
                         <FormControl>
                           <Input type="password" placeholder="Cole aqui sua API Key do Asaas" {...field} />
                         </FormControl>
-                        <FormDescription>Usado para criar cobranças e obter QR Code PIX.</FormDescription>
+                        <FormDescription>
+                          Acesse{' '}
+                          <a href="https://www.asaas.com/config/integracoes" target="_blank" rel="noopener noreferrer" className="text-primary underline">Minha Conta → Integrações → API Key</a>{' '}
+                          para copiar seu token.
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -650,7 +663,10 @@ export default function ConfiguracaoPage() {
                         <FormControl>
                           <Input type="password" placeholder="Defina um token e configure no Asaas" {...field} />
                         </FormControl>
-                        <FormDescription>Valida o header asaas-access-token do webhook.</FormDescription>
+                        <FormDescription>
+                          Crie um token aqui, depois cadastre-o em{' '}
+                          <a href="https://www.asaas.com/config/notificacoes/webhook" target="_blank" rel="noopener noreferrer" className="text-primary underline">Webhook → campo "Token de autenticação"</a>.
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}

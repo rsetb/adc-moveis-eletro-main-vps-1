@@ -633,9 +633,9 @@ export default function CreateOrderPage() {
             </div>
 
             <div>
-              <h3 className="text-lg font-medium mb-2">Itens do Pedido</h3>
-              <div className="rounded-md border">
-                <Table>
+                <h3 className="text-lg font-medium mb-2">Itens do Pedido</h3>
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Produto</TableHead>
@@ -841,7 +841,7 @@ export default function CreateOrderPage() {
                   <FileText className="h-5 w-5" />
                   Pré-visualização do Carnê
                 </h3>
-                <div className="rounded-md border max-h-60 overflow-y-auto">
+                <div className="rounded-md border max-h-60 overflow-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>

@@ -3,6 +3,7 @@
 
 import { ReactNode } from "react";
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import ScrollButtons from "@/components/ScrollButtons";
 
 export default function PublicPageLayout({ children }: { children: ReactNode }) {
@@ -12,6 +13,7 @@ export default function PublicPageLayout({ children }: { children: ReactNode }) 
             <main className="flex-grow">
                 {children}
             </main>
+            <Footer />
             <ScrollButtons />
         </div>
     );

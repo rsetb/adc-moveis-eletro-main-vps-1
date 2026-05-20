@@ -23,13 +23,11 @@ function assertTrashPermission(user: User | null) {
 
 export async function getPendingOrdersAction() {
     try {
-        // Clean up expired orders (lazy cleanup)
-        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        // Clean up expired non-trashed orders after 7 days
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
         await db.temporaryOrder.deleteMany({
             where: {
-                createdAt: {
-                    lt: yesterday
-                },
+                createdAt: { lt: sevenDaysAgo },
                 deletedAt: null
             }
         });
@@ -42,31 +40,28 @@ export async function getPendingOrdersAction() {
         // Enrich orders with customer rating if available
         const enrichedOrders = await Promise.all(orders.map(async (order: any) => {
             const customerData = order.data?.customerData;
+            let enrichedCustomerData = { ...customerData };
             if (customerData?.cpf) {
                 try {
                     const customerResult = await findCustomerByCpfAction(customerData.cpf);
                     if (customerResult.success && customerResult.data) {
-                        // Merge rating and sellerId into customerData
-                        if (customerResult.data.rating) {
-                            order.data.customerData.rating = customerResult.data.rating;
-                        }
-                        if (customerResult.data.sellerId) {
-                            order.data.customerData.sellerId = customerResult.data.sellerId;
-                        }
+                        if (customerResult.data.rating) enrichedCustomerData.rating = customerResult.data.rating;
+                        if (customerResult.data.sellerId) enrichedCustomerData.sellerId = customerResult.data.sellerId;
                     }
                 } catch (err) {
                     console.error(`Error fetching customer for pending order ${order.id}:`, err);
                 }
             }
-            
+            const enrichedData = { ...order.data, customerData: enrichedCustomerData };
+
             return {
                 id: order.id,
                 createdAt: order.createdAt,
-                customerName: order.data?.customerData?.name || 'Cliente Desconhecido',
-                total: order.data?.orderData?.total || 0,
-                itemsCount: order.data?.orderData?.items?.length || 0,
-                details: order.data,
-                sellerId: order.data?.customerData?.sellerId
+                customerName: enrichedData.customerData?.name || 'Cliente Desconhecido',
+                total: enrichedData.orderData?.total || 0,
+                itemsCount: enrichedData.orderData?.items?.length || 0,
+                details: enrichedData,
+                sellerId: enrichedData.customerData?.sellerId
             };
         }));
 
