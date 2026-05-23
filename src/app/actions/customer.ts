@@ -30,11 +30,10 @@ export async function getCustomerOrdersAction(customerCpf: string) {
         // Using raw query for JSON containment is often safer for complex JSON paths.
         // But let's try Prisma's JSON filter syntax first.
 
-        // Para MySQL, usar sintaxe de path JSON como string
         const result = await db.order.findMany({
             where: {
                 customer: {
-                    path: '$.cpf',
+                    path: ['cpf'],
                     equals: customerCpf
                 }
             },

@@ -113,7 +113,7 @@ export async function POST(request: Request) {
       const orderByPayment = await db.order.findFirst({
         where: {
           asaas: {
-            path: '$.paymentId',
+            path: ['paymentId'],
             equals: paymentId,
           },
         },
