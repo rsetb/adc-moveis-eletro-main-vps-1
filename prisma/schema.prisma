@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -26,7 +26,7 @@ model Product {
   code             String?
   name             String
   description      String?  @db.Text
-  longDescription  String?  @db.LongText @map("long_description")
+  longDescription  String?  @db.Text @map("long_description")
   price            Float
   originalPrice    Float?   @map("original_price")
   cost             Float?
@@ -283,7 +283,7 @@ model WhatsappMessage {
   timestamp DateTime
   sender    String
   content   String          @db.Text
-  mediaData String?         @map("media_data") @db.LongText
+  mediaData String?         @map("media_data") @db.Text
   mediaType String?         @map("media_type")
   mediaName String?         @map("media_name")
 
@@ -314,7 +314,7 @@ model FolderFile {
   fileType     String       @map("file_type")
   mimeType     String?      @map("mime_type")
   size         Int?
-  dataUrl      String       @map("data_url") @db.LongText
+  dataUrl      String       @map("data_url") @db.Text
   observations String?      @db.Text
   createdAt    DateTime     @default(now()) @map("created_at")
 
