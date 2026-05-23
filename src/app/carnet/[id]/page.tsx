@@ -19,7 +19,7 @@ import { getOrderForCarnetAction } from '@/app/actions/orders-fetcher';
 
 
 const initialSettings: StoreSettings = {
-    storeName: 'ADC Móveis',
+    storeName: 'Minha Loja',
     storeCity: '',
     storeAddress: '',
     pixKey: '',

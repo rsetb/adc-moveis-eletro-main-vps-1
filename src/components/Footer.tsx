@@ -23,7 +23,7 @@ export default function Footer() {
               <Logo />
             </div>
             <p className="text-primary-foreground/70 text-sm leading-relaxed">
-              Sua loja de móveis e eletrodomésticos com os melhores preços e condições de pagamento.
+              Os melhores produtos com os melhores preços e condições de pagamento.
             </p>
             <div className="flex items-center gap-2 text-primary-foreground/60 text-xs">
               <ShieldCheck className="h-4 w-4 text-accent flex-shrink-0" />
@@ -88,7 +88,7 @@ export default function Footer() {
       {/* Barra inferior */}
       <div className="border-t border-primary-foreground/10">
         <div className="container mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-primary-foreground/50">
-          <span>© {year} {settings.storeName || 'ADC Móveis e Eletros'}. Todos os direitos reservados.</span>
+          <span>© {year} {settings.storeName || 'Catálogo Pro'}. Todos os direitos reservados.</span>
           <Link href="/area-cliente/login" className="hover:text-accent transition-colors">
             Área do Cliente
           </Link>

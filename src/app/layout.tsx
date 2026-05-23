@@ -11,8 +11,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'ADC MÓVEIS E ELETROS',
-  description: 'ADC MÓVEIS E ELETROS - Sua loja de móveis e eletrodomésticos.',
+  title: 'Catálogo',
+  description: 'Catálogo de produtos online.',
   manifest: '/manifest.json',
   icons: {
     icon: '/icon-192x192.png',
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'ADC',
+    title: 'Catálogo',
   },
 };
 

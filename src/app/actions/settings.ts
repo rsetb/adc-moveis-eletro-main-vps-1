@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 import type { StoreSettings } from '@/lib/types';
 
 const initialSettings: StoreSettings = {
-    storeName: 'ADC Móveis',
+    storeName: 'Minha Loja',
     storeCity: '',
     storeAddress: '',
     pixKey: '',

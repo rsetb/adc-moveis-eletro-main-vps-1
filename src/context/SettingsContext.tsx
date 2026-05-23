@@ -10,7 +10,7 @@ import type { StoreSettings } from '@/lib/types';
 import { getSettingsAction, updateSettingsAction } from '@/app/actions/settings';
 
 const initialSettings: StoreSettings = {
-    storeName: 'ADC Móveis',
+    storeName: 'Minha Loja',
     storeCity: '',
     storeAddress: '',
     pixKey: '',

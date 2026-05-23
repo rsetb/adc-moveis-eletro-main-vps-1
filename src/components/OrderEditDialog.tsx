@@ -418,7 +418,7 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
         const value = formatCurrency(installment.amount);
         const customerName = String(order.customer.name || '').split(' ')[0]; // First name
 
-        const message = `Olá ${customerName}, referente à parcela ${installment.installmentNumber} do seu pedido na ADC Móveis e Eletro, com vencimento em ${dueDate}, no valor de ${value}. Gostaria de saber se já efetuou o pagamento?`;
+        const message = `Olá ${customerName}, referente à parcela ${installment.installmentNumber} do seu pedido, com vencimento em ${dueDate}, no valor de ${value}. Gostaria de saber se já efetuou o pagamento?`;
 
         const encodedMessage = encodeURIComponent(message);
         window.open(`https://wa.me/55${phone}?text=${encodedMessage}`, '_blank');
