@@ -8,7 +8,7 @@
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "prisma generate && next build",
-    "start": "prisma db push --accept-data-loss && next start",
+    "start": "prisma db push --accept-data-loss --skip-generate || echo 'db push failed, continuing...' && next start",
     "postinstall": "prisma generate",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
