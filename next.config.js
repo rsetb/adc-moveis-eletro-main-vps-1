@@ -13,7 +13,6 @@ const nextConfig = {
       },
     ],
   },
-  serverExternalPackages: ['firebase-admin'],
   async rewrites() {
     return [
       { source: '/@vite/client', destination: '/__vite_client.js' },
