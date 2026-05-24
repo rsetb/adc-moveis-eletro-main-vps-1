@@ -521,32 +521,42 @@ export async function permanentlyDeleteOrderAction(orderId: string, user: User |
     }
 }
 
+// Maps Payment method string to CashPaymentMethod
+function mapPaymentMethod(method: string): string {
+    const m = (method ?? '').toLowerCase();
+    if (m.includes('pix')) return 'PIX';
+    if (m.includes('cart') || m.includes('créd') || m.includes('cred') || m.includes('déb') || m.includes('deb')) return 'CARTAO';
+    if (m.includes('dinheiro')) return 'DINHEIRO';
+    return 'OUTRO';
+}
+
 // Installment Payments
 export async function recordInstallmentPaymentAction(orderId: string, installmentNumber: number, payment: any, user: User | null) {
     try {
-        // Vendedor Cobrança CAN record payments now (restriction removed)
+        // Check for open cash register
+        const activeCash = await (db as any).cashRegister.findFirst({ where: { status: 'ABERTO' } });
+        if (!activeCash) {
+            return { success: false, error: 'Nenhum caixa aberto. Abra o caixa antes de registrar pagamentos.', code: 'CASH_CLOSED' };
+        }
 
-        const order = await db.order.findUnique({
-            where: { id: orderId }
-        });
-
+        const order = await db.order.findUnique({ where: { id: orderId } });
         if (!order) throw new Error('Order not found');
 
-        // Handling JSON update manually
         const installments = (order.installmentDetails as any) || [];
+
+        let isDuplicatePayment = false;
+        let isQuitacao = false;
 
         const updatedInstallments = installments.map((inst: any) => {
             if (inst.installmentNumber === installmentNumber) {
-                // Prevent double payments (check for recent payment with same amount)
-                // If a payment with same amount was made in the last 5 seconds, ignore this one.
                 const isDuplicate = (inst.payments || []).some((p: any) => {
-                    if (p.id === payment.id) return true; // Same ID
+                    if (p.id === payment.id) return true;
                     const timeDiff = Math.abs(new Date(p.date).getTime() - new Date(payment.date).getTime());
-                    return p.amount === payment.amount && timeDiff < 5000; // 5 seconds window
+                    return p.amount === payment.amount && timeDiff < 5000;
                 });
 
                 if (isDuplicate) {
-                    console.log(`[recordInstallmentPaymentAction] Duplicate payment detected (Amount: ${payment.amount}), ignoring.`);
+                    isDuplicatePayment = true;
                     return inst;
                 }
 
@@ -558,18 +568,47 @@ export async function recordInstallmentPaymentAction(orderId: string, installmen
                     ...inst,
                     paidAmount: newPaid,
                     status: newStatus,
-                    payments: [...(inst.payments || []), payment]
+                    payments: [...(inst.payments || []), payment],
                 };
             }
             return inst;
         });
 
-        await db.order.update({
-            where: { id: orderId },
-            data: { installmentDetails: updatedInstallments }
+        if (isDuplicatePayment) {
+            return { success: true };
+        }
+
+        // Check if all installments will be paid after this update (quitação)
+        isQuitacao = updatedInstallments.every((inst: any) =>
+            inst.status === 'Pago' || (inst.installmentNumber === installmentNumber && (inst.paidAmount + payment.amount) >= (inst.amount - 0.01))
+        );
+
+        const cashMovementType = isQuitacao ? 'QUITACAO' : 'RECEBIMENTO';
+        const pmMethod = mapPaymentMethod(payment.method ?? '');
+
+        await db.$transaction(async (tx: any) => {
+            await tx.order.update({
+                where: { id: orderId },
+                data: { installmentDetails: updatedInstallments },
+            });
+
+            await tx.cashMovement.create({
+                data: {
+                    cashRegisterId: activeCash.id,
+                    type: cashMovementType,
+                    paymentMethod: pmMethod,
+                    amount: payment.amount,
+                    referenceType: 'order',
+                    referenceId: orderId,
+                    reason: `Parcela ${installmentNumber} — Pedido ${orderId.slice(-6).toUpperCase()}`,
+                    createdById: user?.id ?? null,
+                    createdByName: user?.name ?? null,
+                },
+            });
         });
 
         revalidatePath('/admin/pedidos');
+        revalidatePath('/admin/caixa');
         notifyChange('orders');
         return { success: true };
     } catch (error: any) {
@@ -759,54 +798,73 @@ export async function reverseInstallmentPaymentAction(orderId: string, installme
         if (user?.role === 'vendedor_cobranca') {
             throw new Error('Permissão negada: Vendedor Cobrança não pode realizar estornos.');
         }
-        const order = await db.order.findUnique({
-            where: { id: orderId }
-        });
 
+        // Check for open cash register
+        const activeCash = await (db as any).cashRegister.findFirst({ where: { status: 'ABERTO' } });
+        if (!activeCash) {
+            return { success: false, error: 'Nenhum caixa aberto. Abra o caixa antes de realizar estornos.', code: 'CASH_CLOSED' };
+        }
+
+        const order = await db.order.findUnique({ where: { id: orderId } });
         if (!order) throw new Error('Order not found');
 
         const installments = (order.installmentDetails as any) || [];
 
+        // Find payment to remove first (need its amount and method for CashMovement)
+        let paymentToRemove: any = null;
+        for (const inst of installments) {
+            if (inst.installmentNumber === installmentNumber) {
+                paymentToRemove = (inst.payments || []).find((p: any) => p.id === paymentId);
+                break;
+            }
+        }
+
+        if (!paymentToRemove) {
+            return { success: false, error: 'Pagamento não encontrado.' };
+        }
+
         const updatedInstallments = installments.map((inst: any) => {
             if (inst.installmentNumber === installmentNumber) {
                 const payments = (inst.payments || []) as any[];
-
-                // Find the payment to remove
-                const paymentToRemove = payments.find((p: any) => p.id === paymentId);
-
-                if (!paymentToRemove) return inst;
-
-                const currentPaid = inst.paidAmount || 0;
-                // Calculate new paid amount (ensure non-negative)
-                const newPaid = Math.max(0, currentPaid - paymentToRemove.amount);
-
-                // Determine new status based on newPaid
+                const newPaid = Math.max(0, (inst.paidAmount || 0) - paymentToRemove.amount);
                 let newStatus = 'Pendente';
-                if (newPaid >= (inst.amount - 0.01)) {
-                    newStatus = 'Pago';
-                } else if (newPaid > 0) {
-                    newStatus = 'Parcial';
-                }
-
-                // Filter out the reversed payment
-                const updatedPayments = payments.filter((p: any) => p.id !== paymentId);
-
+                if (newPaid >= (inst.amount - 0.01)) newStatus = 'Pago';
+                else if (newPaid > 0) newStatus = 'Parcial';
                 return {
                     ...inst,
                     paidAmount: newPaid,
                     status: newStatus,
-                    payments: updatedPayments
+                    payments: payments.filter((p: any) => p.id !== paymentId),
                 };
             }
             return inst;
         });
 
-        await db.order.update({
-            where: { id: orderId },
-            data: { installmentDetails: updatedInstallments }
+        const pmMethod = mapPaymentMethod(paymentToRemove.method ?? '');
+
+        await db.$transaction(async (tx: any) => {
+            await tx.order.update({
+                where: { id: orderId },
+                data: { installmentDetails: updatedInstallments },
+            });
+
+            await tx.cashMovement.create({
+                data: {
+                    cashRegisterId: activeCash.id,
+                    type: 'ESTORNO',
+                    paymentMethod: pmMethod,
+                    amount: paymentToRemove.amount,
+                    referenceType: 'order',
+                    referenceId: orderId,
+                    reason: `Estorno parcela ${installmentNumber} — Pedido ${orderId.slice(-6).toUpperCase()}`,
+                    createdById: user?.id ?? null,
+                    createdByName: user?.name ?? null,
+                },
+            });
         });
 
         revalidatePath('/admin/pedidos');
+        revalidatePath('/admin/caixa');
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message };

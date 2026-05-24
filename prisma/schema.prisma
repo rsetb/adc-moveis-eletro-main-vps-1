@@ -311,6 +311,43 @@ model StockMovement {
   @@map("stock_movements")
 }
 
+model CashRegister {
+  id             String         @id @default(uuid())
+  openedById     String         @map("opened_by_id")
+  openedByName   String         @map("opened_by_name")
+  openingAmount  Float          @map("opening_amount")
+  closingAmount  Float?         @map("closing_amount")
+  expectedAmount Float?         @map("expected_amount")
+  difference     Float?
+  status         String         @default("ABERTO")
+  openedAt       DateTime       @default(now()) @map("opened_at")
+  closedAt       DateTime?      @map("closed_at")
+  movements      CashMovement[]
+
+  @@index([status])
+  @@index([openedAt])
+  @@map("cash_registers")
+}
+
+model CashMovement {
+  id             String       @id @default(uuid())
+  cashRegisterId String       @map("cash_register_id")
+  cashRegister   CashRegister @relation(fields: [cashRegisterId], references: [id])
+  type           String
+  paymentMethod  String       @map("payment_method")
+  amount         Float
+  reason         String?
+  referenceType  String?      @map("reference_type")
+  referenceId    String?      @map("reference_id")
+  createdById    String?      @map("created_by_id")
+  createdByName  String?      @map("created_by_name")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  @@index([cashRegisterId])
+  @@index([createdAt])
+  @@map("cash_movements")
+}
+
 model PersonFolder {
   id            String       @id @default(uuid())
   name          String

@@ -218,6 +218,32 @@ export async function createOrderAction(orderData: any, customerData: any) {
             revalidatePath('/admin/clientes');
             notifyChange('orders');
             notifyChange('customers');
+
+            // Record downPayment as ENTRADA_PEDIDO (non-blocking — ignore if no open cash)
+            const dp = Number(orderData.downPayment ?? 0);
+            if (dp > 0) {
+                try {
+                    const activeCash = await (db as any).cashRegister.findFirst({ where: { status: 'ABERTO' } });
+                    if (activeCash) {
+                        await (db as any).cashMovement.create({
+                            data: {
+                                cashRegisterId: activeCash.id,
+                                type: 'ENTRADA_PEDIDO',
+                                paymentMethod: 'DINHEIRO',
+                                amount: dp,
+                                referenceType: 'order',
+                                referenceId: orderData.id,
+                                reason: `Entrada pedido ${String(orderData.id).slice(-6).toUpperCase()}`,
+                                createdById: orderData.createdById ?? null,
+                                createdByName: orderData.createdByName ?? null,
+                            },
+                        });
+                        revalidatePath('/admin/caixa');
+                    }
+                } catch {
+                    // Non-blocking: order creation already succeeded
+                }
+            }
         }
 
         return result;

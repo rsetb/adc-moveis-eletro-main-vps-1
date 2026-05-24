@@ -232,7 +232,8 @@ export type AppSection =
   | 'usuarios'
   | 'avarias'
   | 'pastas'
-  | 'estoque';
+  | 'estoque'
+  | 'caixa';
 
 export type FinancialPeriod = 'today' | 'week' | 'month' | 'year' | 'custom';
 
@@ -279,6 +280,38 @@ export type FinancialReport = {
   monthlyData: { name: string; vendido: number; recebido: number }[];
   overdueInstallments: OverdueInstallment[];
   recentOrders: FinancialReportOrder[];
+};
+
+export type CashRegisterStatus = 'ABERTO' | 'FECHADO';
+export type CashMovementType = 'ABERTURA' | 'RECEBIMENTO' | 'ENTRADA_PEDIDO' | 'QUITACAO' | 'SANGRIA' | 'SUPRIMENTO' | 'ESTORNO';
+export type CashPaymentMethod = 'DINHEIRO' | 'PIX' | 'CARTAO' | 'BOLETO' | 'OUTRO';
+
+export type CashRegister = {
+  id: string;
+  openedById: string;
+  openedByName: string;
+  openingAmount: number;
+  closingAmount?: number;
+  expectedAmount?: number;
+  difference?: number;
+  status: CashRegisterStatus;
+  openedAt: string;
+  closedAt?: string;
+  movements?: CashMovement[];
+};
+
+export type CashMovement = {
+  id: string;
+  cashRegisterId: string;
+  type: CashMovementType;
+  paymentMethod: CashPaymentMethod;
+  amount: number;
+  reason?: string;
+  referenceType?: string;
+  referenceId?: string;
+  createdById?: string;
+  createdByName?: string;
+  createdAt: string;
 };
 
 export type StockMovementType = 'ENTRADA' | 'SAIDA' | 'AJUSTE' | 'AVARIA' | 'VENDA';
