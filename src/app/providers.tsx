@@ -1,7 +1,6 @@
 'use client';
 
 import { ThemeProvider } from 'next-themes';
-import { SpeedInsights } from '@vercel/speed-insights/next';
 import { AuditProvider } from '@/context/AuditContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { SettingsProvider } from '@/context/SettingsContext';
@@ -27,7 +26,6 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           </SettingsProvider>
         </AuthProvider>
       </AuditProvider>
-      <SpeedInsights />
     </ThemeProvider>
   );
 }
