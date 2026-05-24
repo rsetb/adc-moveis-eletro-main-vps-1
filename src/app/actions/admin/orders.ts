@@ -109,13 +109,12 @@ export async function searchOrdersAction(term: string) {
     if (!term || term.trim().length < 3) return { success: true, data: [] };
 
     try {
-        // Use queryRaw for case-insensitive JSON search in MySQL
         const searchTerm = `%${term}%`;
         const orders = await db.$queryRaw`
-            SELECT * FROM orders 
-            WHERE id LIKE ${searchTerm}
-            OR LOWER(JSON_UNQUOTE(JSON_EXTRACT(customer, '$.name'))) LIKE LOWER(${searchTerm})
-            OR LOWER(JSON_UNQUOTE(JSON_EXTRACT(customer, '$.code'))) LIKE LOWER(${searchTerm})
+            SELECT * FROM orders
+            WHERE id ILIKE ${searchTerm}
+            OR customer->>'name' ILIKE ${searchTerm}
+            OR customer->>'code' ILIKE ${searchTerm}
             ORDER BY date DESC
             LIMIT 50
         `;
@@ -142,12 +141,12 @@ export async function getCustomerOrdersAction(
             const target = (cpf.length === 11 ? cpf : id);
             if (user?.role === 'vendedor_cobranca') {
                 const orders = await db.$queryRaw`
-                    SELECT * FROM orders 
+                    SELECT * FROM orders
                     WHERE (
-                        JSON_UNQUOTE(JSON_EXTRACT(customer, '$.cpf')) = ${target}
-                        OR JSON_UNQUOTE(JSON_EXTRACT(customer, '$.id')) = ${target}
+                        customer->>'cpf' = ${target}
+                        OR customer->>'id' = ${target}
                     )
-                    AND sellerId = ${user.id}
+                    AND seller_id = ${user.id}
                     ORDER BY date DESC, created_at DESC
                     LIMIT 5000
                 `;
@@ -155,10 +154,10 @@ export async function getCustomerOrdersAction(
             }
 
             const orders = await db.$queryRaw`
-                SELECT * FROM orders 
+                SELECT * FROM orders
                 WHERE (
-                    JSON_UNQUOTE(JSON_EXTRACT(customer, '$.cpf')) = ${target}
-                    OR JSON_UNQUOTE(JSON_EXTRACT(customer, '$.id')) = ${target}
+                    customer->>'cpf' = ${target}
+                    OR customer->>'id' = ${target}
                 )
                 ORDER BY date DESC, created_at DESC
                 LIMIT 5000
@@ -169,9 +168,9 @@ export async function getCustomerOrdersAction(
         if (code) {
             if (user?.role === 'vendedor_cobranca') {
                 const orders = await db.$queryRaw`
-                    SELECT * FROM orders 
-                    WHERE LOWER(JSON_UNQUOTE(JSON_EXTRACT(customer, '$.code'))) = LOWER(${code})
-                    AND sellerId = ${user.id}
+                    SELECT * FROM orders
+                    WHERE customer->>'code' ILIKE ${code}
+                    AND seller_id = ${user.id}
                     ORDER BY date DESC, created_at DESC
                     LIMIT 5000
                 `;
@@ -179,8 +178,8 @@ export async function getCustomerOrdersAction(
             }
 
             const orders = await db.$queryRaw`
-                SELECT * FROM orders 
-                WHERE LOWER(JSON_UNQUOTE(JSON_EXTRACT(customer, '$.code'))) = LOWER(${code})
+                SELECT * FROM orders
+                WHERE customer->>'code' ILIKE ${code}
                 ORDER BY date DESC, created_at DESC
                 LIMIT 5000
             `;
@@ -190,10 +189,10 @@ export async function getCustomerOrdersAction(
         if (name && phone) {
             if (user?.role === 'vendedor_cobranca') {
                 const orders = await db.$queryRaw`
-                    SELECT * FROM orders 
-                    WHERE LOWER(JSON_UNQUOTE(JSON_EXTRACT(customer, '$.name'))) = LOWER(${name})
-                    AND REPLACE(REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(customer, '$.phone')), ' ', ''), '-', ''), '(', '') LIKE ${`%${phone}%`}
-                    AND sellerId = ${user.id}
+                    SELECT * FROM orders
+                    WHERE customer->>'name' ILIKE ${name}
+                    AND regexp_replace(customer->>'phone', '[^0-9]', '', 'g') LIKE ${`%${phone}%`}
+                    AND seller_id = ${user.id}
                     ORDER BY date DESC, created_at DESC
                     LIMIT 5000
                 `;
@@ -201,9 +200,9 @@ export async function getCustomerOrdersAction(
             }
 
             const orders = await db.$queryRaw`
-                SELECT * FROM orders 
-                WHERE LOWER(JSON_UNQUOTE(JSON_EXTRACT(customer, '$.name'))) = LOWER(${name})
-                AND REPLACE(REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(customer, '$.phone')), ' ', ''), '-', ''), '(', '') LIKE ${`%${phone}%`}
+                SELECT * FROM orders
+                WHERE customer->>'name' ILIKE ${name}
+                AND regexp_replace(customer->>'phone', '[^0-9]', '', 'g') LIKE ${`%${phone}%`}
                 ORDER BY date DESC, created_at DESC
                 LIMIT 5000
             `;
