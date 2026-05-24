@@ -56,7 +56,12 @@ function row_bool(val: any) {
 }
 
 // Helper to adjust stock in a transaction
-async function adjustStock(tx: any, items: any[], type: 'deduct' | 'restore') {
+async function adjustStock(
+    tx: any,
+    items: any[],
+    type: 'deduct' | 'restore',
+    context?: { orderId?: string; user?: User | null }
+) {
     for (const item of items) {
         if (!item.id || item.id.startsWith('CUSTOM-')) continue;
 
@@ -80,6 +85,22 @@ async function adjustStock(tx: any, items: any[], type: 'deduct' | 'restore') {
             : { stock: { increment: quantity } };
 
         await tx.product.update({ where: { id: item.id }, data });
+
+        await tx.stockMovement.create({
+            data: {
+                productId: item.id,
+                productName: product.name,
+                type: type === 'deduct' ? 'VENDA' : 'AJUSTE',
+                quantity,
+                reason: type === 'deduct'
+                    ? `Venda - Pedido ${context?.orderId ?? ''}`
+                    : `Estorno - Pedido ${context?.orderId ?? ''}`,
+                referenceId: context?.orderId ?? null,
+                createdById: context?.user?.id ?? null,
+                createdByName: context?.user?.name ?? null,
+            },
+        });
+
         console.log(`[adjustStock] Stock for ${item.id} ${type}: ${currentStock} -> ${type === 'deduct' ? currentStock - quantity : currentStock + quantity}`);
     }
 }
@@ -429,10 +450,10 @@ export async function updateOrderStatusAction(orderId: string, status: Order['st
             const items = (order.items as any[]) || [];
             if (wasActive && isNowInactive) {
                 // Moving from Active to Inactive -> RESTORE stock
-                await adjustStock(tx, items, 'restore');
+                await adjustStock(tx, items, 'restore', { orderId, user });
             } else if (wasInactive && isNowActive) {
                 // Moving from Inactive to Active -> DEDUCT stock
-                await adjustStock(tx, items, 'deduct');
+                await adjustStock(tx, items, 'deduct', { orderId, user });
             }
 
             const updateData: any = { status: newStatus };
@@ -629,9 +650,9 @@ export async function updateOrderDetailsAction(orderId: string, data: Record<str
             const nextItems = (updateData.items as any[]) ?? previousItems;
 
             if (wasActive && isNowInactive) {
-                await adjustStock(tx, previousItems, 'restore');
+                await adjustStock(tx, previousItems, 'restore', { orderId, user });
             } else if (wasInactive && isNowActive) {
-                await adjustStock(tx, nextItems, 'deduct');
+                await adjustStock(tx, nextItems, 'deduct', { orderId, user });
             } else if (wasActive && isNowActive && updateData.items !== undefined) {
                 const deltas = computeStockDeltas(previousItems, nextItems);
                 for (const d of deltas) {

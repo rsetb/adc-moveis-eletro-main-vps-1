@@ -231,7 +231,25 @@ export type AppSection =
   | 'configuracao'
   | 'usuarios'
   | 'avarias'
-  | 'pastas';
+  | 'pastas'
+  | 'estoque';
+
+export type StockMovementType = 'ENTRADA' | 'SAIDA' | 'AJUSTE' | 'AVARIA' | 'VENDA';
+
+export type StockMovement = {
+  id: string;
+  productId: string;
+  productName: string;
+  type: StockMovementType;
+  quantity: number;
+  unitCost?: number;
+  totalCost?: number;
+  reason?: string;
+  referenceId?: string;
+  createdById?: string;
+  createdByName?: string;
+  createdAt: string;
+};
 
 export type FolderFile = {
   id: string;
