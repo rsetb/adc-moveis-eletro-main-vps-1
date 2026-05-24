@@ -1141,6 +1141,10 @@ Não esqueça de enviar o comprovante!`;
 
     return (
         <>
+            <div className="mb-6">
+                <h1 className="text-2xl font-bold tracking-tight">Clientes</h1>
+                <p className="text-sm text-muted-foreground">Gerencie clientes e visualize histórico de compras</p>
+            </div>
             <div className="grid lg:grid-cols-3 gap-8 items-start">
                 <Card className="lg:col-span-1">
                     <CardHeader>

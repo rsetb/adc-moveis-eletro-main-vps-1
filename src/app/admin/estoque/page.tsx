@@ -216,8 +216,8 @@ export default function EstoquePage() {
         <div className="flex flex-col gap-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold">Gestão de Estoque</h1>
-                    <p className="text-muted-foreground text-sm">Controle entradas, saídas e ajustes de estoque</p>
+                    <h1 className="text-2xl font-bold tracking-tight">Estoque</h1>
+                    <p className="text-sm text-muted-foreground">Controle entradas, saídas e ajustes de estoque</p>
                 </div>
                 <Button variant="outline" size="sm" onClick={loadSummary} disabled={loading}>
                     <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />

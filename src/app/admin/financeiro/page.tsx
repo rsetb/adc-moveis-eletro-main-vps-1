@@ -182,8 +182,8 @@ export default function FinanceiroPage() {
             {/* Header */}
             <div className="print:hidden flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold">Financeiro</h1>
-                    <p className="text-sm text-muted-foreground">Resumo real de vendas, recebimentos e comissões</p>
+                    <h1 className="text-2xl font-bold tracking-tight">Financeiro</h1>
+                    <p className="text-sm text-muted-foreground">Resumo de vendas, recebimentos e comissões</p>
                 </div>
                 <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={loadReport} disabled={loading}>

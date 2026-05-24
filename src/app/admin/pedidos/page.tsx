@@ -681,10 +681,16 @@ Não esqueça de enviar o comprovante!`;
 
     return (
         <>
-            <div className="print-hidden">
+            <div className="print-hidden space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight">Pedidos</h1>
+                        <p className="text-sm text-muted-foreground">Gerencie pedidos e acompanhe parcelas do crediário</p>
+                    </div>
+                </div>
                 <Card>
-                    <CardHeader>
-                        <CardTitle>Gerenciamento de Pedidos</CardTitle>
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Gerenciamento de Pedidos</CardTitle>
                         <CardDescription>Visualize e atualize o status dos pedidos recentes.</CardDescription>
                     </CardHeader>
                     {delinquencyStats && (

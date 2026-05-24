@@ -180,6 +180,10 @@ export default function ManageProductsPage() {
 
     return (
         <>
+            <div className="mb-6">
+                <h1 className="text-2xl font-bold tracking-tight">Produtos</h1>
+                <p className="text-sm text-muted-foreground">Gerencie o catálogo de produtos da loja</p>
+            </div>
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
