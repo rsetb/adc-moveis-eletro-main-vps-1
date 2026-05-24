@@ -4,7 +4,7 @@ import React, { createContext, useContext, ReactNode, useCallback, useState, use
 import type { Order, Product, Installment, CustomerInfo, Category, User, CommissionPayment, Payment, StockAudit, Avaria, ChatSession } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useData } from './DataContext';
-import { addMonths, format, parseISO } from 'date-fns';
+import { addMonths, format, parseISO, isValid, parse, subMonths, startOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from './AuthContext';
 import { normalizeCpf } from '@/lib/customer-trash';
@@ -1001,8 +1001,85 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
     return financials;
   }, [customerOrders]);
-  const financialSummary = useMemo(() => ({ totalVendido: 0, totalRecebido: 0, totalPendente: 0, lucroBruto: 0, monthlyData: [] }), [orders]);
-  const commissionSummary = useMemo(() => ({ totalPendingCommission: 0, commissionsBySeller: [] }), [orders]);
+  const financialSummary = useMemo(() => {
+    const activeStatuses = ['Processando', 'Enviado', 'Entregue'];
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const twelveMonthsAgo = subMonths(startOfMonth(new Date()), 11);
+
+    // Product cost map for profit estimation
+    const costMap = new Map<string, number>();
+    for (const p of productsData) costMap.set(p.id, Number(p.cost ?? 0));
+
+    let totalVendido = 0, totalRecebido = 0, totalPendente = 0, lucroBruto = 0;
+    const monthlyMap: Record<string, { label: string; total: number }> = {};
+
+    const parseDate = (v: string): Date | null => {
+      if (!v) return null;
+      const iso = parseISO(v.trim());
+      if (isValid(iso)) return iso;
+      const patterns = ['dd/MM/yy HH:mm:ss', 'dd/MM/yyyy HH:mm:ss', 'dd/MM/yy', 'dd/MM/yyyy'];
+      for (const p of patterns) { const d = parse(v.trim(), p, new Date()); if (isValid(d)) return d; }
+      const fb = new Date(v); return isValid(fb) ? fb : null;
+    };
+
+    for (const order of orders) {
+      if (!activeStatuses.includes(order.status)) continue;
+      const total = Number(order.total || 0);
+      totalVendido += total;
+
+      // Monthly grouping
+      const d = parseDate(order.date);
+      if (d && d >= twelveMonthsAgo) {
+        const sortKey = format(d, 'yyyy-MM');
+        const label = format(d, 'MMM/yy', { locale: ptBR });
+        if (!monthlyMap[sortKey]) monthlyMap[sortKey] = { label, total: 0 };
+        monthlyMap[sortKey].total += total;
+      }
+
+      // Cost estimate
+      const items: any[] = Array.isArray(order.items) ? order.items as any[] : [];
+      for (const item of items) {
+        lucroBruto -= (costMap.get(item.id) ?? 0) * Number(item.quantity || 1);
+      }
+      lucroBruto += total;
+
+      // Received & pending from installments
+      if (order.paymentMethod === 'Crediário') totalRecebido += Number(order.downPayment || 0);
+      const insts: any[] = Array.isArray(order.installmentDetails) ? order.installmentDetails as any[] : [];
+      if (insts.length > 0) {
+        for (const inst of insts) {
+          totalRecebido += Number(inst?.paidAmount || 0);
+          if (inst?.status !== 'Pago') totalPendente += Math.max(0, Number(inst?.amount || 0) - Number(inst?.paidAmount || 0));
+        }
+      } else if (order.paymentMethod !== 'Crediário') {
+        totalRecebido += total;
+      }
+    }
+
+    const monthlyData = Object.entries(monthlyMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, v]) => ({ name: v.label, total: v.total }));
+
+    return { totalVendido, totalRecebido, totalPendente, lucroBruto: Math.max(0, lucroBruto), monthlyData };
+  }, [orders, productsData]);
+
+  const commissionSummary = useMemo(() => {
+    const activeStatuses = ['Processando', 'Enviado', 'Entregue'];
+    const sellerMap: Record<string, { id: string; name: string; total: number; count: number; orderIds: string[] }> = {};
+    let totalPendingCommission = 0;
+    for (const order of orders) {
+      if (!activeStatuses.includes(order.status)) continue;
+      if (!order.commission || order.commission <= 0 || order.commissionPaid) continue;
+      totalPendingCommission += Number(order.commission);
+      if (order.sellerId && order.sellerName) {
+        if (!sellerMap[order.sellerId]) sellerMap[order.sellerId] = { id: order.sellerId, name: order.sellerName, total: 0, count: 0, orderIds: [] };
+        sellerMap[order.sellerId].total += Number(order.commission);
+        sellerMap[order.sellerId].count++;
+        sellerMap[order.sellerId].orderIds.push(order.id);
+      }
+    }
+    return { totalPendingCommission, commissionsBySeller: Object.values(sellerMap).sort((a, b) => b.total - a.total) };
+  }, [orders]);
 
   const value = {
     addOrder, addCustomer, generateCustomerCodes, deleteOrder, permanentlyDeleteOrder, updateOrderStatus, recordInstallmentPayment, reversePayment, updateInstallmentDueDate, updateInstallmentAmount, updateCustomer, deleteCustomer, restoreCustomerFromTrash, permanentlyDeleteCustomerFromTrash, importCustomers, updateOrderDetails,

@@ -234,6 +234,53 @@ export type AppSection =
   | 'pastas'
   | 'estoque';
 
+export type FinancialPeriod = 'today' | 'week' | 'month' | 'year' | 'custom';
+
+export type FinancialFilters = {
+  period: FinancialPeriod;
+  dateFrom?: string; // YYYY-MM-DD
+  dateTo?: string;   // YYYY-MM-DD
+};
+
+export type OverdueInstallment = {
+  orderId: string;
+  customerName: string;
+  sellerName?: string;
+  installmentNumber: number;
+  dueDate: string;
+  amount: number;
+  paidAmount: number;
+  remaining: number;
+};
+
+export type FinancialReportOrder = {
+  id: string;
+  customerName: string;
+  sellerName?: string;
+  total: number;
+  date: string;
+  status: string;
+  paymentMethod: string;
+  downPayment: number;
+  commission: number;
+};
+
+export type FinancialReport = {
+  totalVendido: number;
+  totalRecebido: number;
+  totalEmAberto: number;
+  totalVencido: number;
+  lucroBruto: number;
+  custoTotal: number;
+  comissoesGeradas: number;
+  comissoesPagas: number;
+  totalPedidos: number;
+  parcelasVencidas: number;
+  monthlyData: { name: string; vendido: number; recebido: number }[];
+  overdueInstallments: OverdueInstallment[];
+  recentOrders: FinancialReportOrder[];
+};
+
 export type StockMovementType = 'ENTRADA' | 'SAIDA' | 'AJUSTE' | 'AVARIA' | 'VENDA';
 
 export type StockMovement = {
