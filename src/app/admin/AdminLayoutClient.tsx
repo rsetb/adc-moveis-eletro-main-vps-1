@@ -97,7 +97,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
                         </div>
 
                         {/* Nav */}
-                        <div className="flex-1 overflow-y-auto py-4">
+                        <div className="flex-1 overflow-y-auto py-4 sidebar-scroll">
                             <AdminSidebarNav onNavigate={() => setSidebarOpen(false)} />
                         </div>
 
