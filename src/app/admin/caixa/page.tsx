@@ -53,13 +53,13 @@ import { ptBR } from 'date-fns/locale';
 const fmt = (v: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
-function fmtDate(str?: string | null) {
-    if (!str) return '—';
+function fmtDate(val?: string | Date | null): string {
+    if (!val) return '—';
     try {
-        const d = parseISO(String(str));
-        return isValid(d) ? format(d, "dd/MM/yy HH:mm", { locale: ptBR }) : str;
+        const d = val instanceof Date ? val : parseISO(String(val));
+        return isValid(d) ? format(d, "dd/MM/yy HH:mm", { locale: ptBR }) : String(val);
     } catch {
-        return str;
+        return String(val);
     }
 }
 
