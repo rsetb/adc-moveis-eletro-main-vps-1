@@ -31,7 +31,7 @@ import Image from 'next/image';
 import { Switch } from '@/components/ui/switch';
 import { useData } from '@/context/DataContext';
 import { maskPhone, onlyDigits } from '@/lib/utils';
-import { isValidPixKey } from '@/lib/pix';
+import { validatePixKey } from '@/lib/pix';
 import { getAsaasSettingsAction, updateAsaasSettingsAction, getCustomerCodeCounterAction, updateCustomerCodeCounterAction } from '@/app/actions/settings';
 
 const settingsSchema = z.object({
@@ -41,7 +41,10 @@ const settingsSchema = z.object({
   pixKey: z
     .string()
     .min(1, 'A chave PIX é obrigatória.')
-    .refine((val) => isValidPixKey(val), 'Chave PIX inválida.'),
+    .refine(
+      (val) => validatePixKey(val).valid,
+      (val) => ({ message: validatePixKey(val).message || 'Chave PIX inválida.' })
+    ),
   storePhone: z.string().refine((val) => {
     const len = onlyDigits(val).length;
     return len >= 10 && len <= 11;
