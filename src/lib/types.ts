@@ -233,7 +233,8 @@ export type AppSection =
   | 'avarias'
   | 'pastas'
   | 'estoque'
-  | 'caixa';
+  | 'caixa'
+  | 'validar-pix';
 
 export type FinancialPeriod = 'today' | 'week' | 'month' | 'year' | 'custom';
 

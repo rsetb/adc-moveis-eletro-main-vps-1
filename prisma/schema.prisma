@@ -292,6 +292,32 @@ model WhatsappMessage {
   @@map("whatsapp_messages")
 }
 
+model PixTransaction {
+  id            String   @id @default(uuid())
+  endToEndId    String   @unique @map("end_to_end_id")
+  txid          String?
+  valor         Float
+  horario       DateTime
+  pagadorNome   String?  @map("pagador_nome")
+  pagadorCpf    String?  @map("pagador_cpf")
+  pagadorCnpj   String?  @map("pagador_cnpj")
+  infoPagador   String?  @map("info_pagador")
+  status        String   @default("recebido") // recebido | vinculado | ignorado
+  orderId       String?  @map("order_id")
+  orderRef      String?  @map("order_ref")
+  receivedAt    DateTime @default(now()) @map("received_at")
+  matchedById   String?  @map("matched_by_id")
+  matchedByName String?  @map("matched_by_name")
+  matchedAt     DateTime? @map("matched_at")
+  raw           Json?
+
+  @@index([status])
+  @@index([horario])
+  @@index([pagadorCpf])
+  @@index([orderId])
+  @@map("pix_transactions")
+}
+
 model StockMovement {
   id            String   @id @default(uuid())
   productId     String   @map("product_id")

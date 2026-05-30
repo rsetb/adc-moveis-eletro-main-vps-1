@@ -26,6 +26,7 @@ import {
     Landmark,
     FileSearch,
     ChevronDown,
+    QrCode,
     type LucideIcon,
 } from 'lucide-react';
 
@@ -76,8 +77,9 @@ const GROUPS: NavGroup[] = [
         id: 'financeiro',
         label: 'Financeiro',
         items: [
-            { id: 'financeiro', label: 'Financeiro',  icon: BarChart3 },
-            { id: 'caixa',      label: 'Caixa Diário', icon: Landmark },
+            { id: 'financeiro',   label: 'Financeiro',   icon: BarChart3 },
+            { id: 'caixa',        label: 'Caixa Diário', icon: Landmark },
+            { id: 'validar-pix',  label: 'Validar PIX',  icon: QrCode },
         ],
     },
     {

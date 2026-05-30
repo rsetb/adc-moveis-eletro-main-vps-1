@@ -15,6 +15,7 @@ export const ALL_SECTIONS: { id: AppSection, label: string }[] = [
     { id: 'pastas', label: 'Pastas' },
     { id: 'estoque', label: 'Estoque' },
     { id: 'caixa', label: 'Caixa' },
+    { id: 'validar-pix', label: 'Validar PIX' },
     { id: 'auditoria', label: 'Auditoria' },
     { id: 'configuracao', label: 'Configurações' },
     { id: 'usuarios', label: 'Usuários' },
