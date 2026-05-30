@@ -682,35 +682,51 @@ Não esqueça de enviar o comprovante!`;
     return (
         <>
             <div className="print-hidden space-y-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight">Pedidos</h1>
-                        <p className="text-sm text-muted-foreground">Gerencie pedidos e acompanhe parcelas do crediário</p>
+                {/* ── Page Header ── */}
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
+                            <ShoppingBag className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-bold tracking-tight">Pedidos</h1>
+                            <p className="text-sm text-muted-foreground">Gerencie pedidos e acompanhe parcelas do crediário</p>
+                        </div>
                     </div>
                 </div>
-                <Card>
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-base">Gerenciamento de Pedidos</CardTitle>
-                        <CardDescription>Visualize e atualize o status dos pedidos recentes.</CardDescription>
-                    </CardHeader>
-                    {delinquencyStats && (
-                        <div className="px-6 pb-4 grid grid-cols-2 gap-3">
-                            <div className="rounded-lg border bg-muted/40 px-4 py-3">
-                                <p className="text-xs text-muted-foreground mb-1">Taxa de Inadimplência</p>
-                                <p className="text-2xl font-bold text-destructive">{(delinquencyStats.delinquencyRate * 100).toFixed(1)}%</p>
+
+                {/* ── Stats strip ── */}
+                {delinquencyStats && (
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="rounded-xl border bg-gradient-to-br from-red-50 to-rose-100/60 dark:from-red-950/30 dark:to-rose-950/20 p-4 flex items-center justify-between shadow-sm">
+                            <div>
+                                <p className="text-xs font-medium text-red-500 uppercase tracking-wide">Taxa de Inadimplência</p>
+                                <p className="text-3xl font-bold text-red-600 dark:text-red-400 mt-0.5">{(delinquencyStats.delinquencyRate * 100).toFixed(1)}%</p>
                             </div>
-                            <div className="rounded-lg border bg-muted/40 px-4 py-3">
-                                <p className="text-xs text-muted-foreground mb-1">Clientes em Atraso</p>
-                                <p className="text-2xl font-bold">{delinquencyStats.overdueCustomers}</p>
+                            <div className="h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
+                                <Percent className="h-6 w-6 text-red-500" />
                             </div>
                         </div>
-                    )}
-                    <CardContent>
+                        <div className="rounded-xl border bg-gradient-to-br from-orange-50 to-amber-100/60 dark:from-orange-950/30 dark:to-amber-950/20 p-4 flex items-center justify-between shadow-sm">
+                            <div>
+                                <p className="text-xs font-medium text-orange-500 uppercase tracking-wide">Clientes em Atraso</p>
+                                <p className="text-3xl font-bold text-orange-600 dark:text-orange-400 mt-0.5">{delinquencyStats.overdueCustomers}</p>
+                            </div>
+                            <div className="h-12 w-12 rounded-full bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center flex-shrink-0">
+                                <Users className="h-6 w-6 text-orange-500" />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Main card ── */}
+                <Card className="shadow-sm">
+                    <CardContent className="pt-6">
                         <Tabs value={activeTab} onValueChange={setActiveTab}>
-                            <div className="overflow-x-auto mb-4">
-                                <TabsList className="w-full justify-start md:w-auto">
-                                    <TabsTrigger value="active">Pedidos Ativos</TabsTrigger>
-                                    <TabsTrigger value="web-requests" className="relative">
+                            <div className="overflow-x-auto mb-5">
+                                <TabsList className="h-10 bg-muted/60 rounded-lg p-1">
+                                    <TabsTrigger value="active" className="rounded-md text-sm font-medium">Pedidos Ativos</TabsTrigger>
+                                    <TabsTrigger value="web-requests" className="relative rounded-md text-sm font-medium">
                                         Solicitações Web
                                         {filteredPendingOrders.length > 0 && (
                                             <Badge variant="destructive" className="ml-2 h-5 w-5 p-0 flex items-center justify-center rounded-full text-[10px]">
@@ -718,8 +734,8 @@ Não esqueça de enviar o comprovante!`;
                                             </Badge>
                                         )}
                                     </TabsTrigger>
-                                    {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && <TabsTrigger value="vencimento">Vencimento</TabsTrigger>}
-                                    {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && <TabsTrigger value="deleted">Lixeira</TabsTrigger>}
+                                    {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && <TabsTrigger value="vencimento" className="rounded-md text-sm font-medium">Vencimento</TabsTrigger>}
+                                    {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && <TabsTrigger value="deleted" className="rounded-md text-sm font-medium">Lixeira</TabsTrigger>}
                                 </TabsList>
                             </div>
                             <TabsContent value="web-requests">
@@ -877,24 +893,26 @@ Não esqueça de enviar o comprovante!`;
                                 )}
                             </TabsContent>
                             <TabsContent value="active">
-                                <div className="flex flex-wrap gap-4 mb-6 p-4 border rounded-lg bg-muted/50">
-                                    <div className="flex-grow min-w-[200px] relative">
-                                        <Input
-                                            placeholder="Buscar por ID, cliente ou código..."
-                                            value={filters.search}
-                                            onChange={(e) => handleFilterChange('search', e.target.value)}
-                                            className="pr-8"
-                                        />
-                                        {isSearchingServer && (
-                                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex-grow min-w-[150px]">
+                                <div className="rounded-xl border bg-muted/30 p-4 mb-5 space-y-3">
+                                    {/* Linha 1: busca + selects */}
+                                    <div className="flex flex-wrap gap-2">
+                                        <div className="flex-grow min-w-[200px] relative">
+                                            <PackageSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                                            <Input
+                                                placeholder="Buscar por ID, cliente ou código..."
+                                                value={filters.search}
+                                                onChange={(e) => handleFilterChange('search', e.target.value)}
+                                                className="pl-9 pr-8 h-9"
+                                            />
+                                            {isSearchingServer && (
+                                                <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+                                                </div>
+                                            )}
+                                        </div>
                                         <Select value={filters.status} onValueChange={(value) => handleFilterChange('status', value)}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Filtrar por status" />
+                                            <SelectTrigger className="h-9 w-[160px]">
+                                                <SelectValue placeholder="Status" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="all">Todos os Status</SelectItem>
@@ -904,11 +922,9 @@ Não esqueça de enviar o comprovante!`;
                                                 <SelectItem value="Cancelado">Cancelado</SelectItem>
                                             </SelectContent>
                                         </Select>
-                                    </div>
-                                    <div className="flex-grow min-w-[150px]">
                                         <Select value={filters.seller} onValueChange={(value) => handleFilterChange('seller', value)}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Filtrar por vendedor" />
+                                            <SelectTrigger className="h-9 w-[180px]">
+                                                <SelectValue placeholder="Vendedor" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="all">Todos os Vendedores</SelectItem>
@@ -918,10 +934,8 @@ Não esqueça de enviar o comprovante!`;
                                                 ))}
                                             </SelectContent>
                                         </Select>
-                                    </div>
-                                    <div className="min-w-[170px]">
                                         <Select value={filters.month} onValueChange={(value) => handleFilterChange('month', value)}>
-                                            <SelectTrigger className="w-full sm:w-[170px]">
+                                            <SelectTrigger className="h-9 w-[140px]">
                                                 <SelectValue placeholder="Mês" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -930,10 +944,8 @@ Não esqueça de enviar o comprovante!`;
                                                 ))}
                                             </SelectContent>
                                         </Select>
-                                    </div>
-                                    <div className="min-w-[120px]">
                                         <Select value={filters.year} onValueChange={(value) => handleFilterChange('year', value)}>
-                                            <SelectTrigger className="w-full sm:w-[120px]">
+                                            <SelectTrigger className="h-9 w-[110px]">
                                                 <SelectValue placeholder="Ano" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -943,10 +955,8 @@ Não esqueça de enviar o comprovante!`;
                                                 ))}
                                             </SelectContent>
                                         </Select>
-                                    </div>
-                                    <div className="flex-grow min-w-[150px]">
                                         <Select value={filters.dueDateRange} onValueChange={(value) => handleFilterChange('dueDateRange', value)}>
-                                            <SelectTrigger>
+                                            <SelectTrigger className="h-9 w-[180px]">
                                                 <SelectValue placeholder="Vencimento no Mês" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -956,37 +966,50 @@ Não esqueça de enviar o comprovante!`;
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    <Button
-                                        variant={filters.showOnTime ? 'default' : 'outline'}
-                                        className={cn(filters.showOnTime && "bg-green-600 hover:bg-green-700")}
-                                        onClick={() => handleFilterChange('showOnTime', !filters.showOnTime)}
-                                    >
-                                        <CheckCircle className="mr-2 h-4 w-4" />
-                                        Em Dia
-                                    </Button>
-                                    <Button
-                                        variant={filters.showOverdue ? 'destructive' : 'outline'}
-                                        onClick={() => handleFilterChange('showOverdue', !filters.showOverdue)}
-                                    >
-                                        <Clock className="mr-2 h-4 w-4" />
-                                        Atrasados
-                                    </Button>
-                                    <Button
-                                        variant={filters.showPaidOff ? 'default' : 'outline'}
-                                        className={cn(filters.showPaidOff && "bg-blue-600 hover:bg-blue-700")}
-                                        onClick={() => handleFilterChange('showPaidOff', !filters.showPaidOff)}
-                                    >
-                                        <CheckCircle className="mr-2 h-4 w-4" />
-                                        Quitados
-                                    </Button>
-                                    <Button variant="outline" onClick={handlePrintOverdueReport}>
-                                        <Printer className="mr-2 h-4 w-4" />
-                                        Imprimir Relatório
-                                    </Button>
-                                    <Button variant="ghost" onClick={clearFilters}>
-                                        <X className="mr-2 h-4 w-4" />
-                                        Limpar
-                                    </Button>
+                                    {/* Linha 2: toggles rápidos + ações */}
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="text-xs text-muted-foreground font-medium mr-1">Filtrar:</span>
+                                        <button
+                                            onClick={() => handleFilterChange('showOnTime', !filters.showOnTime)}
+                                            className={cn(
+                                                "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border transition-colors",
+                                                filters.showOnTime
+                                                    ? "bg-green-500 text-white border-green-500"
+                                                    : "border-border text-muted-foreground hover:bg-muted"
+                                            )}
+                                        >
+                                            <CheckCircle className="h-3 w-3" /> Em Dia
+                                        </button>
+                                        <button
+                                            onClick={() => handleFilterChange('showOverdue', !filters.showOverdue)}
+                                            className={cn(
+                                                "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border transition-colors",
+                                                filters.showOverdue
+                                                    ? "bg-destructive text-white border-destructive"
+                                                    : "border-border text-muted-foreground hover:bg-muted"
+                                            )}
+                                        >
+                                            <Clock className="h-3 w-3" /> Atrasados
+                                        </button>
+                                        <button
+                                            onClick={() => handleFilterChange('showPaidOff', !filters.showPaidOff)}
+                                            className={cn(
+                                                "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border transition-colors",
+                                                filters.showPaidOff
+                                                    ? "bg-blue-500 text-white border-blue-500"
+                                                    : "border-border text-muted-foreground hover:bg-muted"
+                                            )}
+                                        >
+                                            <CheckCircle className="h-3 w-3" /> Quitados
+                                        </button>
+                                        <div className="flex-1" />
+                                        <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={handlePrintOverdueReport}>
+                                            <Printer className="mr-1.5 h-3.5 w-3.5" /> Imprimir
+                                        </Button>
+                                        <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground" onClick={clearFilters}>
+                                            <X className="mr-1.5 h-3.5 w-3.5" /> Limpar filtros
+                                        </Button>
+                                    </div>
                                 </div>
 
                                 {paginatedActiveOrders.length > 0 ? (
@@ -1215,21 +1238,21 @@ Não esqueça de enviar o comprovante!`;
                                         )}
                                     </>
                                 ) : (
-                                    <div className="text-center py-16 text-muted-foreground border-2 border-dashed rounded-lg">
-                                        <PackageSearch className="mx-auto h-12 w-12" />
+                                    <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/60 mb-4">
+                                            <PackageSearch className="h-8 w-8 text-muted-foreground/60" />
+                                        </div>
                                         {!user ? (
                                             <>
-                                                <h3 className="mt-4 text-lg font-semibold">Conecte-se para ver os pedidos</h3>
+                                                <h3 className="text-base font-semibold text-foreground">Conecte-se para ver os pedidos</h3>
                                                 <p className="mt-1 text-sm">Por favor, faça login para acessar o painel de pedidos.</p>
                                                 <Link href="/login" className="mt-4 inline-block">
-                                                    <Button>
-                                                        Fazer Login
-                                                    </Button>
+                                                    <Button size="sm">Fazer Login</Button>
                                                 </Link>
                                             </>
                                         ) : (
                                             <>
-                                                <h3 className="mt-4 text-lg font-semibold">Nenhum pedido encontrado</h3>
+                                                <h3 className="text-base font-semibold text-foreground">Nenhum pedido encontrado</h3>
                                                 <p className="mt-1 text-sm">Ajuste os filtros ou crie um novo pedido.</p>
                                             </>
                                         )}
@@ -1353,6 +1376,7 @@ Não esqueça de enviar o comprovante!`;
                     </CardContent>
                 </Card>
             </div>
+
 
             <div className="hidden print-only">
                 <div className="mb-8">
