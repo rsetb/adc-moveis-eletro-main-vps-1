@@ -218,6 +218,7 @@ export type AuditLog = {
 };
 
 export type AppSection =
+  | 'dashboard'
   | 'pedidos'
   | 'cobrancas'
   | 'criar-pedido'
@@ -234,7 +235,11 @@ export type AppSection =
   | 'pastas'
   | 'estoque'
   | 'caixa'
-  | 'validar-pix';
+  | 'validar-pix'
+  | 'relatorios-vendas'
+  | 'relatorios-produtos'
+  | 'relatorios-clientes'
+  | 'relatorios-financeiro';
 
 export type FinancialPeriod = 'today' | 'week' | 'month' | 'year' | 'custom';
 

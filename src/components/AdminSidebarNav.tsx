@@ -9,6 +9,7 @@ import { hasAccess } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 import type { AppSection } from '@/lib/types';
 import {
+    LayoutDashboard,
     ShoppingCart,
     CreditCard,
     PlusCircle,
@@ -27,6 +28,7 @@ import {
     FileSearch,
     ChevronDown,
     QrCode,
+    TrendingUp,
     type LucideIcon,
 } from 'lucide-react';
 
@@ -45,6 +47,13 @@ type NavGroup = {
 };
 
 const GROUPS: NavGroup[] = [
+    {
+        id: 'geral',
+        label: 'Geral',
+        items: [
+            { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        ],
+    },
     {
         id: 'vendas',
         label: 'Vendas',
@@ -80,6 +89,16 @@ const GROUPS: NavGroup[] = [
             { id: 'financeiro',   label: 'Financeiro',   icon: BarChart3 },
             { id: 'caixa',        label: 'Caixa Diário', icon: Landmark },
             { id: 'validar-pix',  label: 'Validar PIX',  icon: QrCode },
+        ],
+    },
+    {
+        id: 'relatorios',
+        label: 'Relatórios',
+        items: [
+            { id: 'relatorios-vendas',      label: 'Vendas',      icon: TrendingUp  },
+            { id: 'relatorios-produtos',    label: 'Produtos',    icon: Package     },
+            { id: 'relatorios-clientes',    label: 'Clientes',    icon: Users       },
+            { id: 'relatorios-financeiro',  label: 'Financeiro',  icon: BarChart3   },
         ],
     },
     {

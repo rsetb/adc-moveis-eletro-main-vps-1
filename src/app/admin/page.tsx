@@ -18,7 +18,13 @@ export default function AdminRootPage() {
       return;
     }
 
-    const firstAccessible = ALL_SECTIONS.find((s) => hasAccess(user.role, s.id, permissions));
+    // Tenta ir para dashboard primeiro; se não tiver acesso, usa a primeira seção disponível
+    const hasDashboard = hasAccess(user.role, 'dashboard', permissions);
+    if (hasDashboard) {
+      router.replace('/admin/dashboard');
+      return;
+    }
+    const firstAccessible = ALL_SECTIONS.find((s) => s.id !== 'dashboard' && hasAccess(user.role, s.id, permissions));
     router.replace(`/admin/${firstAccessible?.id || 'pedidos'}`);
   }, [router, isLoading, permissionsLoading, isAuthenticated, user, permissions]);
 

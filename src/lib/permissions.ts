@@ -2,6 +2,11 @@
 import type { UserRole, AppSection, RolePermissions } from './types';
 
 export const ALL_SECTIONS: { id: AppSection, label: string }[] = [
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'relatorios-vendas',     label: 'Rel. Vendas'     },
+    { id: 'relatorios-produtos',   label: 'Rel. Produtos'   },
+    { id: 'relatorios-clientes',   label: 'Rel. Clientes'   },
+    { id: 'relatorios-financeiro', label: 'Rel. Financeiro' },
     { id: 'cobrancas', label: 'Cobranças' },
     { id: 'pedidos', label: 'Pedidos' },
     { id: 'criar-pedido', label: 'Criar Pedido' },
@@ -23,6 +28,8 @@ export const ALL_SECTIONS: { id: AppSection, label: string }[] = [
 
 export const initialPermissions: RolePermissions = {
     vendedor: [
+        'dashboard',
+        'relatorios-vendas',
         'pedidos',
         'criar-pedido',
         'solicitacoes',
@@ -33,6 +40,7 @@ export const initialPermissions: RolePermissions = {
         'pastas',
     ],
     vendedor_cobranca: [
+        'dashboard',
         'pedidos',
         'cobrancas',
         'criar-pedido',
@@ -47,6 +55,11 @@ export const initialPermissions: RolePermissions = {
         'pastas',
     ],
     gerente: [
+        'dashboard',
+        'relatorios-vendas',
+        'relatorios-produtos',
+        'relatorios-clientes',
+        'relatorios-financeiro',
         'pedidos',
         'cobrancas',
         'criar-pedido',
@@ -64,6 +77,11 @@ export const initialPermissions: RolePermissions = {
         'configuracao',
     ],
     admin: [
+        'dashboard',
+        'relatorios-vendas',
+        'relatorios-produtos',
+        'relatorios-clientes',
+        'relatorios-financeiro',
         'pedidos',
         'cobrancas',
         'criar-pedido',
