@@ -117,14 +117,15 @@ const GROUPS: NavGroup[] = [
 
 interface AdminSidebarNavProps {
     onNavigate?: () => void;
+    sidebarCollapsed?: boolean;
 }
 
-export default function AdminSidebarNav({ onNavigate }: AdminSidebarNavProps) {
+export default function AdminSidebarNav({ onNavigate, sidebarCollapsed }: AdminSidebarNavProps) {
     const pathname = usePathname();
     const { user } = useAuth();
     const { permissions } = usePermissions();
 
-    // collapsed state: undefined = open, true = collapsed
+    // collapsed state for groups: undefined = open, true = collapsed
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
     if (!user || !permissions) return null;
@@ -133,7 +134,7 @@ export default function AdminSidebarNav({ onNavigate }: AdminSidebarNavProps) {
         setCollapsed(prev => ({ ...prev, [groupId]: !prev[groupId] }));
 
     return (
-        <nav className="px-2 space-y-1">
+        <nav className={cn('space-y-1', sidebarCollapsed ? 'lg:px-1 px-2' : 'px-2')}>
             {GROUPS.map((group, groupIndex) => {
                 const visibleItems = group.items.filter(item =>
                     hasAccess(user.role, item.id, permissions)
@@ -149,10 +150,13 @@ export default function AdminSidebarNav({ onNavigate }: AdminSidebarNavProps) {
                     <div key={group.id}>
                         {/* Divider between groups */}
                         {groupIndex > 0 && (
-                            <div className="mx-3 my-2 border-t border-sidebar-border/50" />
+                            <div className={cn(
+                                'my-2 border-t border-sidebar-border/50',
+                                sidebarCollapsed ? 'lg:mx-1 mx-3' : 'mx-3',
+                            )} />
                         )}
 
-                        {/* Group header (collapsible) */}
+                        {/* Group header — hidden when sidebar is collapsed on desktop */}
                         <button
                             onClick={() => toggle(group.id)}
                             className={cn(
@@ -161,6 +165,7 @@ export default function AdminSidebarNav({ onNavigate }: AdminSidebarNavProps) {
                                 hasActive && !isOpen
                                     ? 'text-sidebar-foreground/80'
                                     : 'text-sidebar-foreground/40',
+                                sidebarCollapsed && 'lg:hidden',
                             )}
                         >
                             <span className="text-[10px] font-bold uppercase tracking-widest select-none">
@@ -178,6 +183,10 @@ export default function AdminSidebarNav({ onNavigate }: AdminSidebarNavProps) {
                         <div
                             className={cn(
                                 'overflow-hidden transition-all duration-200',
+                                // when sidebar is collapsed on desktop, always show items (no group toggle)
+                                sidebarCollapsed
+                                    ? 'lg:max-h-none lg:opacity-100'
+                                    : '',
                                 isOpen ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0',
                             )}
                         >
@@ -191,18 +200,27 @@ export default function AdminSidebarNav({ onNavigate }: AdminSidebarNavProps) {
                                             key={item.id}
                                             href={`/admin/${item.id}`}
                                             onClick={onNavigate}
+                                            title={sidebarCollapsed ? item.label : undefined}
                                             className={cn(
-                                                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
+                                                'flex items-center rounded-lg text-sm font-medium',
                                                 'transition-all duration-150',
+                                                sidebarCollapsed
+                                                    ? 'lg:justify-center lg:px-0 lg:py-2.5 gap-3 px-3 py-2'
+                                                    : 'gap-3 px-3 py-2',
                                                 isActive
                                                     ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
                                                     : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
                                             )}
                                         >
                                             <Icon className="h-4 w-4 flex-shrink-0" />
-                                            <span className="truncate">{item.label}</span>
-                                            {/* Active dot indicator */}
-                                            {isActive && (
+                                            <span className={cn(
+                                                'truncate',
+                                                sidebarCollapsed && 'lg:hidden',
+                                            )}>
+                                                {item.label}
+                                            </span>
+                                            {/* Active dot — hidden when collapsed */}
+                                            {isActive && !sidebarCollapsed && (
                                                 <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary-foreground/70 flex-shrink-0" />
                                             )}
                                         </Link>

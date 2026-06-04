@@ -21,6 +21,8 @@ import { cn } from '@/lib/utils';
 import {
     Building2,
     ChevronDown,
+    ChevronLeft,
+    ChevronRight,
     LogOut,
     Menu,
     Moon,
@@ -41,15 +43,32 @@ const ROLE_LABELS: Record<UserRole, string> = {
 export default function AdminLayoutClient({ children }: { children: React.ReactNode }) {
     const { user, logout, isLoading } = useAuth();
     const { resolvedTheme, setTheme } = useTheme();
-    const [mounted, setMounted] = useState(false);
-    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [mounted,          setMounted]          = useState(false);
+    const [sidebarOpen,      setSidebarOpen]      = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const router = useRouter();
 
-    const isDark = mounted && resolvedTheme === 'dark';
+    const isDark        = mounted && resolvedTheme === 'dark';
     const userRoleLabel = useMemo(() => (user?.role ? (ROLE_LABELS[user.role] ?? user.role) : ''), [user?.role]);
-    const userInitial = useMemo(() => user?.name?.charAt(0)?.toUpperCase() ?? '?', [user?.name]);
+    const userInitial   = useMemo(() => user?.name?.charAt(0)?.toUpperCase() ?? '?', [user?.name]);
 
     useEffect(() => { setMounted(true); }, []);
+
+    // Persist collapse state
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('sidebar-collapsed');
+            if (saved === 'true') setSidebarCollapsed(true);
+        } catch { /* ignore */ }
+    }, []);
+
+    const toggleCollapsed = () => {
+        setSidebarCollapsed(prev => {
+            const next = !prev;
+            try { localStorage.setItem('sidebar-collapsed', String(next)); } catch { /* ignore */ }
+            return next;
+        });
+    };
 
     useEffect(() => {
         if (!isLoading && !user) {
@@ -74,20 +93,29 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
 
                     {/* ── Sidebar ── */}
                     <aside className={cn(
-                        'fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border',
-                        'transform transition-transform duration-200 ease-in-out',
-                        'lg:static lg:z-auto lg:translate-x-0',
-                        sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+                        'fixed inset-y-0 left-0 z-50 flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border',
+                        'transform lg:transform-none transition-[width,transform] duration-200 ease-in-out',
+                        'lg:static lg:z-auto',
+                        sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+                        // mobile: always w-64 — desktop: respects collapsed
+                        sidebarCollapsed ? 'w-64 lg:w-16' : 'w-64',
                     )}>
                         {/* Brand */}
-                        <div className="flex h-16 items-center gap-3 px-5 border-b border-sidebar-border flex-shrink-0">
+                        <div className={cn(
+                            'flex h-16 items-center border-b border-sidebar-border flex-shrink-0',
+                            sidebarCollapsed ? 'lg:flex-col lg:h-auto lg:py-3 lg:gap-1 justify-center px-2 gap-3 px-4' : 'gap-3 px-5',
+                        )}>
                             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary flex-shrink-0">
                                 <Building2 className="h-4 w-4 text-white" />
                             </div>
-                            <div className="min-w-0 flex-1">
+
+                            {/* Text — hidden on desktop when collapsed */}
+                            <div className={cn('min-w-0 flex-1', sidebarCollapsed && 'lg:hidden')}>
                                 <p className="text-sm font-bold text-sidebar-foreground truncate">ADC ERP</p>
                                 <p className="text-[11px] text-sidebar-foreground/50 truncate">Painel Administrativo</p>
                             </div>
+
+                            {/* Close on mobile */}
                             <button
                                 onClick={() => setSidebarOpen(false)}
                                 className="lg:hidden p-1 rounded-md hover:bg-sidebar-accent text-sidebar-foreground/60"
@@ -97,23 +125,32 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
                         </div>
 
                         {/* Nav */}
-                        <div className="flex-1 overflow-y-auto py-4 sidebar-scroll">
-                            <AdminSidebarNav onNavigate={() => setSidebarOpen(false)} />
+                        <div className="flex-1 overflow-y-auto py-3 sidebar-scroll">
+                            <AdminSidebarNav
+                                onNavigate={() => setSidebarOpen(false)}
+                                sidebarCollapsed={sidebarCollapsed}
+                            />
                         </div>
 
                         {/* User footer */}
                         <div className="border-t border-sidebar-border p-3 flex-shrink-0">
-                            <div className="flex items-center gap-3 rounded-lg px-2 py-2">
+                            <div className={cn(
+                                'flex items-center rounded-lg',
+                                sidebarCollapsed ? 'lg:justify-center px-0 py-1' : 'gap-3 px-2 py-2',
+                            )}>
                                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white flex-shrink-0">
                                     {userInitial}
                                 </div>
-                                <div className="min-w-0 flex-1">
+                                <div className={cn('min-w-0 flex-1', sidebarCollapsed && 'lg:hidden')}>
                                     <p className="text-sm font-medium truncate text-sidebar-foreground">{user.name}</p>
                                     <p className="text-[11px] text-sidebar-foreground/50 truncate">{userRoleLabel}</p>
                                 </div>
                                 <button
                                     onClick={logout}
-                                    className="p-1.5 rounded-md hover:bg-sidebar-accent text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors"
+                                    className={cn(
+                                        'p-1.5 rounded-md hover:bg-sidebar-accent text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors',
+                                        sidebarCollapsed && 'lg:hidden',
+                                    )}
                                     title="Sair"
                                 >
                                     <LogOut className="h-4 w-4" />
@@ -126,14 +163,26 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
                     <div className="flex flex-1 flex-col overflow-hidden min-w-0">
 
                         {/* ── Topbar ── */}
-                        <header className="flex h-16 items-center gap-3 bg-card px-4 lg:px-6 flex-shrink-0 shadow-[0_1px_0_0_hsl(var(--border))]">
-                            {/* Hamburger */}
+                        <header className="flex h-16 items-center gap-2 bg-card px-4 flex-shrink-0 shadow-[0_1px_0_0_hsl(var(--border))]">
+                            {/* Hamburger — mobile */}
                             <button
                                 onClick={() => setSidebarOpen(true)}
                                 className="lg:hidden p-2 -ml-1 rounded-lg hover:bg-muted transition-colors"
                                 aria-label="Abrir menu"
                             >
                                 <Menu className="h-5 w-5" />
+                            </button>
+
+                            {/* Collapse toggle — desktop only */}
+                            <button
+                                onClick={toggleCollapsed}
+                                className="hidden lg:flex p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                title={sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}
+                            >
+                                {sidebarCollapsed
+                                    ? <ChevronRight className="h-5 w-5" />
+                                    : <ChevronLeft className="h-5 w-5" />
+                                }
                             </button>
 
                             {/* Mobile brand */}
