@@ -45,38 +45,38 @@
   }
 
   .dark {
-    --background: 225 40% 9%;
-    --foreground: 215 30% 95%;
-    --card: 225 40% 13%;
-    --card-foreground: 215 30% 95%;
-    --popover: 225 40% 13%;
-    --popover-foreground: 215 30% 95%;
-    --primary: 221 83% 63%;
-    --primary-foreground: 225 40% 9%;
-    --secondary: 225 38% 18%;
-    --secondary-foreground: 215 30% 95%;
-    --muted: 225 38% 18%;
-    --muted-foreground: 215 20% 60%;
-    --accent: 221 83% 63%;
-    --accent-foreground: 225 40% 9%;
-    --destructive: 0 62% 30%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 225 35% 20%;
-    --input: 225 35% 20%;
-    --ring: 221 83% 63%;
-    --chart-1: 221 83% 63%;
+    --background: 223 35% 14%;
+    --foreground: 215 30% 93%;
+    --card: 223 38% 20%;
+    --card-foreground: 215 30% 93%;
+    --popover: 223 38% 20%;
+    --popover-foreground: 215 30% 93%;
+    --primary: 221 83% 65%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 223 35% 25%;
+    --secondary-foreground: 215 30% 93%;
+    --muted: 223 35% 25%;
+    --muted-foreground: 215 20% 58%;
+    --accent: 223 35% 25%;
+    --accent-foreground: 215 30% 93%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 223 30% 28%;
+    --input: 223 30% 28%;
+    --ring: 221 83% 65%;
+    --chart-1: 221 83% 65%;
     --chart-2: 142 71% 55%;
     --chart-3: 45 93% 57%;
     --chart-4: 21 90% 58%;
     --chart-5: 0 84% 70%;
-    --sidebar-background: 225 42% 7%;
-    --sidebar-foreground: 215 30% 88%;
+    --sidebar-background: 225 40% 10%;
+    --sidebar-foreground: 215 28% 88%;
     --sidebar-primary: 221 83% 65%;
-    --sidebar-primary-foreground: 225 40% 9%;
-    --sidebar-accent: 225 40% 13%;
-    --sidebar-accent-foreground: 215 30% 91%;
-    --sidebar-border: 225 38% 14%;
-    --sidebar-ring: 221 83% 63%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 223 38% 18%;
+    --sidebar-accent-foreground: 215 28% 88%;
+    --sidebar-border: 225 35% 17%;
+    --sidebar-ring: 221 83% 65%;
   }
 }
  
