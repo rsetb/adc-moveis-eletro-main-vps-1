@@ -74,7 +74,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
 
                     {/* ── Sidebar ── */}
                     <aside className={cn(
-                        'fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-sidebar text-sidebar-foreground',
+                        'fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border',
                         'transform transition-transform duration-200 ease-in-out',
                         'lg:static lg:z-auto lg:translate-x-0',
                         sidebarOpen ? 'translate-x-0' : '-translate-x-full',
@@ -104,7 +104,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
                         {/* User footer */}
                         <div className="border-t border-sidebar-border p-3 flex-shrink-0">
                             <div className="flex items-center gap-3 rounded-lg px-2 py-2">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-accent text-sm font-semibold text-sidebar-foreground flex-shrink-0">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white flex-shrink-0">
                                     {userInitial}
                                 </div>
                                 <div className="min-w-0 flex-1">
