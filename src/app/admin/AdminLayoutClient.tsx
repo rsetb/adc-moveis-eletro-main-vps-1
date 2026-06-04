@@ -126,7 +126,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
                     <div className="flex flex-1 flex-col overflow-hidden min-w-0">
 
                         {/* ── Topbar ── */}
-                        <header className="flex h-16 items-center gap-3 border-b bg-card px-4 lg:px-6 flex-shrink-0 shadow-sm">
+                        <header className="flex h-16 items-center gap-3 bg-card px-4 lg:px-6 flex-shrink-0 shadow-[0_1px_0_0_hsl(var(--border))]">
                             {/* Hamburger */}
                             <button
                                 onClick={() => setSidebarOpen(true)}
@@ -167,12 +167,15 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
                             {/* User dropdown */}
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <button className="flex items-center gap-2 rounded-lg px-3 py-1.5 hover:bg-muted transition-colors">
-                                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                                    <button className="flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 hover:bg-muted/70 transition-colors">
+                                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-white shadow-sm">
                                             {userInitial}
                                         </div>
-                                        <span className="hidden sm:block text-sm font-medium">{user.name}</span>
-                                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <div className="hidden sm:block text-left">
+                                            <p className="text-sm font-semibold leading-tight">{user.name.split(' ')[0]}</p>
+                                            <p className="text-[10px] text-muted-foreground leading-tight">{userRoleLabel}</p>
+                                        </div>
+                                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground hidden sm:block" />
                                     </button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-52">
@@ -202,11 +205,11 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
                         </header>
 
                         {/* ── Main content ── */}
-                        <main className="flex-1 overflow-y-auto">
-                            <div className="p-4 lg:p-6 space-y-1">
+                        <main className="flex-1 overflow-y-auto bg-background">
+                            <div className="p-5 lg:p-7 space-y-1">
                                 <PriceChangeAlerts />
                             </div>
-                            <div className="px-4 lg:px-6 pb-6">
+                            <div className="px-5 lg:px-7 pb-8">
                                 {children}
                             </div>
                         </main>
