@@ -175,22 +175,24 @@ export default function RelatorioVendasPage() {
 
             {/* KPI Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {['Total Vendido', 'Total Recebido', 'Em Aberto', 'Ticket Médio'].map((t, i) => {
-                    const vals = [kpis?.totalVendido, kpis?.totalRecebido, kpis?.totalEmAberto, kpis?.ticketMedio];
-                    const icons = [<TrendingUp className="h-5 w-5 text-emerald-600" />, <DollarSign className="h-5 w-5 text-blue-600" />, <ReceiptText className="h-5 w-5 text-amber-600" />, <ShoppingCart className="h-5 w-5 text-violet-600" />];
-                    const bgs   = ['bg-emerald-100', 'bg-blue-100', 'bg-amber-100', 'bg-violet-100'];
-                    return (
-                        <Card key={t}>
-                            <CardContent className="p-5 flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t}</p>
-                                    {loading ? <Skeleton className="h-7 w-28 mt-1" /> : <p className="mt-1 text-2xl font-bold tabular-nums">{fmtC(vals[i] ?? 0)}</p>}
-                                </div>
-                                <div className={`flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-xl ${bgs[i]}`}>{icons[i]}</div>
-                            </CardContent>
-                        </Card>
-                    );
-                })}
+                {[
+                    { label: 'Total Vendido',  val: kpis?.totalVendido,   Icon: TrendingUp,  iconCls: 'text-emerald-600', bg: 'bg-emerald-100' },
+                    { label: 'Total Recebido', val: kpis?.totalRecebido,  Icon: DollarSign,  iconCls: 'text-blue-600',    bg: 'bg-blue-100'    },
+                    { label: 'Em Aberto',      val: kpis?.totalEmAberto,  Icon: ReceiptText, iconCls: 'text-amber-600',   bg: 'bg-amber-100'   },
+                    { label: 'Ticket Médio',   val: kpis?.ticketMedio,    Icon: ShoppingCart,iconCls: 'text-violet-600',  bg: 'bg-violet-100'  },
+                ].map(({ label, val, Icon, iconCls, bg }) => (
+                    <Card key={label}>
+                        <CardContent className="p-5 flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
+                                {loading ? <Skeleton className="h-7 w-28 mt-1" /> : <p className="mt-1 text-2xl font-bold tabular-nums">{fmtC(val ?? 0)}</p>}
+                            </div>
+                            <div className={`flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-xl ${bg}`}>
+                                <Icon className={`h-5 w-5 ${iconCls}`} />
+                            </div>
+                        </CardContent>
+                    </Card>
+                ))}
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 {[
