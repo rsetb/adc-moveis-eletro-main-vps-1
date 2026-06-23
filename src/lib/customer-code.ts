@@ -23,14 +23,18 @@ export function parseCustomerCodeNumber(code: unknown): number | null {
 }
 
 export async function getMaxCustomerCodeNumberFromDb(): Promise<number> {
-  const rows = await db.$queryRaw<{ maxCode: bigint | number | null }[]>`
-    SELECT MAX(CAST(code AS UNSIGNED)) AS maxCode
-    FROM customers
-    WHERE code REGEXP '^[0-9]{5}$'
-  `;
-  const raw = rows?.[0]?.maxCode ?? 0;
-  const maxCode = typeof raw === 'bigint' ? Number(raw) : Number(raw);
-  return Number.isFinite(maxCode) ? maxCode : 0;
+  const customers = await db.customer.findMany({
+    where: { code: { not: null } },
+    select: { code: true },
+  });
+  let maxCode = 0;
+  for (const c of customers) {
+    if (c.code && /^\d{5}$/.test(c.code)) {
+      const n = parseInt(c.code, 10);
+      if (!isNaN(n) && n > maxCode) maxCode = n;
+    }
+  }
+  return maxCode;
 }
 
 export async function allocateNextCustomerCode(): Promise<string> {
