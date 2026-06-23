@@ -1969,7 +1969,7 @@ Não esqueça de enviar o comprovante!`;
                                                                                 {order.attachments.map((file, index) => (
                                                                                     <div key={index} className="flex items-start justify-between p-2 rounded-md border bg-muted/50">
                                                                                         <div className="flex-grow overflow-hidden">
-                                                                                            {file.type === 'image' ? (
+                                                                                            {file.type === 'image' && file.url ? (
                                                                                                 <button onClick={() => setImageToView(file.url)} className="flex items-start gap-3 group text-left w-full">
                                                                                                     <Image src={file.url} alt={file.name} width={40} height={40} className="h-10 w-10 rounded-md object-cover flex-shrink-0" />
                                                                                                     <div className="flex-grow">

@@ -72,7 +72,7 @@ export function CartSheet({ children }: { children: React.ReactNode }) {
                     <div key={item.id} className="flex items-start gap-4">
                       <div className="relative h-20 w-20 rounded-md overflow-hidden flex-shrink-0">
                         <Image
-                          src={item.imageUrl}
+                          src={item.imageUrl || 'https://placehold.co/100x100.png'}
                           alt={item.name}
                           fill
                           className="object-cover"
