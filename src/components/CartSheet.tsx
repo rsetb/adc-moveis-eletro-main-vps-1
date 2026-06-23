@@ -76,6 +76,7 @@ export function CartSheet({ children }: { children: React.ReactNode }) {
                           alt={item.name}
                           fill
                           className="object-cover"
+                          unoptimized={!!item.imageUrl?.startsWith('data:')}
                         />
                       </div>
                       <div className="flex-grow">

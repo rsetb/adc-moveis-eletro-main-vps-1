@@ -229,6 +229,7 @@ function StockAuditTab() {
                                                         alt={product.name}
                                                         fill
                                                         className="object-contain"
+                                                        unoptimized
                                                     />
                                                 </div>
                                             </TableCell>

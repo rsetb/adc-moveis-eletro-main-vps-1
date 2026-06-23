@@ -314,7 +314,7 @@ Confirmação de Entrega: O pedido será enviado para o endereço acima.${vencTe
                   <div key={item.id} className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="relative h-12 w-12 rounded-md overflow-hidden bg-muted">
-                        <Image src={item.imageUrl || 'https://placehold.co/100x100.png'} alt={item.name} fill className="object-cover" />
+                        <Image src={item.imageUrl || 'https://placehold.co/100x100.png'} alt={item.name} fill className="object-cover" unoptimized={!!item.imageUrl?.startsWith('data:')} />
                       </div>
                       <p>{item.name} <span className="text-muted-foreground">x{item.quantity}</span></p>
                     </div>

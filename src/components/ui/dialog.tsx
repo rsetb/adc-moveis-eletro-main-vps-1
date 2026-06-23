@@ -33,7 +33,7 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, 'aria-describedby': ariaDescribedBy, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -43,6 +43,7 @@ const DialogContent = React.forwardRef<
         "h-full w-full md:h-auto md:w-full md:max-h-[90vh] md:overflow-y-auto",
         className
       )}
+      aria-describedby={ariaDescribedBy}
       {...props}
     >
       {children}

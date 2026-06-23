@@ -760,7 +760,7 @@ Confirmação de Entrega: O pedido será enviado para o endereço acima.${vencTe
             <div key={item.id} className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
               <div className="flex items-start gap-3 flex-grow">
                 <div className="relative h-16 w-16 sm:h-16 sm:w-16 rounded-md overflow-hidden flex-shrink-0">
-                  <Image src={item.imageUrl || 'https://placehold.co/100x100.png'} alt={item.name} fill className="object-cover" />
+                  <Image src={item.imageUrl || 'https://placehold.co/100x100.png'} alt={item.name} fill className="object-cover" unoptimized={!!item.imageUrl?.startsWith('data:')} />
                 </div>
                 <div className="flex-grow min-w-0">
                   <p className="font-semibold text-sm sm:text-base leading-tight">{item.name}</p>

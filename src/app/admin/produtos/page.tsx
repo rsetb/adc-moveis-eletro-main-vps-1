@@ -277,6 +277,7 @@ export default function ManageProductsPage() {
                                                         alt={product.name}
                                                         fill
                                                         className="object-contain"
+                                                        unoptimized
                                                     />
                                                 </div>
                                             </TableCell>
