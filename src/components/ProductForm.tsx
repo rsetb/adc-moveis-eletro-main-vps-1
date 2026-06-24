@@ -246,25 +246,37 @@ export default function ProductForm({ productToEdit, onFinished }: ProductFormPr
     return category?.subcategories || [];
   }, [selectedCategoryName, categories]);
 
+  const compressImage = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const img = document.createElement('img');
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const MAX = 1200;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
+          else { width = Math.round((width * MAX) / height); height = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files && files.length > 0) {
-      const currentPreviews = form.getValues('imageUrls') || [];
-      const filePromises = Array.from(files).map(file => {
-        return new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-      });
-
-      Promise.all(filePromises).then(newPreviews => {
-        const allPreviews = [...currentPreviews, ...newPreviews];
-        setImagePreviews(allPreviews);
-        form.setValue('imageUrls', allPreviews, { shouldValidate: true });
-      });
-    }
+    if (!files || files.length === 0) return;
+    const currentPreviews = form.getValues('imageUrls') || [];
+    Promise.all(Array.from(files).map(compressImage)).then(newPreviews => {
+      const allPreviews = [...currentPreviews, ...newPreviews];
+      setImagePreviews(allPreviews);
+      form.setValue('imageUrls', allPreviews, { shouldValidate: true });
+    });
   };
 
   const removeImage = (index: number) => {
@@ -301,9 +313,16 @@ export default function ProductForm({ productToEdit, onFinished }: ProductFormPr
     }
   }
 
+  const handleSubmitWithScroll = form.handleSubmit(onSubmit, () => {
+    setTimeout(() => {
+      const firstError = document.querySelector('[data-slot="form-message"]:not(:empty), .text-destructive:not(:empty)');
+      firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+  });
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={handleSubmitWithScroll} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
           <div className="space-y-6">
 
