@@ -121,6 +121,10 @@ interface ProductFormProps {
   onFinished: () => void;
 }
 
+// Prisma returns null for optional fields; Zod optional() only accepts undefined.
+const nullsToUndefined = (obj: Record<string, unknown>) =>
+  Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, v === null ? undefined : v]));
+
 export default function ProductForm({ productToEdit, onFinished }: ProductFormProps) {
   const { addProduct, updateProduct } = useAdmin();
   const { categories } = useData();
@@ -132,7 +136,7 @@ export default function ProductForm({ productToEdit, onFinished }: ProductFormPr
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: productToEdit ? {
-      ...productToEdit,
+      ...nullsToUndefined(productToEdit as unknown as Record<string, unknown>),
       description: productToEdit.description || '',
       longDescription: productToEdit.longDescription || '',
       price: productToEdit.price || 0,
@@ -189,7 +193,7 @@ export default function ProductForm({ productToEdit, onFinished }: ProductFormPr
     setCurrentProductId(newId);
 
     const defaultValues = productToEdit ? {
-      ...productToEdit,
+      ...nullsToUndefined(productToEdit as unknown as Record<string, unknown>),
       description: productToEdit.description || '',
       longDescription: productToEdit.longDescription || '',
       price: productToEdit.price || 0,
