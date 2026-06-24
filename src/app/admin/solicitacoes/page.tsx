@@ -121,6 +121,7 @@ function PendingOrdersContent() {
                 });
                 setSelectedOrder(null);
                 fetchPendingOrders();
+                window.dispatchEvent(new CustomEvent('order-updated'));
                 
                 // Optional: Redirect to permanent order details or generate WhatsApp link
                 if (orderId && selectedOrder) {
