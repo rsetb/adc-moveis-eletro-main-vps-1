@@ -20,18 +20,18 @@ const Logo = () => {
 
     // Enquanto carrega, mostra placeholder transparente para evitar flash da logo antiga
     if (isLoading) {
-        return <div className="w-56 h-20" />;
+        return <div className="w-64 h-24" />;
     }
 
     if (settings.logoUrl) {
         return (
-            <div className="relative w-56 h-20">
+            <div className="relative w-64 h-24">
                 <Image
                     src={settings.logoUrl}
                     alt={settings.storeName}
                     fill
-                    className="object-contain"
-                    sizes="224px"
+                    className="object-contain object-left"
+                    sizes="256px"
                 />
             </div>
         );
