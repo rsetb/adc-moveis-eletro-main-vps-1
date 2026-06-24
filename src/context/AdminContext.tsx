@@ -376,6 +376,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     }
     logAction('Produto Criado', `Produto ${productData.name} criado.`, user);
     lastUpdateRef.current = Date.now();
+    refreshData();
     toast({ title: 'Produto salvo', description: `Produto ${productData.name} cadastrado.` });
   };
 
@@ -388,6 +389,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     logAction('Produto Atualizado', `Produto ${product.name} atualizado.`, user);
     lastUpdateRef.current = Date.now();
     updateProductLocally(product);
+    refreshData();
     toast({ title: 'Produto atualizado', description: `Produto ${product.name} salvo.` });
   };
 
