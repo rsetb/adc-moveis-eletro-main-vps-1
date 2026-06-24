@@ -17,6 +17,7 @@ import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/context/AuthContext';
+import { useRealtimeUpdates } from '@/hooks/useRealtimeUpdates';
 import { Textarea } from '@/components/ui/textarea';
 import {
     AlertDialog,
@@ -94,7 +95,15 @@ function PendingOrdersContent() {
     useEffect(() => {
         fetchPendingOrders();
         if (canViewTrash) fetchTrashedOrders();
+        const interval = setInterval(fetchPendingOrders, 30000);
+        return () => clearInterval(interval);
     }, [targetId, canViewTrash]);
+
+    useRealtimeUpdates((changed) => {
+        if (changed.includes('pendingOrders')) {
+            fetchPendingOrders();
+        }
+    });
 
     const handleConfirm = async (tempId: string) => {
         if (!confirm('Tem certeza que deseja aprovar este pedido? O estoque será debitado.')) return;

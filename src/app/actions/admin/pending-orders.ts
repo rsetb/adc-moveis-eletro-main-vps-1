@@ -21,6 +21,14 @@ function assertTrashPermission(user: User | null) {
     }
 }
 
+export async function getPendingOrdersCountAction(): Promise<number> {
+    try {
+        return await db.temporaryOrder.count({ where: { deletedAt: null } });
+    } catch {
+        return 0;
+    }
+}
+
 export async function getPendingOrdersAction() {
     try {
         // Clean up expired non-trashed orders after 7 days

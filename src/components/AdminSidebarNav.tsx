@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -8,6 +8,8 @@ import { usePermissions } from '@/context/PermissionsContext';
 import { hasAccess } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 import type { AppSection } from '@/lib/types';
+import { getPendingOrdersCountAction } from '@/app/actions/admin/pending-orders';
+import { useRealtimeUpdates } from '@/hooks/useRealtimeUpdates';
 import {
     LayoutDashboard,
     ShoppingCart,
@@ -124,6 +126,19 @@ export default function AdminSidebarNav({ onNavigate, sidebarCollapsed }: AdminS
     const pathname = usePathname();
     const { user } = useAuth();
     const { permissions } = usePermissions();
+    const [pendingCount, setPendingCount] = useState(0);
+
+    useEffect(() => {
+        getPendingOrdersCountAction().then(setPendingCount);
+        const interval = setInterval(() => getPendingOrdersCountAction().then(setPendingCount), 60000);
+        return () => clearInterval(interval);
+    }, []);
+
+    useRealtimeUpdates((changed) => {
+        if (changed.includes('pendingOrders')) {
+            getPendingOrdersCountAction().then(setPendingCount);
+        }
+    });
 
     // collapsed state for groups: undefined = open, true = collapsed
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -212,15 +227,27 @@ export default function AdminSidebarNav({ onNavigate, sidebarCollapsed }: AdminS
                                                     : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
                                             )}
                                         >
-                                            <Icon className="h-4 w-4 flex-shrink-0" />
+                                            <div className="relative flex-shrink-0">
+                                                <Icon className="h-4 w-4" />
+                                                {item.id === 'solicitacoes' && pendingCount > 0 && (
+                                                    <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none">
+                                                        {pendingCount > 9 ? '9+' : pendingCount}
+                                                    </span>
+                                                )}
+                                            </div>
                                             <span className={cn(
                                                 'truncate',
                                                 sidebarCollapsed && 'lg:hidden',
                                             )}>
                                                 {item.label}
                                             </span>
-                                            {/* Active dot — hidden when collapsed */}
-                                            {isActive && !sidebarCollapsed && (
+                                            {item.id === 'solicitacoes' && pendingCount > 0 && !sidebarCollapsed && (
+                                                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                                                    {pendingCount}
+                                                </span>
+                                            )}
+                                            {/* Active dot — hidden when collapsed or when badge is showing */}
+                                            {isActive && !sidebarCollapsed && item.id !== 'solicitacoes' && (
                                                 <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary-foreground/70 flex-shrink-0" />
                                             )}
                                         </Link>

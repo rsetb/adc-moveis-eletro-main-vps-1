@@ -4,6 +4,8 @@ import { db } from '@/lib/db';
 import { createOrderAction } from './checkout';
 import type { User } from '@/lib/types';
 import { logActionAction } from '@/app/actions/audit';
+import { notifyChange } from '@/lib/change-notifier';
+import { revalidatePath } from 'next/cache';
 
 function assertTrashPermission(user: User | null) {
     if (!user) throw new Error('Permissão negada: usuário não autenticado.');
@@ -28,6 +30,9 @@ export async function createTemporaryOrderAction(payload: { orderData: any; cust
                 data: payload as any
             }
         });
+
+        revalidatePath('/admin/pedidos/pendentes');
+        notifyChange('pendingOrders');
 
         return { success: true, id: tempOrder.id };
     } catch (error: any) {
