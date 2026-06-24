@@ -76,10 +76,9 @@ export default function ProductDetailPage() {
   }
 
   const maxInstallments = product.maxInstallments ?? 10;
-  // Preço efetivo: se em promoção usa originalPrice, senão usa price
-  const displayPrice = (product.onSale && typeof product.originalPrice === 'number' && product.originalPrice > 0)
-    ? product.originalPrice
-    : product.price;
+  // price = preço atual (destaque); originalPrice = "De" riscado
+  const isOnSale = product.onSale && typeof product.originalPrice === 'number' && product.originalPrice > 0;
+  const displayPrice = product.price;
   const installmentValue = maxInstallments > 0 ? displayPrice / maxInstallments : displayPrice;
   const showCountdown = product.onSale && product.promotionEndDate && new Date(product.promotionEndDate) > new Date();
 
@@ -175,19 +174,16 @@ export default function ProductDetailPage() {
             <Separator className="my-6" />
 
             <div className="space-y-4">
-              {product.onSale && typeof product.originalPrice === 'number' && product.originalPrice > 0 && (
+              {isOnSale && (
                 <p className="text-base text-muted-foreground line-through">
-                  {formatCurrency(product.price)}
+                  {formatCurrency(product.originalPrice!)}
                 </p>
               )}
               <p className="text-4xl font-bold text-foreground">
-                {product.onSale && typeof product.originalPrice === 'number' && product.originalPrice > 0
-                  ? formatCurrency(product.originalPrice)
-                  : formatCurrency(product.price)
-                }
+                {formatCurrency(displayPrice)}
               </p>
               {maxInstallments > 1 && (
-                <p className="text-lg text-accent font-semibold">
+                <p className="text-lg text-muted-foreground font-semibold">
                   ou {maxInstallments}x de {formatCurrency(installmentValue)} sem juros
                 </p>
               )}
@@ -196,7 +192,7 @@ export default function ProductDetailPage() {
             <div className="mt-8">
               {product.stock > 0 ? (
                 <>
-                  <Button size="lg" onClick={handleAddToCart} className="w-full md:w-auto bg-accent hover:bg-accent/90">
+                  <Button size="lg" onClick={handleAddToCart} className="w-full md:w-auto bg-primary hover:bg-primary/90 text-primary-foreground">
                     <ShoppingCart className="mr-2 h-5 w-5" />
                     Adicionar ao Carrinho
                   </Button>
