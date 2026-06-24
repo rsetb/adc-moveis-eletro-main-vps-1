@@ -39,8 +39,8 @@ import { useToast } from '@/hooks/use-toast';
 const productSchema = z.object({
   code: z.string().optional(),
   name: z.string().min(3, 'O nome do produto é obrigatório.'),
-  description: z.string().min(10, 'A descrição curta é obrigatória.'),
-  longDescription: z.string().min(20, 'A descrição longa é obrigatória.'),
+  description: z.string().optional().default(''),
+  longDescription: z.string().optional().default(''),
   price: z.preprocess(
     (val) => {
       if (typeof val === 'string') {
@@ -48,7 +48,7 @@ const productSchema = z.object({
       }
       return val;
     },
-    z.coerce.number({ invalid_type_error: 'Preço inválido.' }).positive('O preço deve ser positivo.')
+    z.coerce.number({ invalid_type_error: 'Preço inválido.' }).min(0, 'O preço não pode ser negativo.')
   ),
   originalPrice: z.preprocess(
     (val) => {
@@ -313,9 +313,18 @@ export default function ProductForm({ productToEdit, onFinished }: ProductFormPr
     }
   }
 
-  const handleSubmitWithScroll = form.handleSubmit(onSubmit, () => {
+  const handleSubmitWithScroll = form.handleSubmit(onSubmit, (errors) => {
+    const messages = Object.entries(errors)
+      .map(([field, err]) => `• ${(err as any)?.message || field}`)
+      .join('\n');
+    toast({
+      title: 'Corrija os campos destacados',
+      description: messages,
+      variant: 'destructive',
+    });
     setTimeout(() => {
-      const firstError = document.querySelector('.text-destructive');
+      const dialog = document.querySelector('[role="dialog"]');
+      const firstError = (dialog || document).querySelector('.text-destructive');
       firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 50);
   });
@@ -762,9 +771,11 @@ export default function ProductForm({ productToEdit, onFinished }: ProductFormPr
           </div>
         </div>
 
-        <Button type="submit" size="lg" className="w-full">
-          <PackagePlus className="mr-2 h-5 w-5" />
-          {productToEdit ? 'Salvar Alterações' : 'Cadastrar Produto'}
+        <Button type="submit" size="lg" className="w-full" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting
+            ? <><span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent inline-block" />Salvando...</>
+            : <><PackagePlus className="mr-2 h-5 w-5" />{productToEdit ? 'Salvar Alterações' : 'Cadastrar Produto'}</>
+          }
         </Button>
       </form>
     </Form>
