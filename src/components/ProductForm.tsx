@@ -78,7 +78,7 @@ const productSchema = z.object({
   category: z.string().min(1, 'A categoria é obrigatória.'),
   subcategory: z.string().optional(),
   stock: z.coerce.number().int().min(0, 'O estoque não pode ser negativo.'),
-  imageUrls: z.array(z.string()).min(1, 'Pelo menos uma imagem é obrigatória.'),
+  imageUrls: z.array(z.string()).default([]),
   maxInstallments: z.coerce.number().int().min(1, 'O número mínimo de parcelas é 1.'),
   paymentCondition: z.string().optional(),
   commissionType: z.enum(['percentage', 'fixed']).default('percentage'),
@@ -315,7 +315,7 @@ export default function ProductForm({ productToEdit, onFinished }: ProductFormPr
 
   const handleSubmitWithScroll = form.handleSubmit(onSubmit, () => {
     setTimeout(() => {
-      const firstError = document.querySelector('[data-slot="form-message"]:not(:empty), .text-destructive:not(:empty)');
+      const firstError = document.querySelector('.text-destructive');
       firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 50);
   });
@@ -673,7 +673,7 @@ export default function ProductForm({ productToEdit, onFinished }: ProductFormPr
                   <div className="grid grid-cols-2 gap-4">
                     {imagePreviews.map((src, index) => (
                       <div key={index} className="relative group">
-                        <Image src={src} alt={`Preview ${index}`} width={100} height={100} className="w-full h-auto object-contain rounded-md aspect-square" />
+                        <Image src={src} alt={`Preview ${index}`} width={100} height={100} className="w-full h-auto object-contain rounded-md aspect-square" unoptimized={src.startsWith('data:')} />
                         <Button type="button" variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeImage(index)}>
                           <X className="h-4 w-4" />
                         </Button>
