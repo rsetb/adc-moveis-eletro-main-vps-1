@@ -6,10 +6,10 @@ import { useSettings } from '@/context/SettingsContext';
 
 const DefaultLogo = ({ name }: { name: string }) => (
     <div className="flex items-center gap-2">
-        <div className="bg-primary text-primary-foreground rounded-md w-9 h-9 flex items-center justify-center font-extrabold text-lg">
+        <div className="bg-primary text-primary-foreground rounded-md w-11 h-11 flex items-center justify-center font-extrabold text-xl">
             {name.charAt(0).toUpperCase()}
         </div>
-        <span className="font-bold text-lg text-primary leading-tight max-w-[140px] truncate">
+        <span className="font-bold text-xl text-primary leading-tight max-w-[180px] truncate">
             {name}
         </span>
     </div>
@@ -18,22 +18,20 @@ const DefaultLogo = ({ name }: { name: string }) => (
 const Logo = () => {
     const { settings, isLoading } = useSettings();
 
-    // Enquanto carrega, mostra placeholder transparente para evitar flash da logo antiga
     if (isLoading) {
-        return <div className="w-64 h-24" />;
+        return <div className="h-24 w-48" />;
     }
 
     if (settings.logoUrl) {
         return (
-            <div className="relative w-64 h-24">
-                <Image
-                    src={settings.logoUrl}
-                    alt={settings.storeName}
-                    fill
-                    className="object-contain object-left"
-                    sizes="256px"
-                />
-            </div>
+            <Image
+                src={settings.logoUrl}
+                alt={settings.storeName}
+                width={320}
+                height={96}
+                className="h-24 w-auto object-contain object-left"
+                style={{ maxWidth: '320px' }}
+            />
         );
     }
 
