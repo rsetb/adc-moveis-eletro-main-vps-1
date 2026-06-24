@@ -43,12 +43,13 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   const maxInstallments = product.maxInstallments ?? 1;
   const isOnSale = product.onSale && typeof product.originalPrice === 'number' && product.originalPrice > 0;
-  const displayPrice = isOnSale ? product.originalPrice! : product.price;
+  // price = preço atual (menor); originalPrice = preço "De" riscado (maior)
+  const displayPrice = product.price;
   const installmentValue = maxInstallments > 1 ? displayPrice / maxInstallments : 0;
   const showCountdown = product.onSale && product.promotionEndDate && new Date(product.promotionEndDate) > new Date();
 
   const discountPct = isOnSale
-    ? Math.round((1 - product.originalPrice! / product.price) * 100)
+    ? Math.round((1 - product.price / product.originalPrice!) * 100)
     : 0;
 
   const isLowStock = product.stock > 0 && product.stock <= 3;
@@ -106,7 +107,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           <div className="mt-3 pt-3 border-t border-border/50">
             {isOnSale && (
               <p className="text-xs text-muted-foreground line-through">
-                De {formatCurrency(product.price)}
+                De {formatCurrency(product.originalPrice!)}
               </p>
             )}
             <p className="text-xl font-bold text-primary leading-tight">
@@ -124,7 +125,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           {product.stock > 0 ? (
             <Button
               onClick={handleAddToCart}
-              className="w-full bg-accent hover:bg-accent/90 transition-all duration-200 active:scale-95"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground transition-all duration-200 active:scale-95"
             >
               <ShoppingCart className="mr-2 h-4 w-4" />
               Adicionar ao Carrinho

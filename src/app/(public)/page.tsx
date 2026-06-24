@@ -303,15 +303,12 @@ export default function Home() {
                               </div>
                               <div className="mt-4">
                                 {product.onSale && typeof product.originalPrice === 'number' && product.originalPrice > 0 && (
-                                  <p className="text-sm text-muted-foreground line-through">{formatCurrency(product.price)}</p>
+                                  <p className="text-sm text-muted-foreground line-through">{formatCurrency(product.originalPrice)}</p>
                                 )}
-                                <p className="text-2xl font-bold text-accent">
-                                  {product.onSale && typeof product.originalPrice === 'number' && product.originalPrice > 0
-                                    ? formatCurrency(product.originalPrice)
-                                    : formatCurrency(product.price)
-                                  }
+                                <p className="text-2xl font-bold text-primary">
+                                  {formatCurrency(product.price)}
                                 </p>
-                                <Button className="mt-3 w-full bg-accent hover:bg-accent/90">Ver Detalhes</Button>
+                                <Button className="mt-3 w-full bg-primary hover:bg-primary/90 text-primary-foreground">Ver Detalhes</Button>
                               </div>
                             </div>
                           </CardContent>
