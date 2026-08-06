@@ -46,9 +46,6 @@ export function PriceChangeAlerts() {
         };
 
         fetchChanges();
-        // Atualizar a cada 5 minutos
-        const interval = setInterval(fetchChanges, 5 * 60 * 1000);
-        return () => clearInterval(interval);
     }, []);
 
     const visibleChanges = changes.filter(c => !dismissed.includes(c.id));

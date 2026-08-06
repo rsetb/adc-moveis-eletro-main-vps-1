@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import type { AuditLog, User } from '@/lib/types';
 import { getAuditLogsAction, logActionAction } from '@/app/actions/audit';
 
@@ -16,7 +16,6 @@ const AuditContext = createContext<AuditContextType | undefined>(undefined);
 export const AuditProvider = ({ children }: { children: ReactNode }) => {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const isPolling = useRef(true);
 
   const fetchLogs = useCallback(async () => {
     try {
@@ -33,15 +32,6 @@ export const AuditProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     fetchLogs();
-
-    const intervalId = setInterval(() => {
-      if (isPolling.current) fetchLogs();
-    }, 15000);
-
-    return () => {
-      clearInterval(intervalId);
-      isPolling.current = false;
-    };
   }, [fetchLogs]);
 
 

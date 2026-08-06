@@ -9,7 +9,6 @@ import { hasAccess } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 import type { AppSection } from '@/lib/types';
 import { getPendingOrdersCountAction } from '@/app/actions/admin/pending-orders';
-import { useRealtimeUpdates } from '@/hooks/useRealtimeUpdates';
 import {
     LayoutDashboard,
     ShoppingCart,
@@ -130,15 +129,15 @@ export default function AdminSidebarNav({ onNavigate, sidebarCollapsed }: AdminS
 
     useEffect(() => {
         getPendingOrdersCountAction().then(setPendingCount);
-        const interval = setInterval(() => getPendingOrdersCountAction().then(setPendingCount), 60000);
-        return () => clearInterval(interval);
     }, []);
 
-    useRealtimeUpdates((changed) => {
-        if (changed.includes('pendingOrders')) {
+    useEffect(() => {
+        const handleOrderUpdated = () => {
             getPendingOrdersCountAction().then(setPendingCount);
-        }
-    });
+        };
+        window.addEventListener('order-updated', handleOrderUpdated);
+        return () => window.removeEventListener('order-updated', handleOrderUpdated);
+    }, []);
 
     // collapsed state for groups: undefined = open, true = collapsed
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});

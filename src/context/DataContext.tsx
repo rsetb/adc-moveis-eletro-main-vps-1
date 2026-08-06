@@ -3,6 +3,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import type { Product, Category } from '@/lib/types';
 import { getProductsAction, getCategoriesAction } from '@/app/actions/data';
 import { useRealtimeUpdates } from '@/hooks/useRealtimeUpdates';
@@ -82,10 +83,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  const pathname = usePathname();
+  const isAdmin = pathname?.startsWith('/admin') ?? false;
+
   useEffect(() => {
     fetchData(true);
 
-    // Polling interval (Realtime updates)
+    // Polling e realtime desativados no admin — lá a atualização é manual.
+    if (isAdmin) return;
+
     const intervalId = setInterval(() => {
       if (isPolling.current) {
         fetchData(false);
@@ -96,9 +102,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       clearInterval(intervalId);
       isPolling.current = false;
     };
-  }, [fetchData]);
+  }, [fetchData, isAdmin]);
 
   useRealtimeUpdates((changed) => {
+    if (isAdmin) return;
     if (changed.includes('products')) fetchData(false);
   });
 

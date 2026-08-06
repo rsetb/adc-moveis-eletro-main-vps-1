@@ -3,6 +3,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAudit } from './AuditContext';
 import { useAuth } from './AuthContext';
@@ -39,7 +40,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const { logAction } = useAudit();
     const { user } = useAuth();
     const isPolling = useRef(true);
-
+    const pathname = usePathname();
+    const isAdmin = pathname?.startsWith('/admin') ?? false;
 
     useEffect(() => {
         const fetchSettings = async () => {
@@ -57,6 +59,9 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
         fetchSettings();
 
+        // Polling desativado no admin — lá a atualização é manual.
+        if (isAdmin) return;
+
         const intervalId = setInterval(() => {
             if (isPolling.current) fetchSettings();
         }, 30000); // 30s polling for settings
@@ -65,7 +70,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             clearInterval(intervalId);
             isPolling.current = false;
         };
-    }, []);
+    }, [isAdmin]);
 
     const updateSettings = async (newSettings: Partial<StoreSettings>) => {
         try {

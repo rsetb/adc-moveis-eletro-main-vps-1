@@ -21,7 +21,6 @@ import { resetOrdersAction, resetProductsAction, resetFinancialsAction, resetAll
 import { addCustomerAction, getCustomersAction, getDeletedCustomersAction, updateCustomerAction, deleteCustomerAction, restoreCustomerFromTrashAction, permanentlyDeleteCustomerFromTrashAction, permanentlyDeleteCustomerAction, generateCustomerCodesAction } from '@/app/actions/admin/customers';
 import { payCommissionAction, reverseCommissionPaymentAction, getCommissionPaymentsAction } from '@/app/actions/admin/financials';
 import { addCategoryAction, deleteCategoryAction, updateCategoryNameAction, addSubcategoryAction, updateSubcategoryAction, deleteSubcategoryAction } from '@/app/actions/admin/categories';
-import { useRealtimeUpdates } from '@/hooks/useRealtimeUpdates';
 
 type LogAction = (action: string, details: string, user: User | null) => void;
 
@@ -194,13 +193,6 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  useRealtimeUpdates((changed) => {
-    if (changed.includes('orders') || changed.includes('customers') || changed.includes('products')) {
-      lastUpdateRef.current = 0;
-      fetchData();
-    }
-  });
 
   // Set up event listener for forced updates
   useEffect(() => {

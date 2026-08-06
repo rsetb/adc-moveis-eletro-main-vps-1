@@ -134,8 +134,6 @@ export default function CobrancasDashboardPage() {
     delinquencyRate: 0,
   });
 
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   const fetchDashboard = useCallback(async () => {
     if (!user) return;
     setIsLoading(true);
@@ -165,13 +163,6 @@ export default function CobrancasDashboardPage() {
     if (!canAccess) return;
 
     fetchDashboard();
-
-    if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(fetchDashboard, 30000);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-      pollRef.current = null;
-    };
   }, [authLoading, permLoading, user, canAccess, router, fetchDashboard]);
 
   const overdueRows = useMemo(() => {
