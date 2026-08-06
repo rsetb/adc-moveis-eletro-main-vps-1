@@ -21,11 +21,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 
 
 const formatCurrency = (value: number) => {
@@ -56,6 +54,7 @@ export default function Home() {
     search: '',
     sort: 'newest',
   });
+  const [mobileCatExpanded, setMobileCatExpanded] = useState<string | null>(null);
 
   useEffect(() => {
     if (headerSearch) {
@@ -216,7 +215,7 @@ export default function Home() {
         <section className="w-full bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5">
           <div className="container mx-auto py-8">
             <div className="w-full md:hidden mb-4">
-              <DropdownMenu>
+              <DropdownMenu onOpenChange={(open) => { if (!open) setMobileCatExpanded(null); }}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
@@ -228,31 +227,43 @@ export default function Home() {
                     <ChevronDown className="h-4 w-4 opacity-60 flex-shrink-0" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-[calc(100vw-2rem)]">
+                <DropdownMenuContent align="start" className="w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto">
                   <DropdownMenuItem onClick={() => handleFilterChange({ category: 'all', subcategory: 'all' })}>
                     Todas
                   </DropdownMenuItem>
                   {categories.map((cat) => {
                     const subs = cat.subcategories ?? [];
+                    const isExpanded = mobileCatExpanded === cat.name;
                     if (subs.length > 0) {
                       return (
-                        <DropdownMenuSub key={cat.id}>
-                          <DropdownMenuSubTrigger className="capitalize">{cat.name}</DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent>
-                            <DropdownMenuItem onClick={() => handleFilterChange({ category: cat.name, subcategory: 'all' })}>
-                              Tudo em {cat.name}
-                            </DropdownMenuItem>
-                            {subs.map((sub) => (
-                              <DropdownMenuItem
-                                key={sub}
-                                className="capitalize"
-                                onClick={() => handleFilterChange({ category: cat.name, subcategory: sub })}
-                              >
-                                {sub}
+                        <div key={cat.id}>
+                          <DropdownMenuItem
+                            className="capitalize justify-between"
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              setMobileCatExpanded(isExpanded ? null : cat.name);
+                            }}
+                          >
+                            {cat.name}
+                            <ChevronDown className={cn('h-4 w-4 opacity-60 transition-transform', isExpanded && 'rotate-180')} />
+                          </DropdownMenuItem>
+                          {isExpanded && (
+                            <div className="ml-3 pl-2 border-l border-border">
+                              <DropdownMenuItem onClick={() => handleFilterChange({ category: cat.name, subcategory: 'all' })}>
+                                Tudo em {cat.name}
                               </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuSubContent>
-                        </DropdownMenuSub>
+                              {subs.map((sub) => (
+                                <DropdownMenuItem
+                                  key={sub}
+                                  className="capitalize"
+                                  onClick={() => handleFilterChange({ category: cat.name, subcategory: sub })}
+                                >
+                                  {sub}
+                                </DropdownMenuItem>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       );
                     }
                     return (
