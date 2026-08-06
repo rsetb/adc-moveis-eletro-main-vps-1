@@ -132,7 +132,7 @@ export function CartSheet({ children }: { children: React.ReactNode }) {
                 <div className="space-y-2">
                   <SheetClose asChild>
                     <Link href="/checkout" className="w-full">
-                      <Button size="lg" className="w-full bg-accent hover:bg-accent/90" disabled={!isCartValid || isLoading}>
+                      <Button size="lg" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={!isCartValid || isLoading}>
                         Finalizar Compra
                       </Button>
                     </Link>

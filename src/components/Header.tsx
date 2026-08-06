@@ -102,7 +102,7 @@ export default function Header() {
                 <ShoppingBag className="sm:mr-2" />
                 <span className="hidden sm:inline">Carrinho</span>
                 {cartCount > 0 && (
-                  <span className="absolute top-0 right-0 inline-flex items-center justify-center w-5 h-5 text-xs font-bold leading-none text-primary-foreground transform translate-x-1/2 -translate-y-1/2 bg-accent rounded-full">
+                  <span className="absolute top-0 right-0 inline-flex items-center justify-center w-5 h-5 text-xs font-bold leading-none text-primary-foreground transform translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full">
                     {cartCount}
                   </span>
                 )}

@@ -765,7 +765,7 @@ Confirmação de Entrega: O pedido será enviado para o endereço acima.${vencTe
                 <div className="flex-grow min-w-0">
                   <p className="font-semibold text-sm sm:text-base leading-tight">{item.name}</p>
                   <p className="text-sm text-muted-foreground">Qtd: {item.quantity}</p>
-                  <p className="text-sm text-accent font-bold">(em até {item.maxInstallments}x)</p>
+                  <p className="text-sm text-emerald-600 dark:text-emerald-400 font-bold">(em até {item.maxInstallments}x)</p>
                   {!item.hasEnoughStock && (
                     <div className="flex items-center gap-1 text-xs text-destructive mt-1">
                       <AlertTriangle className="h-3 w-3" />

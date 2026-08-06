@@ -81,7 +81,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
     return (
         <PermissionsProvider>
             <AdminProvider>
-                <div className="flex h-screen overflow-hidden bg-background">
+                <div className="flex items-start overflow-x-hidden bg-background">
 
                     {/* ── Mobile overlay ── */}
                     {sidebarOpen && (
@@ -95,7 +95,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
                     <aside className={cn(
                         'fixed inset-y-0 left-0 z-50 flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border',
                         'transform lg:transform-none transition-[width,transform] duration-200 ease-in-out',
-                        'lg:static lg:z-auto',
+                        'lg:sticky lg:top-0 lg:z-auto lg:self-start lg:max-h-screen',
                         sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
                         // mobile: always w-64 — desktop: respects collapsed
                         sidebarCollapsed ? 'w-64 lg:w-16' : 'w-64',
@@ -160,10 +160,10 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
                     </aside>
 
                     {/* ── Right column ── */}
-                    <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+                    <div className="flex flex-1 flex-col min-w-0">
 
                         {/* ── Topbar ── */}
-                        <header className="flex h-16 items-center gap-2 bg-card px-4 flex-shrink-0 shadow-[0_1px_0_0_hsl(var(--border))]">
+                        <header className="sticky top-0 z-30 flex h-16 items-center gap-2 bg-card px-4 flex-shrink-0 shadow-[0_1px_0_0_hsl(var(--border))]">
                             {/* Hamburger — mobile */}
                             <button
                                 onClick={() => setSidebarOpen(true)}
@@ -254,7 +254,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
                         </header>
 
                         {/* ── Main content ── */}
-                        <main className="flex-1 overflow-y-auto bg-background">
+                        <main className="flex-1 bg-background">
                             <div className="p-5 lg:p-7 space-y-1">
                                 <PriceChangeAlerts />
                             </div>
