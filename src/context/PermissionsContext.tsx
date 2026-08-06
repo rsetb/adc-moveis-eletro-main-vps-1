@@ -30,7 +30,10 @@ export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
         try {
             const result = await getRolePermissionsAction();
             if (result.success && result.data) {
-                setPermissions(result.data);
+                const next = result.data;
+                // Evita gerar uma referencia nova (e disparar re-renders/effects em cascata)
+                // quando o conteudo nao mudou de verdade.
+                setPermissions(prev => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
             }
         } catch (error) {
             console.error("Failed to load permissions:", error);

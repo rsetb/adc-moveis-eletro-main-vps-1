@@ -45,7 +45,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const fetchUsers = async () => {
     const result = await getUsersAction();
     if (result.success && result.data) {
-      setUsers(result.data as User[]);
+      const next = result.data as User[];
+      // Evita gerar uma referencia nova (e disparar re-renders/effects em cascata)
+      // quando o conteudo nao mudou de verdade.
+      setUsers(prev => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
     }
   };
 
@@ -56,7 +59,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUsers([]);
       return false;
     }
-    setUser(result.user as User);
+    const next = result.user as User;
+    setUser(prev => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
     return true;
   };
 
