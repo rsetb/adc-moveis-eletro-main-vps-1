@@ -16,7 +16,16 @@ import { useData } from '@/context/DataContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCart } from '@/context/CartContext';
 import { useSearchParams } from 'next/navigation';
-import { PackageSearch, LayoutGrid } from 'lucide-react';
+import { PackageSearch, LayoutGrid, ChevronDown } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 
 const formatCurrency = (value: number) => {
@@ -206,60 +215,63 @@ export default function Home() {
       {featuredProducts.length > 0 && (
         <section className="w-full bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5">
           <div className="container mx-auto py-8">
+            <div className="w-full md:hidden mb-4">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between rounded-full h-11 px-4 text-sm capitalize"
+                  >
+                    <span className="truncate">
+                      {filters.category === 'all' ? 'Todas as categorias' : filters.category}
+                    </span>
+                    <ChevronDown className="h-4 w-4 opacity-60 flex-shrink-0" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-[calc(100vw-2rem)]">
+                  <DropdownMenuItem onClick={() => handleFilterChange({ category: 'all', subcategory: 'all' })}>
+                    Todas
+                  </DropdownMenuItem>
+                  {categories.map((cat) => {
+                    const subs = cat.subcategories ?? [];
+                    if (subs.length > 0) {
+                      return (
+                        <DropdownMenuSub key={cat.id}>
+                          <DropdownMenuSubTrigger className="capitalize">{cat.name}</DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuItem onClick={() => handleFilterChange({ category: cat.name, subcategory: 'all' })}>
+                              Tudo em {cat.name}
+                            </DropdownMenuItem>
+                            {subs.map((sub) => (
+                              <DropdownMenuItem
+                                key={sub}
+                                className="capitalize"
+                                onClick={() => handleFilterChange({ category: cat.name, subcategory: sub })}
+                              >
+                                {sub}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      );
+                    }
+                    return (
+                      <DropdownMenuItem
+                        key={cat.id}
+                        className="capitalize"
+                        onClick={() => handleFilterChange({ category: cat.name, subcategory: 'all' })}
+                      >
+                        {cat.name}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-8 mb-6">
               <h2 className="text-2xl font-bold text-primary flex items-center gap-2 flex-shrink-0">
                 <span className="text-3xl">🔥</span> Destaques
               </h2>
-              <div className="w-full md:hidden pb-1">
-                <div className="flex flex-wrap md:flex-nowrap items-center gap-2 px-2 md:min-w-max">
-                  <Button
-                    variant={filters.category === 'all' ? 'default' : 'outline'}
-                    onClick={() => handleFilterChange({ category: 'all', subcategory: 'all' })}
-                    className="h-9 rounded-full px-4 text-xs whitespace-nowrap"
-                  >
-                    Todas
-                  </Button>
-                  {categories.map((cat) => (
-                    <Button
-                      key={cat.id}
-                      variant={filters.category === cat.name ? 'default' : 'outline'}
-                      onClick={() => handleFilterChange({ category: cat.name, subcategory: 'all' })}
-                      className="h-9 rounded-full px-4 text-xs whitespace-nowrap capitalize"
-                    >
-                      {cat.name}
-                    </Button>
-                  ))}
-                </div>
-                {filters.category !== 'all' && (
-                  <div className="w-full mt-3 md:hidden">
-                    <div className="flex flex-wrap items-center gap-2 px-2 py-2 bg-muted/40 border rounded-lg shadow-sm">
-                      {(() => {
-                        const selected = categories.find(c => c.name === filters.category);
-                        const subs = selected?.subcategories ?? [];
-                        const allButton =
-                          <Button
-                            key="all-sub"
-                            variant={filters.subcategory === 'all' ? 'secondary' : 'ghost'}
-                            onClick={() => handleFilterChange({ subcategory: 'all' })}
-                            className="h-8 rounded-full px-3 text-xs whitespace-nowrap"
-                          >
-                            Tudo em {filters.category}
-                          </Button>;
-                        return [allButton, ...subs.map(sub => (
-                          <Button
-                            key={sub}
-                            variant={filters.subcategory === sub ? 'secondary' : 'ghost'}
-                            onClick={() => handleFilterChange({ subcategory: sub })}
-                            className="h-8 rounded-full px-3 text-xs whitespace-nowrap capitalize"
-                          >
-                            {sub}
-                          </Button>
-                        ))];
-                      })()}
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
             <Carousel
               opts={{
