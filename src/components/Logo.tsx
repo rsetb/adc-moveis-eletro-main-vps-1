@@ -19,7 +19,7 @@ const Logo = () => {
     const { settings, isLoading } = useSettings();
 
     if (isLoading) {
-        return <div className="h-24 w-48" />;
+        return <div className="h-14 w-48" />;
     }
 
     if (settings.logoUrl) {
@@ -29,7 +29,7 @@ const Logo = () => {
                 alt={settings.storeName}
                 width={320}
                 height={96}
-                className="h-24 w-auto object-contain object-left"
+                className="h-14 w-auto object-contain object-left"
                 style={{ maxWidth: '320px' }}
             />
         );

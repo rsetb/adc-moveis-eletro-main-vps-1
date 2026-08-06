@@ -9,14 +9,12 @@ import { useData } from '@/context/DataContext';
 import { useCustomerAuth } from '@/context/CustomerAuthContext';
 import { useAuth } from '@/context/AuthContext';
 import { Button, buttonVariants } from './ui/button';
-import { ShoppingBag, User, Search, Sun, Moon } from 'lucide-react';
+import { ShoppingBag, User, Search } from 'lucide-react';
 import { CartSheet } from './CartSheet';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { Input } from './ui/input';
 import { usePathname, useRouter } from 'next/navigation';
-import { useTheme } from 'next-themes';
-import { Switch } from './ui/switch';
 import TopCategoriesNav from './TopCategoriesNav';
 
 export default function Header() {
@@ -28,7 +26,6 @@ export default function Header() {
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const { resolvedTheme, setTheme } = useTheme();
 
   useEffect(() => {
     setIsClient(true);
@@ -46,7 +43,6 @@ export default function Header() {
   };
 
   const customerLink = isClient && customer ? "/area-cliente/minha-conta" : "/area-cliente/login";
-  const isDark = isClient && resolvedTheme === 'dark';
 
   const goToCategory = (cat: string, sub?: string) => {
     const params = new URLSearchParams();
@@ -96,15 +92,6 @@ export default function Header() {
           >
             <Search />
           </Button>
-          <div className="hidden md:flex items-center gap-2 pr-1">
-            <Sun className="h-4 w-4 text-muted-foreground" aria-hidden />
-            <Switch
-              checked={!!isDark}
-              onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-              aria-label="Alternar tema claro/escuro"
-            />
-            <Moon className="h-4 w-4 text-muted-foreground" aria-hidden />
-          </div>
           <Link href={customerLink} className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "sm:w-auto sm:px-4")}>
             <User className="sm:mr-2" />
             <span className="hidden sm:inline">Área do Cliente</span>
