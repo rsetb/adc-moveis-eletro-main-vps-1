@@ -53,6 +53,7 @@ export default function ProductCard({ product }: ProductCardProps) {
     : 0;
 
   const isLowStock = product.stock > 0 && product.stock <= 3;
+  const isOutOfStock = product.stock <= 0;
 
   return (
     <Link href={`/produtos/${product.id}`} className="block h-full" aria-label={`Ver detalhes de ${product.name}`}>
@@ -60,15 +61,23 @@ export default function ProductCard({ product }: ProductCardProps) {
         <CardHeader className="p-0 relative">
           {/* Badges de status */}
           <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
-            {isOnSale && discountPct > 0 && (
-              <Badge className="bg-destructive text-destructive-foreground text-xs font-bold px-2 py-0.5 shadow">
-                -{discountPct}%
+            {isOutOfStock ? (
+              <Badge className="bg-gray-500 text-white text-xs font-bold px-2 py-0.5 shadow">
+                Esgotado
               </Badge>
-            )}
-            {isLowStock && (
-              <Badge className="bg-amber-500 text-white text-xs px-2 py-0.5 shadow">
-                Últimas unidades
-              </Badge>
+            ) : (
+              <>
+                {isOnSale && discountPct > 0 && (
+                  <Badge className="bg-destructive text-destructive-foreground text-xs font-bold px-2 py-0.5 shadow">
+                    -{discountPct}%
+                  </Badge>
+                )}
+                {isLowStock && (
+                  <Badge className="bg-amber-500 text-white text-xs px-2 py-0.5 shadow">
+                    Últimas unidades
+                  </Badge>
+                )}
+              </>
             )}
           </div>
 
@@ -78,7 +87,7 @@ export default function ProductCard({ product }: ProductCardProps) {
               src={imageUrl}
               alt={product.name}
               fill
-              className="object-contain p-3 transition-transform duration-500 group-hover:scale-105"
+              className={`object-contain p-3 transition-transform duration-500 group-hover:scale-105 ${isOutOfStock ? 'grayscale opacity-60' : ''}`}
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
               data-ai-hint={product['data-ai-hint']}
               unoptimized={imageUrl.startsWith('data:')}

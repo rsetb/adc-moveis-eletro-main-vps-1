@@ -116,11 +116,16 @@ export default function ProductDetailPage() {
                     <div className="p-1">
                       <Card>
                         <CardContent className="relative aspect-square w-full flex items-center justify-center p-0 overflow-hidden rounded-lg">
+                          {product.stock <= 0 && (
+                            <Badge className="absolute top-2 left-2 z-10 bg-gray-500 text-white text-xs font-bold px-2 py-0.5 shadow">
+                              Esgotado
+                            </Badge>
+                          )}
                           <Image
                             src={url}
                             alt={`${product.name} - imagem ${index + 1}`}
                             fill
-                            className="object-contain"
+                            className={`object-contain ${product.stock <= 0 ? 'grayscale opacity-60' : ''}`}
                             sizes="(max-width: 768px) 100vw, 50vw"
                             data-ai-hint={product['data-ai-hint']}
                           />
@@ -133,11 +138,16 @@ export default function ProductDetailPage() {
                     <div className="p-1">
                       <Card>
                         <CardContent className="relative aspect-square w-full flex items-center justify-center p-0 overflow-hidden rounded-lg bg-muted">
+                          {product.stock <= 0 && (
+                            <Badge className="absolute top-2 left-2 z-10 bg-gray-500 text-white text-xs font-bold px-2 py-0.5 shadow">
+                              Esgotado
+                            </Badge>
+                          )}
                           <Image
                             src="https://placehold.co/600x600.png"
                             alt={product.name}
                             fill
-                            className="object-contain"
+                            className={`object-contain ${product.stock <= 0 ? 'grayscale opacity-60' : ''}`}
                             sizes="(max-width: 768px) 100vw, 50vw"
                           />
                         </CardContent>
