@@ -214,7 +214,7 @@ export default function Home() {
       {featuredProducts.length > 0 && (
         <section className="w-full bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5">
           <div className="container mx-auto py-8">
-            <div className="w-full md:hidden mb-4">
+            <div className="w-full md:hidden mb-4 px-4">
               <DropdownMenu onOpenChange={(open) => { if (!open) setMobileCatExpanded(null); }}>
                 <DropdownMenuTrigger asChild>
                   <Button
