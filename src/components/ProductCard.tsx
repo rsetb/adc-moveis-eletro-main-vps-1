@@ -115,7 +115,7 @@ export default function ProductCard({ product }: ProductCardProps) {
             </p>
             {installmentValue > 0 && (
               <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
-                {maxInstallments}x de {formatCurrency(installmentValue)} sem juros
+                {maxInstallments}x de {formatCurrency(installmentValue)}
               </p>
             )}
           </div>

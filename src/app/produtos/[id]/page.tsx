@@ -184,7 +184,7 @@ export default function ProductDetailPage() {
               </p>
               {maxInstallments > 1 && (
                 <p className="text-lg text-muted-foreground font-semibold">
-                  ou {maxInstallments}x de {formatCurrency(installmentValue)} sem juros
+                  ou {maxInstallments}x de {formatCurrency(installmentValue)}
                 </p>
               )}
             </div>
