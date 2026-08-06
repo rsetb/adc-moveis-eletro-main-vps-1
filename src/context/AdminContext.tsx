@@ -193,8 +193,6 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 15000); // 15s polling to reduce server load
-    return () => clearInterval(interval);
   }, [fetchData]);
 
   useRealtimeUpdates((changed) => {
