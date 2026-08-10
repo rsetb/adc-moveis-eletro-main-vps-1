@@ -29,6 +29,15 @@ async function resolveAsaasConfig(): Promise<AsaasConfig> {
     return { baseUrl, token };
 }
 
+export async function isAsaasConfiguredAction(): Promise<boolean> {
+    try {
+        await resolveAsaasConfig();
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 export async function generateAsaasChargesAction(orderId: string, user: User | null) {
     try {
         assertPermission(user);

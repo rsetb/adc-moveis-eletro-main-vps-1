@@ -41,7 +41,7 @@ import {
     RefreshCw,
     Zap
 } from 'lucide-react';
-import { generateAsaasChargesAction, syncAsaasStatusesAction, cancelAsaasChargeAction } from '@/app/actions/admin/asaas';
+import { generateAsaasChargesAction, syncAsaasStatusesAction, cancelAsaasChargeAction, isAsaasConfiguredAction } from '@/app/actions/admin/asaas';
 import type { AsaasInstallmentCharge } from '@/lib/types';
 import {
     Table,
@@ -127,6 +127,11 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
     const [orderDateInput, setOrderDateInput] = useState<Date | undefined>(undefined);
     const [orderDatePopoverOpen, setOrderDatePopoverOpen] = useState(false);
     const [isOrderDateUpdating, setIsOrderDateUpdating] = useState(false);
+    const [isAsaasConfigured, setIsAsaasConfigured] = useState(false);
+
+    useEffect(() => {
+        isAsaasConfiguredAction().then(setIsAsaasConfigured);
+    }, []);
 
     // Asaas state
     const [asaasCharges, setAsaasCharges] = useState<AsaasInstallmentCharge[]>([]);
@@ -892,7 +897,7 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
                         </Card>
                     )}
 
-                    {order.paymentMethod === 'Crediário' && isManagerOrAdmin && (
+                    {order.paymentMethod === 'Crediário' && isManagerOrAdmin && isAsaasConfigured && (
                         <Card>
                             <CardHeader className="flex-row items-center justify-between space-y-0 pb-4">
                                 <div className="flex items-center gap-4">
