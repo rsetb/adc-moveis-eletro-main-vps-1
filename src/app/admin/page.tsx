@@ -18,14 +18,14 @@ export default function AdminRootPage() {
       return;
     }
 
-    // Tenta ir para dashboard primeiro; se não tiver acesso, usa a primeira seção disponível
-    const hasDashboard = hasAccess(user.role, 'dashboard', permissions);
-    if (hasDashboard) {
-      router.replace('/admin/dashboard');
+    // Tenta ir para pedidos primeiro; se não tiver acesso, usa a primeira seção disponível
+    const hasPedidos = hasAccess(user.role, 'pedidos', permissions);
+    if (hasPedidos) {
+      router.replace('/admin/pedidos');
       return;
     }
-    const firstAccessible = ALL_SECTIONS.find((s) => s.id !== 'dashboard' && hasAccess(user.role, s.id, permissions));
-    router.replace(`/admin/${firstAccessible?.id || 'pedidos'}`);
+    const firstAccessible = ALL_SECTIONS.find((s) => s.id !== 'pedidos' && hasAccess(user.role, s.id, permissions));
+    router.replace(`/admin/${firstAccessible?.id || 'dashboard'}`);
   }, [router, isLoading, permissionsLoading, isAuthenticated, user, permissions]);
 
   return (
