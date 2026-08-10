@@ -1138,16 +1138,13 @@ Não esqueça de enviar o comprovante!`;
                                                                             </Button>
                                                                         )}
                                                                         {order.paymentMethod === 'Crediário' && (
-                                                                            <Button variant="outline" size="icon" className="h-8 w-8" asChild>
+                                                                            <Button variant="outline" size="sm" className="h-8" asChild>
                                                                                 <Link href={`/carnet/${order.id}`} target="_blank" rel="noopener noreferrer">
-                                                                                    <FileText className="h-4 w-4" />
-                                                                                    <span className="sr-only">Ver carnê completo</span>
+                                                                                    <FileText className="h-4 w-4 mr-1" />
+                                                                                    Carnê
                                                                                 </Link>
                                                                             </Button>
                                                                         )}
-                                                                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleOpenDetails(order)}>
-                                                                            <Eye className="h-4 w-4" />
-                                                                        </Button>
                                                                         {user?.role !== 'vendedor_cobranca' && (
                                                                             <DropdownMenu>
                                                                                 <DropdownMenuTrigger asChild>
@@ -1175,21 +1172,25 @@ Não esqueça de enviar o comprovante!`;
                                                                                 </DropdownMenuContent>
                                                                             </DropdownMenu>
                                                                         )}
-                                                                        {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && (
-                                                                            <DropdownMenu>
-                                                                                <DropdownMenuTrigger asChild>
-                                                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                                                        <MoreHorizontal className="h-4 w-4" />
-                                                                                    </Button>
-                                                                                </DropdownMenuTrigger>
-                                                                                <DropdownMenuContent align="end">
+                                                                        <DropdownMenu>
+                                                                            <DropdownMenuTrigger asChild>
+                                                                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                                                    <MoreHorizontal className="h-4 w-4" />
+                                                                                </Button>
+                                                                            </DropdownMenuTrigger>
+                                                                            <DropdownMenuContent align="end">
+                                                                                <DropdownMenuItem onClick={() => handleOpenDetails(order)}>
+                                                                                    <Eye className="mr-2 h-4 w-4" />
+                                                                                    Detalhes
+                                                                                </DropdownMenuItem>
+                                                                                {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && (
                                                                                     <DropdownMenuItem onClick={() => handleDeleteOrder(order.id)} className="text-destructive">
                                                                                         <Trash className="mr-2 h-4 w-4" />
                                                                                         Mover para Lixeira
                                                                                     </DropdownMenuItem>
-                                                                                </DropdownMenuContent>
-                                                                            </DropdownMenu>
-                                                                        )}
+                                                                                )}
+                                                                            </DropdownMenuContent>
+                                                                        </DropdownMenu>
                                                                     </div>
                                                                 </TableCell>
                                                             </TableRow>
