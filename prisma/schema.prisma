@@ -159,6 +159,7 @@ model Order {
   createdByRole          String?  @map("created_by_role")
   createdIp              String?  @map("created_ip")
   asaas                  Json?
+  printLogs              Json?    @map("print_logs")
   createdAt              DateTime @default(now()) @map("created_at")
   updatedAt              DateTime @updatedAt @map("updated_at")
 

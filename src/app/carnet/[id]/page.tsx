@@ -16,6 +16,8 @@ import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 import { getSettingsAction } from '@/app/actions/settings';
 import { getOrderForCarnetAction } from '@/app/actions/orders-fetcher';
+import { recordOrderPrintAction } from '@/app/actions/admin/orders';
+import { useAuth } from '@/context/AuthContext';
 
 
 const initialSettings: StoreSettings = {
@@ -350,6 +352,7 @@ export default function CarnetPage() {
     const [settings, setSettings] = useState<StoreSettings>(initialSettings);
     const [isLoading, setIsLoading] = useState(true);
     const { products } = useData();
+    const { user } = useAuth();
 
     useEffect(() => {
         const orderId = params.id as string;
@@ -414,6 +417,10 @@ export default function CarnetPage() {
     const handlePrint = (layout: 'default' | 'a4') => {
         document.body.classList.remove('print-layout-default', 'print-layout-a4');
         document.body.classList.add(`print-layout-${layout}`);
+
+        if (order?.id) {
+            recordOrderPrintAction(order.id, user);
+        }
 
         // Use a short timeout to allow state to update and classes to be applied
         setTimeout(() => {

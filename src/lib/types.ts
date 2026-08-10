@@ -174,6 +174,13 @@ export type Order = {
   createdByRole?: OrderCreatorRole;
   createdIp?: string;
   asaas?: AsaasPaymentInfo;
+  printLogs?: PrintLogEntry[];
+};
+
+export type PrintLogEntry = {
+  userId: string | null;
+  userName: string;
+  printedAt: string;
 };
 
 export type CommissionPayment = {

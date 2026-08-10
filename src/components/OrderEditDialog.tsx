@@ -1050,6 +1050,28 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
                                         </div>
                                         <p><span className="font-semibold">Registrado em:</span> {format(safeParseDate(order.createdAt || order.date), "dd/MM/yyyy 'às' HH:mm")}</p>
                                         <p><span className="font-semibold">IP:</span> {order.createdIp || '-'}</p>
+                                        {order.printLogs && order.printLogs.length > 0 ? (
+                                            <div>
+                                                <p>
+                                                    <span className="font-semibold">Última impressão:</span>{' '}
+                                                    {order.printLogs[order.printLogs.length - 1].userName}
+                                                    {' '}em{' '}
+                                                    {format(safeParseDate(order.printLogs[order.printLogs.length - 1].printedAt), "dd/MM/yyyy 'às' HH:mm")}
+                                                    {order.printLogs.length > 1 && ` (${order.printLogs.length}x no total)`}
+                                                </p>
+                                                {order.printLogs.length > 1 && (
+                                                    <ul className="text-xs text-muted-foreground mt-1 space-y-0.5 pl-4 list-disc">
+                                                        {[...order.printLogs].reverse().slice(0, 10).map((log, idx) => (
+                                                            <li key={idx}>
+                                                                {log.userName} — {format(safeParseDate(log.printedAt), "dd/MM/yyyy 'às' HH:mm")}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <p><span className="font-semibold">Impressão:</span> Nunca impresso</p>
+                                        )}
                                     </div>
                                 </CardContent>
                             </CollapsibleContent>

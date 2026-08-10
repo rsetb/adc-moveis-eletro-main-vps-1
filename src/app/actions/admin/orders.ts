@@ -47,6 +47,7 @@ function mapRawOrder(raw: any): Order {
         installmentCardDetails: safeParse(raw.installmentCardDetails ?? raw.installment_card_details),
         attachments: safeParse(raw.attachments),
         asaas: safeParse(raw.asaas),
+        printLogs: safeParse(raw.printLogs ?? raw.print_logs),
     } as unknown as Order;
 }
 
@@ -239,6 +240,29 @@ export async function getAdminOrdersAction(limit: number = 1000) {
         };
     } catch (error: any) {
         console.error('Error fetching admin orders:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+const MAX_PRINT_LOG_ENTRIES = 50;
+
+export async function recordOrderPrintAction(orderId: string, user: User | null) {
+    try {
+        const order = await db.order.findUnique({ where: { id: orderId }, select: { printLogs: true } });
+        if (!order) return { success: false, error: 'Pedido não encontrado.' };
+
+        const existing = Array.isArray(order.printLogs) ? order.printLogs as any[] : [];
+        const entry = {
+            userId: user?.id ?? null,
+            userName: user?.name ?? 'Desconhecido',
+            printedAt: new Date().toISOString(),
+        };
+        const nextLogs = [...existing, entry].slice(-MAX_PRINT_LOG_ENTRIES);
+
+        await db.order.update({ where: { id: orderId }, data: { printLogs: nextLogs } });
+        return { success: true };
+    } catch (error: any) {
+        console.error('Error recording order print:', error);
         return { success: false, error: error.message };
     }
 }
