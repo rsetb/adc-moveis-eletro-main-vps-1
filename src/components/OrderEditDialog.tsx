@@ -478,11 +478,21 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col overflow-hidden">
-                <DialogHeader>
-                    <DialogTitle>Pedido: {order.id}</DialogTitle>
-                    <DialogDescription>
-                        Gerencie o status, faturamento e detalhes do pedido.
-                    </DialogDescription>
+                <DialogHeader className="pr-8">
+                    <div className="flex items-center justify-between gap-2">
+                        <div>
+                            <DialogTitle>Pedido: {order.id}</DialogTitle>
+                            <DialogDescription>
+                                Gerencie o status, faturamento e detalhes do pedido.
+                            </DialogDescription>
+                        </div>
+                        <Button variant="outline" size="sm" className="h-8 flex-shrink-0" asChild>
+                            <Link href={`/carnet/${order.id}`} target="_blank" rel="noopener noreferrer">
+                                <Printer className="h-4 w-4 mr-1" />
+                                Imprimir
+                            </Link>
+                        </Button>
+                    </div>
                 </DialogHeader>
                 <div className="flex-grow p-1 pr-4 -mr-4 space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
