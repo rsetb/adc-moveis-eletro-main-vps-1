@@ -1138,11 +1138,9 @@ Não esqueça de enviar o comprovante!`;
                                                                             </Button>
                                                                         )}
                                                                         {order.paymentMethod === 'Crediário' && (
-                                                                            <Button variant="outline" size="sm" className="h-8" asChild>
-                                                                                <Link href={`/carnet/${order.id}`} target="_blank" rel="noopener noreferrer">
-                                                                                    <FileText className="h-4 w-4 mr-1" />
-                                                                                    Carnê
-                                                                                </Link>
+                                                                            <Button variant="outline" size="sm" className="h-8" onClick={() => handleOpenDetails(order)}>
+                                                                                <FileText className="h-4 w-4 mr-1" />
+                                                                                Carnê
                                                                             </Button>
                                                                         )}
                                                                         {user?.role !== 'vendedor_cobranca' && (
