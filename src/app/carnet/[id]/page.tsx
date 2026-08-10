@@ -419,7 +419,11 @@ export default function CarnetPage() {
         document.body.classList.add(`print-layout-${layout}`);
 
         if (order?.id) {
-            recordOrderPrintAction(order.id, user);
+            recordOrderPrintAction(order.id, user).then(() => {
+                // Avisa a aba do admin (se essa pagina foi aberta a partir dela) que
+                // o pedido mudou, ja que o admin nao faz mais polling automatico.
+                window.opener?.postMessage({ type: 'order-updated', orderId: order.id }, window.location.origin);
+            });
         }
 
         // Use a short timeout to allow state to update and classes to be applied

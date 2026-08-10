@@ -202,9 +202,22 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       fetchData();
     };
 
+    // Mesma coisa, mas vinda de uma aba diferente (ex: pagina do carne
+    // avisando que o pedido foi impresso), via window.postMessage.
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === 'order-updated') {
+        handleOrderUpdated();
+      }
+    };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('order-updated', handleOrderUpdated);
-      return () => window.removeEventListener('order-updated', handleOrderUpdated);
+      window.addEventListener('message', handleMessage);
+      return () => {
+        window.removeEventListener('order-updated', handleOrderUpdated);
+        window.removeEventListener('message', handleMessage);
+      };
     }
   }, [fetchData]);
 
