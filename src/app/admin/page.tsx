@@ -30,15 +30,7 @@ export default function AdminRootPage() {
 
   return (
     <div className="flex h-screen w-full flex-col items-center justify-center bg-background gap-4">
-      <p>Redirecionando para o painel...</p>
-      <div className="text-xs text-muted-foreground bg-muted p-4 rounded border max-w-md overflow-auto">
-        <p>Debug Info:</p>
-        <p>Auth Loading: {String(isLoading)}</p>
-        <p>Perm Loading: {String(permissionsLoading)}</p>
-        <p>Authenticated: {String(isAuthenticated)}</p>
-        <p>User: {user ? `${user.name} (${user.role})` : 'null'}</p>
-        <p>Permissions: {permissions ? 'Loaded' : 'null'}</p>
-      </div>
+      <p className="text-sm text-muted-foreground">Redirecionando para o painel...</p>
     </div>
   );
 }
