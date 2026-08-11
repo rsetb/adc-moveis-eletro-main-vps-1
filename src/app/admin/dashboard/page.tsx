@@ -242,6 +242,7 @@ Não esqueça de enviar o comprovante!`;
     };
 
     const kpis = data?.kpis;
+    const isFullDashboard = user?.role === 'admin' || user?.role === 'gerente';
 
     return (
         <div className="space-y-6 pb-8">
@@ -277,6 +278,8 @@ Não esqueça de enviar o comprovante!`;
                 </Card>
             )}
 
+            {isFullDashboard && (
+            <>
             {/* ── KPIs Row 1 ── */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {loading ? (
@@ -556,6 +559,8 @@ Não esqueça de enviar o comprovante!`;
                     </CardContent>
                 </Card>
             </div>
+            </>
+            )}
 
             {/* ── Cobranças vencendo hoje ── */}
             <Card>
