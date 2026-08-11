@@ -31,8 +31,9 @@ export async function addCustomerAction(customerData: CustomerInfo, user: User |
             }
         }
 
+        const { source, ...customerFields } = customerData as any;
         const dataBase: any = {
-            ...customerData,
+            ...customerFields,
             code: normalizedCode,
             id: idToUse
         };
@@ -346,9 +347,11 @@ export async function updateCustomerAction(customerData: CustomerInfo, user: Use
             }
         }
 
+        const { id, source, ...updateData } = customerData as any;
+
         await db.customer.update({
             where: { id: customerData.id },
-            data: { ...(customerData as any), code: normalizedCode }
+            data: { ...updateData, code: normalizedCode }
         });
         revalidatePath('/admin/clientes');
         return { success: true };
