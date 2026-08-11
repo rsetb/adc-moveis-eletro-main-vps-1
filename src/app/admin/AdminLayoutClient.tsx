@@ -23,6 +23,7 @@ import {
     ChevronDown,
     ChevronLeft,
     ChevronRight,
+    Contrast,
     LogOut,
     Menu,
     Moon,
@@ -48,7 +49,12 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const router = useRouter();
 
-    const isDark        = mounted && resolvedTheme === 'dark';
+    const THEME_CYCLE = ['light', 'gray', 'dark'] as const;
+    const currentTheme = mounted && (resolvedTheme === 'gray' || resolvedTheme === 'dark') ? resolvedTheme : 'light';
+    const cycleTheme = () => {
+        const next = THEME_CYCLE[(THEME_CYCLE.indexOf(currentTheme) + 1) % THEME_CYCLE.length];
+        setTheme(next);
+    };
     const userRoleLabel = useMemo(() => (user?.role ? (ROLE_LABELS[user.role] ?? user.role) : ''), [user?.role]);
     const userInitial   = useMemo(() => user?.name?.charAt(0)?.toUpperCase() ?? '?', [user?.name]);
 
@@ -204,13 +210,16 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
                                 <span>Loja</span>
                             </Link>
 
-                            {/* Theme toggle */}
+                            {/* Theme toggle: claro -> cinza -> escuro */}
                             <button
-                                onClick={() => setTheme(isDark ? 'light' : 'dark')}
+                                onClick={cycleTheme}
                                 className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                                 aria-label="Alternar tema"
+                                title={currentTheme === 'light' ? 'Tema claro' : currentTheme === 'gray' ? 'Tema cinza' : 'Tema escuro'}
                             >
-                                {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                                {currentTheme === 'light' && <Sun className="h-4 w-4" />}
+                                {currentTheme === 'gray' && <Contrast className="h-4 w-4" />}
+                                {currentTheme === 'dark' && <Moon className="h-4 w-4" />}
                             </button>
 
                             {/* User dropdown */}

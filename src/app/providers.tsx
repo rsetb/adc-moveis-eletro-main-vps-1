@@ -11,7 +11,7 @@ import { Toaster } from '@/components/ui/toaster';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme="light" themes={['light', 'gray', 'dark']} enableSystem={false} disableTransitionOnChange>
       <AuditProvider>
         <AuthProvider>
           <SettingsProvider>
