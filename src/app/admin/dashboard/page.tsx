@@ -25,8 +25,10 @@ import {
 
 import { useAuth } from '@/context/AuthContext';
 import { usePermissions } from '@/context/PermissionsContext';
+import { useSettings } from '@/context/SettingsContext';
 import { hasAccess } from '@/lib/permissions';
-import { getDashboardDataAction, type DashboardData } from '@/app/actions/admin/dashboard';
+import { getDashboardDataAction, type DashboardData, type DashboardOverdueToday } from '@/app/actions/admin/dashboard';
+import { WhatsAppIcon } from '@/components/WhatsAppIcon';
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
@@ -145,11 +147,64 @@ export default function DashboardPage() {
     const router = useRouter();
     const { user }                                         = useAuth();
     const { permissions, isLoading: permissionsLoading }   = usePermissions();
+    const { settings }                                     = useSettings();
 
     const [data,       setData]       = useState<DashboardData | null>(null);
     const [loading,    setLoading]    = useState(true);
     const [error,      setError]      = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
+    const [bulkQueue,  setBulkQueue]  = useState<DashboardOverdueToday[] | null>(null);
+    const [bulkIndex,  setBulkIndex]  = useState(0);
+
+    const buildWhatsAppReminderUrl = useCallback((c: DashboardOverdueToday) => {
+        const customerName = String(c.customerName || '').split(' ')[0];
+        const customerPhone = c.customerPhone.replace(/\D/g, '');
+        const dueDate = (() => {
+            try { return format(parseISO(c.dueDate), 'dd/MM/yyyy', { locale: ptBR }); }
+            catch { return c.dueDate; }
+        })();
+
+        const message = `Olá, ${customerName}! Passando para lembrar sobre o vencimento da sua parcela nº ${c.installmentNumber} do seu carnê (pedido ${c.orderId}).
+
+Vencimento: *${dueDate}*
+Valor: *${fmt(c.remaining)}*
+
+Chave pix: ${settings.pixKey}
+
+Não esqueça de enviar o comprovante!`;
+
+        return `https://wa.me/55${customerPhone}?text=${encodeURIComponent(message)}`;
+    }, [settings.pixKey]);
+
+    const handleSendWhatsAppReminder = (c: DashboardOverdueToday) => {
+        if (!c.customerPhone) return;
+        window.open(buildWhatsAppReminderUrl(c), '_blank');
+    };
+
+    const handleStartBulkSend = () => {
+        const queue = (data?.cobrancasHoje || []).filter(c => c.customerPhone);
+        if (queue.length === 0) return;
+        setBulkQueue(queue);
+        setBulkIndex(0);
+        window.open(buildWhatsAppReminderUrl(queue[0]), '_blank');
+    };
+
+    const handleBulkNext = () => {
+        if (!bulkQueue) return;
+        const next = bulkIndex + 1;
+        if (next >= bulkQueue.length) {
+            setBulkQueue(null);
+            setBulkIndex(0);
+            return;
+        }
+        setBulkIndex(next);
+        window.open(buildWhatsAppReminderUrl(bulkQueue[next]), '_blank');
+    };
+
+    const handleCancelBulkSend = () => {
+        setBulkQueue(null);
+        setBulkIndex(0);
+    };
 
     const load = useCallback(async (showRefreshing = false) => {
         if (showRefreshing) setRefreshing(true);
@@ -515,13 +570,41 @@ export default function DashboardPage() {
                                 </Badge>
                             )}
                         </div>
-                        <Link
-                            href="/admin/cobrancas"
-                            className="text-xs text-primary hover:underline flex items-center gap-1"
-                        >
-                            Ver cobranças <ArrowRight className="h-3 w-3" />
-                        </Link>
+                        <div className="flex items-center gap-3">
+                            {!loading && (data?.cobrancasHoje?.length ?? 0) > 0 && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs bg-green-500/10 text-green-700 hover:bg-green-500/20 hover:text-green-800 border-green-500/20"
+                                    onClick={handleStartBulkSend}
+                                >
+                                    <WhatsAppIcon className="h-3.5 w-3.5 mr-1.5" />
+                                    Enviar todos
+                                </Button>
+                            )}
+                            <Link
+                                href="/admin/cobrancas"
+                                className="text-xs text-primary hover:underline flex items-center gap-1"
+                            >
+                                Ver cobranças <ArrowRight className="h-3 w-3" />
+                            </Link>
+                        </div>
                     </div>
+                    {bulkQueue && (
+                        <div className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-green-500/10 border border-green-500/20 px-3 py-2 text-xs">
+                            <span className="text-green-800">
+                                Enviando cobranças pelo WhatsApp: {bulkIndex + 1} de {bulkQueue.length}. Envie a mensagem que abriu na aba e clique em Próximo.
+                            </span>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                                <Button size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700" onClick={handleBulkNext}>
+                                    Próximo
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleCancelBulkSend}>
+                                    Cancelar
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </CardHeader>
                 <CardContent className="p-0">
                     {loading ? (
@@ -542,7 +625,8 @@ export default function DashboardPage() {
                                         <TableHead className="pl-4">Cliente</TableHead>
                                         <TableHead className="text-center">Parcela</TableHead>
                                         <TableHead className="text-right">Valor</TableHead>
-                                        <TableHead className="text-right pr-4">Restante</TableHead>
+                                        <TableHead className="text-right">Restante</TableHead>
+                                        <TableHead className="text-center pr-4">WhatsApp</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -566,8 +650,19 @@ export default function DashboardPage() {
                                             <TableCell className="text-right text-sm tabular-nums">
                                                 {fmt(c.amount)}
                                             </TableCell>
-                                            <TableCell className="text-right text-sm tabular-nums font-semibold text-amber-600 pr-4">
+                                            <TableCell className="text-right text-sm tabular-nums font-semibold text-amber-600">
                                                 {fmt(c.remaining)}
+                                            </TableCell>
+                                            <TableCell className="text-center pr-4">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7 bg-green-500/10 text-green-700 hover:bg-green-500/20 hover:text-green-800"
+                                                    disabled={!c.customerPhone}
+                                                    onClick={() => handleSendWhatsAppReminder(c)}
+                                                >
+                                                    <WhatsAppIcon className="h-4 w-4" />
+                                                </Button>
                                             </TableCell>
                                         </TableRow>
                                     ))}
