@@ -79,7 +79,7 @@ export async function payCommissionAction(
         });
         revalidatePath('/admin/financeiro');
         revalidatePath('/admin/minhas-comissoes');
-        return { success: true, data: payment.id };
+        return { success: true, data: payment as unknown as CommissionPayment };
     } catch (error: any) {
         return { success: false, error: error.message };
     }

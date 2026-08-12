@@ -830,17 +830,15 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
   const payCommissions = async (sellerId: string, sellerName: string, amount: number, orderIds: string[], period: string, logAction: LogAction, user: User | null) => {
     lastUpdateRef.current = Date.now();
     const res = await payCommissionAction(sellerId, sellerName, amount, orderIds, period, user);
-    if (res.success) {
+    if (res.success && res.data) {
       logAction('Pagamento de Comissão', `Pagamento de R$ ${amount.toFixed(2)} para ${sellerName}.`, user);
-      
+
       // Real-time update
-      const newPayment = (res as any).data;
-      if (newPayment) {
-        setCommissionPayments(prev => [newPayment, ...prev]);
-        setOrders(prev => prev.map(o => orderIds.includes(o.id) ? { ...o, commissionPaid: true } : o));
-      }
-      
-      return res.data;
+      const newPayment = res.data as CommissionPayment;
+      setCommissionPayments(prev => [newPayment, ...prev]);
+      setOrders(prev => prev.map(o => orderIds.includes(o.id) ? { ...o, commissionPaid: true } : o));
+
+      return newPayment.id;
     }
     return null;
   };
