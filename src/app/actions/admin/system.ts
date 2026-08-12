@@ -5,11 +5,26 @@ import { db } from '@/lib/db';
 import type { User, Product, CustomerInfo } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 import { normalizeCustomerCodeInput, reserveCustomerCodes, formatCustomerCode } from '@/lib/customer-code';
+import { getSession } from '@/lib/session';
 
 // --- Resets ---
+//
+// These wipe real business data (orders, products, customers...). They used
+// to accept a client-supplied `user` object and never check it — anyone able
+// to invoke the server action directly (not just click a button) could wipe
+// the database with one call. Every reset now re-derives the caller's role
+// from the signed session cookie and requires admin.
+
+async function requireAdminSession(): Promise<void> {
+    const session = await getSession();
+    if (!session || session.role !== 'admin') {
+        throw new Error('Permissão negada: apenas administradores podem executar esta ação.');
+    }
+}
 
 export async function resetOrdersAction(user: User | null) {
     try {
+        await requireAdminSession();
         await db.order.deleteMany({});
         await db.commissionPayment.deleteMany({});
         revalidatePath('/admin/pedidos');
@@ -22,6 +37,7 @@ export async function resetOrdersAction(user: User | null) {
 
 export async function resetProductsAction(user: User | null) {
     try {
+        await requireAdminSession();
         await db.product.deleteMany({});
         await db.category.deleteMany({});
         revalidatePath('/admin/produtos');
@@ -34,6 +50,7 @@ export async function resetProductsAction(user: User | null) {
 
 export async function resetFinancialsAction(user: User | null) {
     try {
+        await requireAdminSession();
         await db.commissionPayment.deleteMany({});
         // Potentially reset financial fields in orders without deleting orders
         await db.order.updateMany({
@@ -51,6 +68,7 @@ export async function resetFinancialsAction(user: User | null) {
 
 export async function resetAllAdminDataAction(user: User | null) {
     try {
+        await requireAdminSession();
         await db.$transaction([
             db.order.deleteMany({}),
             db.product.deleteMany({}),
