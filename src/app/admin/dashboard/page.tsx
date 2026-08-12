@@ -678,6 +678,7 @@ Não esqueça de enviar o comprovante!`;
                                     <TableRow>
                                         <TableHead className="pl-4">Cliente</TableHead>
                                         <TableHead className="text-center">Parcela</TableHead>
+                                        <TableHead className="text-center">Vencimento</TableHead>
                                         <TableHead className="text-right">Valor</TableHead>
                                         <TableHead className="text-right">Restante</TableHead>
                                         <TableHead className="text-center pr-4">WhatsApp</TableHead>
@@ -700,6 +701,12 @@ Não esqueça de enviar o comprovante!`;
                                                 <Badge variant="outline" className="text-xs">
                                                     #{c.installmentNumber}
                                                 </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-center text-sm tabular-nums text-muted-foreground">
+                                                {(() => {
+                                                    try { return format(parseISO(c.dueDate), 'dd/MM/yyyy', { locale: ptBR }); }
+                                                    catch { return c.dueDate; }
+                                                })()}
                                             </TableCell>
                                             <TableCell className="text-right text-sm tabular-nums">
                                                 {fmt(c.amount)}
