@@ -5,6 +5,7 @@ import type { Order, User } from '@/lib/types';
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
 import { computeStockDeltas, getBillingPriority } from '@/lib/utils';
 import { notifyChange } from '@/lib/change-notifier';
+import { getSession } from '@/lib/session';
 
 /**
  * Maps raw database fields (snake_case) to Order type fields (camelCase).
@@ -220,15 +221,23 @@ export async function getCustomerOrdersAction(
 // Fetch all orders with pagination support
 export async function getAdminOrdersAction(limit: number = 1000) {
     try {
+        const session = await getSession();
+        // Vendedor Externo só vê os próprios pedidos (criados por ele ou onde é o vendedor).
+        // Deriva do cookie de sessão, não de parâmetro do cliente.
+        const where = session?.role === 'vendedor_externo'
+            ? { OR: [{ sellerId: session.userId }, { createdById: session.userId }] }
+            : {};
+
         const [orders, total] = await Promise.all([
             db.order.findMany({
+                where,
                 take: limit,
                 orderBy: [
                     { date: 'desc' },
                     { createdAt: 'desc' }
                 ]
             }),
-            db.order.count()
+            db.order.count({ where })
         ]);
 
         return {
