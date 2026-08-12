@@ -255,7 +255,7 @@ Não esqueça de enviar o comprovante!`;
                         {greeting()}{user?.name ? `, ${user.name.split(' ')[0]}` : ''}!
                         {data?.generatedAt && (
                             <span className="ml-2">
-                                Atualizado às {format(new Date(data.generatedAt), 'HH:mm', { locale: ptBR })}
+                                Atualizado em {format(new Date(data.generatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                             </span>
                         )}
                     </p>
