@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { findCustomerByCpfAction } from '@/app/actions/checkout';
 import type { User } from '@/lib/types';
 import { logActionAction } from '@/app/actions/audit';
+import { getSession } from '@/lib/session';
 
 async function getTrashRetentionDays(): Promise<number> {
     const result = await db.config.findUnique({ where: { key: 'storeSettings' } });
@@ -73,9 +74,15 @@ export async function getPendingOrdersAction() {
             };
         }));
 
+        const session = await getSession();
+        // Vendedor Cobrança só vê solicitações de clientes atribuídos a ele.
+        const visibleOrders = session?.role === 'vendedor_cobranca'
+            ? enrichedOrders.filter(o => o.sellerId === session.userId)
+            : enrichedOrders;
+
         return {
             success: true,
-            data: enrichedOrders
+            data: visibleOrders
         };
     } catch (error: any) {
         console.error('Error fetching pending orders:', error);
