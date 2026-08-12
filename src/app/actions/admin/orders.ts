@@ -144,7 +144,7 @@ export async function getCustomerOrdersAction(
                 const orders = await db.$queryRaw`
                     SELECT * FROM orders
                     WHERE (
-                        customer->>'cpf' = ${target}
+                        regexp_replace(customer->>'cpf', '[^0-9]', '', 'g') = ${target}
                         OR customer->>'id' = ${target}
                     )
                     AND seller_id = ${user.id}
@@ -157,7 +157,7 @@ export async function getCustomerOrdersAction(
             const orders = await db.$queryRaw`
                 SELECT * FROM orders
                 WHERE (
-                    customer->>'cpf' = ${target}
+                    regexp_replace(customer->>'cpf', '[^0-9]', '', 'g') = ${target}
                     OR customer->>'id' = ${target}
                 )
                 ORDER BY date DESC, created_at DESC
@@ -556,88 +556,106 @@ function mapPaymentMethod(method: string): string {
 
 // Installment Payments
 export async function recordInstallmentPaymentAction(orderId: string, installmentNumber: number, payment: any, user: User | null) {
-    try {
-        // Check for open cash register
-        const activeCash = await (db as any).cashRegister.findFirst({ where: { status: 'ABERTO' } });
-        if (!activeCash) {
-            return { success: false, error: 'Nenhum caixa aberto. Abra o caixa antes de registrar pagamentos.', code: 'CASH_CLOSED' };
-        }
+    // Concurrency note: two payments hitting the same order at nearly the same
+    // moment (e.g. two clicks, or two staff members) used to race — both would
+    // read the order before either wrote back, so whichever transaction
+    // committed last silently overwrote the other's change and the earlier
+    // payment vanished with no error shown. Serializable isolation makes the
+    // DB detect that conflict and fail one of the transactions instead of
+    // losing data; we retry that one automatically.
+    const MAX_ATTEMPTS = 3;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+            // Check for open cash register
+            const activeCash = await (db as any).cashRegister.findFirst({ where: { status: 'ABERTO' } });
+            if (!activeCash) {
+                return { success: false, error: 'Nenhum caixa aberto. Abra o caixa antes de registrar pagamentos.', code: 'CASH_CLOSED' };
+            }
 
-        const order = await db.order.findUnique({ where: { id: orderId } });
-        if (!order) throw new Error('Order not found');
+            const result = await db.$transaction(async (tx: any) => {
+                const order = await tx.order.findUnique({ where: { id: orderId } });
+                if (!order) throw new Error('Order not found');
 
-        const installments = (order.installmentDetails as any) || [];
+                const installments = (order.installmentDetails as any) || [];
 
-        let isDuplicatePayment = false;
-        let isQuitacao = false;
+                let isDuplicatePayment = false;
 
-        const updatedInstallments = installments.map((inst: any) => {
-            if (inst.installmentNumber === installmentNumber) {
-                const isDuplicate = (inst.payments || []).some((p: any) => {
-                    if (p.id === payment.id) return true;
-                    const timeDiff = Math.abs(new Date(p.date).getTime() - new Date(payment.date).getTime());
-                    return p.amount === payment.amount && timeDiff < 5000;
+                const updatedInstallments = installments.map((inst: any) => {
+                    if (inst.installmentNumber === installmentNumber) {
+                        const isDuplicate = (inst.payments || []).some((p: any) => {
+                            if (p.id === payment.id) return true;
+                            const timeDiff = Math.abs(new Date(p.date).getTime() - new Date(payment.date).getTime());
+                            return p.amount === payment.amount && timeDiff < 5000;
+                        });
+
+                        if (isDuplicate) {
+                            isDuplicatePayment = true;
+                            return inst;
+                        }
+
+                        const currentPaid = inst.paidAmount || 0;
+                        const newPaid = currentPaid + payment.amount;
+                        const newStatus = newPaid >= (inst.amount - 0.01) ? 'Pago' : 'Parcial';
+
+                        return {
+                            ...inst,
+                            paidAmount: newPaid,
+                            status: newStatus,
+                            payments: [...(inst.payments || []), payment],
+                        };
+                    }
+                    return inst;
                 });
 
-                if (isDuplicate) {
-                    isDuplicatePayment = true;
-                    return inst;
+                if (isDuplicatePayment) {
+                    return { skipped: true };
                 }
 
-                const currentPaid = inst.paidAmount || 0;
-                const newPaid = currentPaid + payment.amount;
-                const newStatus = newPaid >= (inst.amount - 0.01) ? 'Pago' : 'Parcial';
+                // Check if all installments will be paid after this update (quitação)
+                const isQuitacao = updatedInstallments.every((inst: any) =>
+                    inst.status === 'Pago' || (inst.installmentNumber === installmentNumber && (inst.paidAmount + payment.amount) >= (inst.amount - 0.01))
+                );
 
-                return {
-                    ...inst,
-                    paidAmount: newPaid,
-                    status: newStatus,
-                    payments: [...(inst.payments || []), payment],
-                };
+                const cashMovementType = isQuitacao ? 'QUITACAO' : 'RECEBIMENTO';
+                const pmMethod = mapPaymentMethod(payment.method ?? '');
+
+                await tx.order.update({
+                    where: { id: orderId },
+                    data: { installmentDetails: updatedInstallments },
+                });
+
+                await tx.cashMovement.create({
+                    data: {
+                        cashRegisterId: activeCash.id,
+                        type: cashMovementType,
+                        paymentMethod: pmMethod,
+                        amount: payment.amount,
+                        referenceType: 'order',
+                        referenceId: orderId,
+                        reason: `Parcela ${installmentNumber} — Pedido ${orderId.slice(-6).toUpperCase()}`,
+                        createdById: user?.id ?? null,
+                        createdByName: user?.name ?? null,
+                    },
+                });
+
+                return { skipped: false };
+            }, { isolationLevel: 'Serializable', maxWait: 10000, timeout: 15000 });
+
+            revalidatePath('/admin/pedidos');
+            revalidatePath('/admin/caixa');
+            notifyChange('orders');
+            return { success: true, skipped: result.skipped };
+        } catch (error: any) {
+            const isSerializationConflict =
+                error?.code === 'P2034' ||
+                /could not serialize|deadlock|Transaction failed due to a write conflict/i.test(String(error?.message || ''));
+            if (isSerializationConflict && attempt < MAX_ATTEMPTS) {
+                continue;
             }
-            return inst;
-        });
-
-        if (isDuplicatePayment) {
-            return { success: true };
+            return { success: false, error: error.message };
         }
-
-        // Check if all installments will be paid after this update (quitação)
-        isQuitacao = updatedInstallments.every((inst: any) =>
-            inst.status === 'Pago' || (inst.installmentNumber === installmentNumber && (inst.paidAmount + payment.amount) >= (inst.amount - 0.01))
-        );
-
-        const cashMovementType = isQuitacao ? 'QUITACAO' : 'RECEBIMENTO';
-        const pmMethod = mapPaymentMethod(payment.method ?? '');
-
-        await db.$transaction(async (tx: any) => {
-            await tx.order.update({
-                where: { id: orderId },
-                data: { installmentDetails: updatedInstallments },
-            });
-
-            await tx.cashMovement.create({
-                data: {
-                    cashRegisterId: activeCash.id,
-                    type: cashMovementType,
-                    paymentMethod: pmMethod,
-                    amount: payment.amount,
-                    referenceType: 'order',
-                    referenceId: orderId,
-                    reason: `Parcela ${installmentNumber} — Pedido ${orderId.slice(-6).toUpperCase()}`,
-                    createdById: user?.id ?? null,
-                    createdByName: user?.name ?? null,
-                },
-            });
-        });
-
-        revalidatePath('/admin/pedidos');
-        revalidatePath('/admin/caixa');
-        notifyChange('orders');
-        return { success: true };
-    } catch (error: any) {
-        return { success: false, error: error.message };
     }
+    return { success: false, error: 'Falha ao registrar pagamento após múltiplas tentativas. Tente novamente.' };
 }
 
 // Whitelist of updatable Order columns (matches schema.prisma exactly)
