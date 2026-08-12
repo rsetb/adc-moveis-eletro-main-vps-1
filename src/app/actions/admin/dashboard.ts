@@ -91,6 +91,64 @@ function safeJson(v: any): any {
     return v;
 }
 
+// ─── Cobranças por data (escolhida pelo usuário) ──────────────────────────────
+
+export async function getCobrancasByDateAction(dateStr: string): Promise<{ success: boolean; data?: DashboardOverdueToday[]; error?: string }> {
+    noStore();
+
+    const session = await getSession();
+    if (!session) return { success: false, error: 'Não autenticado.' };
+    if (session.role === 'vendedor_externo') return { success: false, error: 'Sem permissão.' };
+
+    try {
+        const targetDate = parseAnyDate(dateStr) ?? new Date();
+        const dayStart = startOfDay(targetDate);
+        const dayEnd = endOfDay(targetDate);
+
+        const allCreditOrders = await db.order.findMany({
+            where: {
+                status: { notIn: ['Cancelado', 'Excluído'] },
+                paymentMethod: 'Crediário',
+            },
+            select: { id: true, customer: true, installmentDetails: true },
+        });
+
+        const cobrancas: DashboardOverdueToday[] = [];
+
+        for (const o of allCreditOrders) {
+            const customer: any = safeJson(o.customer) || {};
+            const installments: any[] = Array.isArray(safeJson(o.installmentDetails))
+                ? safeJson(o.installmentDetails)
+                : [];
+
+            for (const inst of installments) {
+                if (inst?.status === 'Pago') continue;
+
+                const dueDate = inst?.dueDate ? parseAnyDate(inst.dueDate) : null;
+                if (!dueDate || dueDate < dayStart || dueDate > dayEnd) continue;
+
+                const amount = Number(inst?.amount || 0);
+                const paid = Number(inst?.paidAmount || 0);
+
+                cobrancas.push({
+                    orderId: o.id,
+                    customerName: customer?.name ?? '',
+                    customerPhone: customer?.phone ?? '',
+                    installmentNumber: Number(inst?.installmentNumber || 0),
+                    amount,
+                    remaining: Math.max(0, amount - paid),
+                    dueDate: inst.dueDate,
+                });
+            }
+        }
+
+        return { success: true, data: cobrancas };
+    } catch (error: any) {
+        console.error('[getCobrancasByDateAction]', error);
+        return { success: false, error: error.message };
+    }
+}
+
 // ─── Main action ─────────────────────────────────────────────────────────────
 
 export async function getDashboardDataAction(): Promise<{ success: boolean; data?: DashboardData; error?: string }> {

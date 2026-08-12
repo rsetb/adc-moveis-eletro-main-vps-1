@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { format, parseISO, isValid } from 'date-fns';
+import { format, parseISO, isValid, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, Legend,
@@ -20,14 +22,14 @@ import {
 import {
     TrendingUp, DollarSign, ShoppingCart, Users, AlertTriangle,
     Package, Clock, RefreshCw, CreditCard, ReceiptText, ArrowRight,
-    CalendarClock,
+    CalendarClock, CalendarIcon,
 } from 'lucide-react';
 
 import { useAuth } from '@/context/AuthContext';
 import { usePermissions } from '@/context/PermissionsContext';
 import { useSettings } from '@/context/SettingsContext';
 import { hasAccess } from '@/lib/permissions';
-import { getDashboardDataAction, type DashboardData, type DashboardOverdueToday } from '@/app/actions/admin/dashboard';
+import { getDashboardDataAction, getCobrancasByDateAction, type DashboardData, type DashboardOverdueToday } from '@/app/actions/admin/dashboard';
 import { WhatsAppIcon } from '@/components/WhatsAppIcon';
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -156,6 +158,27 @@ export default function DashboardPage() {
     const [bulkQueue,  setBulkQueue]  = useState<DashboardOverdueToday[] | null>(null);
     const [bulkIndex,  setBulkIndex]  = useState(0);
 
+    const [cobrancasDate,      setCobrancasDate]      = useState<Date>(new Date());
+    const [cobrancasList,      setCobrancasList]      = useState<DashboardOverdueToday[]>([]);
+    const [cobrancasLoading,   setCobrancasLoading]   = useState(false);
+    const [cobrancasDatePopoverOpen, setCobrancasDatePopoverOpen] = useState(false);
+
+    const loadCobrancasForDate = useCallback(async (date: Date) => {
+        setCobrancasLoading(true);
+        const result = await getCobrancasByDateAction(date.toISOString());
+        if (result.success && result.data) {
+            setCobrancasList(result.data);
+        }
+        setCobrancasLoading(false);
+    }, []);
+
+    const handleCobrancasDateSelect = (date: Date | undefined) => {
+        if (!date) return;
+        setCobrancasDate(date);
+        setCobrancasDatePopoverOpen(false);
+        loadCobrancasForDate(date);
+    };
+
     const buildWhatsAppReminderUrl = useCallback((c: DashboardOverdueToday) => {
         const customerName = String(c.customerName || '').split(' ')[0];
         const customerPhone = c.customerPhone.replace(/\D/g, '');
@@ -182,7 +205,7 @@ Não esqueça de enviar o comprovante!`;
     };
 
     const handleStartBulkSend = () => {
-        const queue = (data?.cobrancasHoje || []).filter(c => c.customerPhone);
+        const queue = cobrancasList.filter(c => c.customerPhone);
         if (queue.length === 0) return;
         setBulkQueue(queue);
         setBulkIndex(0);
@@ -214,12 +237,15 @@ Não esqueça de enviar o comprovante!`;
         const result = await getDashboardDataAction();
         if (result.success && result.data) {
             setData(result.data);
+            if (isSameDay(cobrancasDate, new Date())) {
+                setCobrancasList(result.data.cobrancasHoje);
+            }
         } else {
             setError(result.error ?? 'Erro ao carregar dados do dashboard.');
         }
         setLoading(false);
         setRefreshing(false);
-    }, []);
+    }, [cobrancasDate]);
 
     // SEC-02: Permission guard — redirect before loading data
     useEffect(() => {
@@ -568,15 +594,36 @@ Não esqueça de enviar o comprovante!`;
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <CalendarClock className="h-4 w-4 text-amber-500" />
-                            <CardTitle className="text-base">Cobranças Vencendo Hoje</CardTitle>
-                            {!loading && (data?.cobrancasHoje?.length ?? 0) > 0 && (
+                            <CardTitle className="text-base">
+                                {isSameDay(cobrancasDate, new Date())
+                                    ? 'Cobranças Vencendo Hoje'
+                                    : `Cobranças de ${format(cobrancasDate, 'dd/MM/yyyy', { locale: ptBR })}`}
+                            </CardTitle>
+                            {!cobrancasLoading && cobrancasList.length > 0 && (
                                 <Badge variant="secondary" className="text-xs">
-                                    {data!.cobrancasHoje.length}
+                                    {cobrancasList.length}
                                 </Badge>
                             )}
                         </div>
                         <div className="flex items-center gap-3">
-                            {!loading && (data?.cobrancasHoje?.length ?? 0) > 0 && (
+                            <Popover open={cobrancasDatePopoverOpen} onOpenChange={setCobrancasDatePopoverOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" size="sm" className="h-7 text-xs">
+                                        <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />
+                                        {format(cobrancasDate, 'dd/MM/yyyy')}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="end">
+                                    <Calendar
+                                        mode="single"
+                                        selected={cobrancasDate}
+                                        onSelect={handleCobrancasDateSelect}
+                                        locale={ptBR}
+                                        initialFocus
+                                    />
+                                </PopoverContent>
+                            </Popover>
+                            {!cobrancasLoading && cobrancasList.length > 0 && (
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -612,14 +659,16 @@ Não esqueça de enviar o comprovante!`;
                     )}
                 </CardHeader>
                 <CardContent className="p-0">
-                    {loading ? (
+                    {loading || cobrancasLoading ? (
                         <div className="px-6 pb-4 space-y-2">
                             {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
                         </div>
-                    ) : (data?.cobrancasHoje?.length ?? 0) === 0 ? (
+                    ) : cobrancasList.length === 0 ? (
                         <div className="px-6 pb-6 flex items-center gap-2 text-sm text-muted-foreground">
                             <AlertTriangle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                            Nenhuma parcela vencendo hoje.
+                            {isSameDay(cobrancasDate, new Date())
+                                ? 'Nenhuma parcela vencendo hoje.'
+                                : 'Nenhuma parcela vencendo nessa data.'}
                         </div>
                     ) : (
                         // UI-01: overflow-x-auto para tabelas em mobile
@@ -635,7 +684,7 @@ Não esqueça de enviar o comprovante!`;
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {data?.cobrancasHoje.map((c, i) => (
+                                    {cobrancasList.map((c, i) => (
                                         <TableRow key={`${c.orderId}-${c.installmentNumber}-${i}`}>
                                             <TableCell className="pl-4">
                                                 <p className="font-medium text-sm truncate max-w-[180px]">
