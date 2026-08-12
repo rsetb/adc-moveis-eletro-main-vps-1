@@ -336,13 +336,7 @@ export default function OrdersAdminPage() {
                 return dayOfMonth >= start && dayOfMonth <= end;
             }));
 
-            const roleMatch = (() => {
-                if (user?.role === 'vendedor_cobranca') {
-                    // Permite visualizar pedidos onde é vendedor ou criador
-                    return o.sellerId === user.id || o.createdByName === user.name;
-                }
-                return true;
-            })();
+            const roleMatch = true;
 
             return searchMatch && statusMatch && sellerMatch && dateMatch && overdueMatch && onTimeMatch && paidOffMatch && dueDateMatch && roleMatch;
         });
