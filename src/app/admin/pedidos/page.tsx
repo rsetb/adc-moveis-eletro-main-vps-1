@@ -336,8 +336,8 @@ export default function OrdersAdminPage() {
                 return dayOfMonth >= start && dayOfMonth <= end;
             }));
 
-            const roleMatch = user?.role === 'vendedor_externo'
-                ? (o.sellerId === user.id || o.createdById === user.id)
+            const roleMatch = user?.role === 'vendedor_cobranca'
+                ? (o.sellerId === user.id || o.createdByName === user.name)
                 : true;
 
             return searchMatch && statusMatch && sellerMatch && dateMatch && overdueMatch && onTimeMatch && paidOffMatch && dueDateMatch && roleMatch;

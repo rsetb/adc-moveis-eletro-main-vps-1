@@ -222,9 +222,9 @@ export async function getCustomerOrdersAction(
 export async function getAdminOrdersAction(limit: number = 1000) {
     try {
         const session = await getSession();
-        // Vendedor Externo só vê os próprios pedidos (criados por ele ou onde é o vendedor).
+        // Vendedor Cobrança só vê os próprios pedidos (criados por ele ou onde é o vendedor).
         // Deriva do cookie de sessão, não de parâmetro do cliente.
-        const where = session?.role === 'vendedor_externo'
+        const where = session?.role === 'vendedor_cobranca'
             ? { OR: [{ sellerId: session.userId }, { createdById: session.userId }] }
             : {};
 
