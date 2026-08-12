@@ -1082,7 +1082,7 @@ Não esqueça de enviar o comprovante!`;
     const canDeleteCustomer = (user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor' || user?.role === 'vendedor_externo');
     const canAccessTrash = user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor' || user?.role === 'vendedor_externo' || user?.role === 'vendedor_cobranca';
     const isAdmin = user?.role === 'admin';
-    const canReceivePayments = true; // Everyone can receive payments
+    const canReceivePayments = user?.role !== 'vendedor_externo'; // Vendedor Externo não pode dar baixa em parcela (só entrada na criação do pedido)
     const canReversePayments = user?.role !== 'vendedor_cobranca';
 
     const sellersForFilter = useMemo(() => {

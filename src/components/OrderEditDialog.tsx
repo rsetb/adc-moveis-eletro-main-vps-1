@@ -152,7 +152,7 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
     // Permission Logic
     const canEditOrderDetails = user?.role !== 'vendedor_cobranca'; // Cannot change status, discount, etc.
     const canEditDiscountAndDownPayment = user?.role !== 'vendedor_cobranca'; // Vendedor Cobrança cannot edit discount and down payment here
-    const canReceivePayments = true; // Everyone can receive payments (including Vendedor Cobrança)
+    const canReceivePayments = user?.role !== 'vendedor_externo'; // Vendedor Externo não pode dar baixa em parcela (só entrada na criação do pedido)
     const canReversePayments = user?.role !== 'vendedor_cobranca'; // Vendedor Cobrança CANNOT reverse/undo payments
 
     useEffect(() => {

@@ -556,6 +556,10 @@ function mapPaymentMethod(method: string): string {
 
 // Installment Payments
 export async function recordInstallmentPaymentAction(orderId: string, installmentNumber: number, payment: any, user: User | null) {
+    if (user?.role === 'vendedor_externo') {
+        return { success: false, error: 'Vendedor Externo não pode dar baixa em parcela. Apenas admin, vendedor e gerente.' };
+    }
+
     // Concurrency note: two payments hitting the same order at nearly the same
     // moment (e.g. two clicks, or two staff members) used to race — both would
     // read the order before either wrote back, so whichever transaction
