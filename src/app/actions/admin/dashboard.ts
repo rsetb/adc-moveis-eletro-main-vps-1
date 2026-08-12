@@ -48,6 +48,7 @@ export type DashboardOverdueToday = {
     orderId: string;
     customerName: string;
     customerPhone: string;
+    sellerName: string;
     installmentNumber: number;
     amount: number;
     remaining: number;
@@ -109,8 +110,9 @@ export async function getCobrancasByDateAction(dateStr: string): Promise<{ succe
             where: {
                 status: { notIn: ['Cancelado', 'Excluído'] },
                 paymentMethod: 'Crediário',
+                ...(session.role === 'vendedor_cobranca' ? { sellerId: session.userId } : {}),
             },
-            select: { id: true, customer: true, installmentDetails: true },
+            select: { id: true, customer: true, installmentDetails: true, sellerName: true },
         });
 
         const cobrancas: DashboardOverdueToday[] = [];
@@ -134,6 +136,7 @@ export async function getCobrancasByDateAction(dateStr: string): Promise<{ succe
                     orderId: o.id,
                     customerName: customer?.name ?? '',
                     customerPhone: customer?.phone ?? '',
+                    sellerName: o.sellerName ?? '',
                     installmentNumber: Number(inst?.installmentNumber || 0),
                     amount,
                     remaining: Math.max(0, amount - paid),
@@ -197,16 +200,18 @@ export async function getDashboardDataAction(): Promise<{ success: boolean; data
             }),
 
             // ALL active crediário orders — no date limit (DAT-01)
-            // Minimal select: only the 3 fields needed for installment analysis
+            // Minimal select: only the fields needed for installment analysis
             db.order.findMany({
                 where: {
                     status: { notIn: ['Cancelado', 'Excluído'] },
                     paymentMethod: 'Crediário',
+                    ...(session.role === 'vendedor_cobranca' ? { sellerId: session.userId } : {}),
                 },
                 select: {
                     id: true,
                     customer: true,
                     installmentDetails: true,
+                    sellerName: true,
                 },
             }),
 
@@ -331,6 +336,7 @@ export async function getDashboardDataAction(): Promise<{ success: boolean; data
                         orderId: o.id,
                         customerName: customer?.name   ?? '',
                         customerPhone: customer?.phone ?? '',
+                        sellerName: o.sellerName ?? '',
                         installmentNumber: Number(inst?.installmentNumber || 0),
                         amount,
                         remaining,

@@ -677,6 +677,7 @@ Não esqueça de enviar o comprovante!`;
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead className="pl-4">Cliente</TableHead>
+                                        <TableHead>Vendedor</TableHead>
                                         <TableHead className="text-center">Parcela</TableHead>
                                         <TableHead className="text-center">Vencimento</TableHead>
                                         <TableHead className="text-right">Valor</TableHead>
@@ -696,6 +697,9 @@ Não esqueça de enviar o comprovante!`;
                                                         {c.customerPhone}
                                                     </p>
                                                 )}
+                                            </TableCell>
+                                            <TableCell className="text-sm text-muted-foreground truncate max-w-[140px]">
+                                                {c.sellerName || '—'}
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 <Badge variant="outline" className="text-xs">
