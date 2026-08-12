@@ -184,6 +184,10 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
 
 
     const maxAllowedInstallments = useMemo(() => {
+        // Admin, Gerente e Vendedor podem ajustar livremente, sem respeitar o limite de parcelas configurado no produto.
+        const canOverrideInstallmentLimit = user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor';
+        if (canOverrideInstallmentLimit) return 24;
+
         if (!order || !products) return 10;
         const orderProductIds = order.items.map(item => item.id);
         const orderProducts = products.filter(p => orderProductIds.includes(p.id));
@@ -191,7 +195,7 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
 
         const maxInstallmentsArray = orderProducts.map(p => p.maxInstallments ?? 10);
         return Math.min(...maxInstallmentsArray);
-    }, [order, products]);
+    }, [order, products, user]);
 
     const handleUpdateOrderStatus = (status: Order['status']) => {
         if (order && user) {
