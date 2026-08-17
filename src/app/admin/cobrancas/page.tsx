@@ -29,6 +29,20 @@ import type { Installment, Payment } from '@/lib/types';
 type SortKey = 'customerName' | 'amountDue' | 'dueDate' | 'daysOverdue' | 'daysUntilDue';
 type SortDir = 'asc' | 'desc';
 
+type CustomerGroupSortKey = 'customerName' | 'totalDue' | 'maxDaysOverdue' | 'installmentCount';
+
+type CustomerGroupRow = {
+  key: string;
+  customerName: string;
+  customerPhone: string;
+  customerCpf: string;
+  sellerName: string;
+  installmentCount: number;
+  totalDue: number;
+  maxDaysOverdue: number;
+  worstPriority: 'critical' | 'warning';
+};
+
 const formatCurrency = (value: number) => {
   if (isNaN(value)) return 'R$ 0,00';
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -175,6 +189,80 @@ export default function CobrancasDashboardPage() {
     });
   }, [critical, warning]);
 
+  // Um cliente pode ter várias parcelas atrasadas espalhadas em pedidos diferentes;
+  // aqui agrupamos por cliente pra priorizar quem cobrar primeiro, em vez de ver
+  // uma linha por parcela (o que fica impraticável com milhares de parcelas).
+  const customerGroups = useMemo(() => {
+    const map = new Map<string, CustomerGroupRow>();
+    for (const r of overdueRows) {
+      const key = r.customerCpf || `${normalize(r.customerName)}|${r.customerPhone}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.installmentCount += 1;
+        existing.totalDue += r.amountDue;
+        if (r.daysOverdue > existing.maxDaysOverdue) existing.maxDaysOverdue = r.daysOverdue;
+        if (r.priority === 'critical') existing.worstPriority = 'critical';
+      } else {
+        map.set(key, {
+          key,
+          customerName: r.customerName,
+          customerPhone: r.customerPhone,
+          customerCpf: r.customerCpf,
+          sellerName: r.sellerName || '',
+          installmentCount: 1,
+          totalDue: r.amountDue,
+          maxDaysOverdue: r.daysOverdue,
+          worstPriority: r.priority === 'critical' ? 'critical' : 'warning',
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [overdueRows]);
+
+  const [customerSortKey, setCustomerSortKey] = useState<CustomerGroupSortKey>('maxDaysOverdue');
+  const [customerSortDir, setCustomerSortDir] = useState<SortDir>('desc');
+  const [customerPage, setCustomerPage] = useState(1);
+  const [customerSearch, setCustomerSearch] = useState('');
+
+  const toggleCustomerSort = (key: CustomerGroupSortKey) => {
+    setCustomerSortKey((prev) => {
+      if (prev !== key) {
+        setCustomerSortDir(key === 'customerName' ? 'asc' : 'desc');
+        return key;
+      }
+      setCustomerSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+      return prev;
+    });
+  };
+
+  const sortedCustomerGroups = useMemo(() => {
+    const dir = customerSortDir === 'asc' ? 1 : -1;
+    const toValue = (r: CustomerGroupRow) => {
+      switch (customerSortKey) {
+        case 'customerName': return normalize(r.customerName);
+        case 'totalDue': return r.totalDue;
+        case 'maxDaysOverdue': return r.maxDaysOverdue;
+        case 'installmentCount': return r.installmentCount;
+        default: return 0;
+      }
+    };
+    return [...customerGroups].sort((a, b) => {
+      const av = toValue(a);
+      const bv = toValue(b);
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return normalize(a.customerName).localeCompare(normalize(b.customerName));
+    });
+  }, [customerGroups, customerSortKey, customerSortDir]);
+
+  const customerSearchNeedle = useMemo(() => normalize(customerSearch), [customerSearch]);
+  const filteredCustomerGroups = useMemo(() => {
+    if (!customerSearchNeedle) return sortedCustomerGroups;
+    return sortedCustomerGroups.filter((r) =>
+      normalize(`${r.customerName} ${r.customerPhone} ${r.customerCpf}`).includes(customerSearchNeedle)
+    );
+  }, [customerSearchNeedle, sortedCustomerGroups]);
+
   const [overdueSortKey, setOverdueSortKey] = useState<SortKey>('daysOverdue');
   const [overdueSortDir, setOverdueSortDir] = useState<SortDir>('desc');
   const [overduePage, setOverduePage] = useState(1);
@@ -213,9 +301,11 @@ export default function CobrancasDashboardPage() {
 
   const paginatedOverdue = useMemo(() => paginate(filteredOverdue, overduePage, pageSize), [filteredOverdue, overduePage]);
   const paginatedUpcoming = useMemo(() => paginate(filteredUpcoming, upcomingPage, pageSize), [filteredUpcoming, upcomingPage]);
+  const paginatedCustomerGroups = useMemo(() => paginate(filteredCustomerGroups, customerPage, pageSize), [filteredCustomerGroups, customerPage]);
 
   const overduePages = Math.max(1, Math.ceil(filteredOverdue.length / pageSize));
   const upcomingPages = Math.max(1, Math.ceil(filteredUpcoming.length / pageSize));
+  const customerGroupPages = Math.max(1, Math.ceil(filteredCustomerGroups.length / pageSize));
 
   useEffect(() => {
     setOverduePage(1);
@@ -224,6 +314,10 @@ export default function CobrancasDashboardPage() {
   useEffect(() => {
     setUpcomingPage(1);
   }, [upcomingSortKey, upcomingSortDir, filters, upcomingSearch]);
+
+  useEffect(() => {
+    setCustomerPage(1);
+  }, [customerSortKey, customerSortDir, filters, customerSearch]);
 
   const toggleSort = (section: 'overdue' | 'upcoming', key: SortKey) => {
     if (section === 'overdue') {
@@ -264,6 +358,21 @@ export default function CobrancasDashboardPage() {
     const rows = kind === 'overdue' ? filteredOverdue : filteredUpcoming;
     const date = new Date().toISOString().slice(0, 10);
     downloadTextFile(toCsv(rows, kind), `cobrancas-${kind}-${date}.csv`, 'text/csv;charset=utf-8');
+  };
+
+  const exportCustomerGroupsExcel = () => {
+    const headers = ['Cliente', 'Telefone', 'CPF', 'Vendedor', 'Parcelas em Atraso', 'Valor Total Devido', 'Atraso Mais Antigo (dias)', 'Prioridade'];
+    const lines = [headers.join(';')];
+    for (const r of filteredCustomerGroups) {
+      const priority = r.worstPriority === 'critical' ? 'Crítico' : 'Atenção';
+      lines.push(
+        [r.customerName, r.customerPhone, r.customerCpf, r.sellerName, String(r.installmentCount), formatCurrency(r.totalDue), String(r.maxDaysOverdue), priority]
+          .map((v) => `"${String(v).replaceAll('"', '""')}"`)
+          .join(';')
+      );
+    }
+    const date = new Date().toISOString().slice(0, 10);
+    downloadTextFile('﻿' + lines.join('\n'), `cobrancas-por-cliente-${date}.csv`, 'text/csv;charset=utf-8');
   };
 
   const exportPdf = async (elementId: string, filename: string) => {
@@ -496,6 +605,101 @@ ${pixKey ? `\n\nChave pix: ${pixKey}` : ''}`;
               </Button>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle>Inadimplência por Cliente</CardTitle>
+            <CardDescription>Um cliente pode ter várias parcelas atrasadas em pedidos diferentes — aqui é o total por pessoa, do atraso mais antigo pro mais recente.</CardDescription>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <Input
+              placeholder="Buscar cliente, telefone ou CPF..."
+              value={customerSearch}
+              onChange={(e) => setCustomerSearch(e.target.value)}
+              className="w-full sm:w-72"
+            />
+            <Button variant="outline" onClick={exportCustomerGroupsExcel} disabled={filteredCustomerGroups.length === 0}>
+              <FileDown className="mr-2 h-4 w-4" />
+              Exportar Excel
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-[260px] cursor-pointer" onClick={() => toggleCustomerSort('customerName')}>Cliente</TableHead>
+                  <TableHead className="min-w-[140px]">Telefone</TableHead>
+                  <TableHead className="min-w-[140px] text-center cursor-pointer" onClick={() => toggleCustomerSort('installmentCount')}>Parcelas em Atraso</TableHead>
+                  <TableHead className="min-w-[140px] text-right cursor-pointer" onClick={() => toggleCustomerSort('totalDue')}>Total Devido</TableHead>
+                  <TableHead className="min-w-[160px] text-center cursor-pointer" onClick={() => toggleCustomerSort('maxDaysOverdue')}>Atraso Mais Antigo</TableHead>
+                  <TableHead className="min-w-[120px]">Prioridade</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedCustomerGroups.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                      Nenhum cliente em atraso com os filtros atuais.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedCustomerGroups.map((r) => (
+                    <TableRow key={r.key}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`h-2 w-2 rounded-full ${r.worstPriority === 'critical' ? 'bg-red-500' : 'bg-orange-500'}`}
+                            aria-hidden
+                          />
+                          <span className="truncate">{r.customerName}</span>
+                          {r.customerCpf ? (
+                            <Button variant="ghost" size="icon" asChild className="h-7 w-7">
+                              <Link href={`/admin/clientes?cpf=${encodeURIComponent(r.customerCpf)}`} aria-label="Abrir cadastro do cliente">
+                                <User className="h-4 w-4" aria-hidden />
+                                <span className="sr-only">Abrir cadastro do cliente</span>
+                              </Link>
+                            </Button>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{r.customerPhone}</TableCell>
+                      <TableCell className="text-center">{r.installmentCount}</TableCell>
+                      <TableCell className="text-right font-semibold">{formatCurrency(r.totalDue)}</TableCell>
+                      <TableCell className="text-center">
+                        <span className={r.worstPriority === 'critical' ? 'text-red-600 font-semibold' : 'text-orange-600 font-semibold'}>
+                          {r.maxDaysOverdue} dias
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {r.worstPriority === 'critical' ? (
+                          <Badge variant="destructive">Crítico</Badge>
+                        ) : (
+                          <Badge className="bg-orange-500 text-white hover:bg-orange-500">Atenção</Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {customerGroupPages > 1 && (
+            <div className="flex items-center justify-end gap-2 mt-4">
+              <Button variant="outline" size="sm" onClick={() => setCustomerPage((p) => Math.max(1, p - 1))} disabled={customerPage === 1}>
+                Anterior
+              </Button>
+              <span className="text-sm text-muted-foreground">Página {customerPage} de {customerGroupPages}</span>
+              <Button variant="outline" size="sm" onClick={() => setCustomerPage((p) => Math.min(customerGroupPages, p + 1))} disabled={customerPage === customerGroupPages}>
+                Próxima
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
