@@ -1218,14 +1218,14 @@ Não esqueça de enviar o comprovante!`;
                                                 className="justify-start w-full text-left h-auto py-2"
                                                 onClick={() => setSelectedCustomer(customer)}
                                             >
-                                                <div className="flex items-center gap-3">
-                                                    <div className="bg-muted rounded-full p-2">
+                                                <div className="flex items-center gap-3 min-w-0 w-full overflow-hidden">
+                                                    <div className="bg-muted rounded-full p-2 flex-shrink-0">
                                                         <UserIcon className="h-5 w-5 text-muted-foreground" />
                                                     </div>
-                                                    <div>
-                                                        <p className="font-semibold">{customer.name}</p>
+                                                    <div className="min-w-0 flex-1 overflow-hidden">
+                                                        <p className="font-semibold truncate" title={customer.name}>{customer.name}</p>
                                                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                            <span>
+                                                            <span className="truncate">
                                                                 {customer.code ? `${customer.code.replace(/^CLI-/i, '')} • ` : ''}
                                                                 {customer.cpf}
                                                             </span>
@@ -1276,14 +1276,14 @@ Não esqueça de enviar o comprovante!`;
                                                 className="justify-start w-full text-left h-auto py-2"
                                                 onClick={() => setSelectedCustomer(customer)}
                                             >
-                                                <div className="flex items-center gap-3">
-                                                    <div className="bg-red-100 rounded-full p-2">
+                                                <div className="flex items-center gap-3 min-w-0 w-full overflow-hidden">
+                                                    <div className="bg-red-100 rounded-full p-2 flex-shrink-0">
                                                         <UserIcon className="h-5 w-5 text-red-600" />
                                                     </div>
-                                                    <div>
-                                                        <p className="font-semibold">{customer.name}</p>
+                                                    <div className="min-w-0 flex-1 overflow-hidden">
+                                                        <p className="font-semibold truncate" title={customer.name}>{customer.name}</p>
                                                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                            <span>
+                                                            <span className="truncate">
                                                                 {customer.code ? `${customer.code.replace(/^CLI-/i, '')} • ` : ''}
                                                                 {customer.cpf}
                                                             </span>

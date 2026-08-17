@@ -103,8 +103,8 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
                         'transform lg:transform-none transition-[width,transform] duration-200 ease-in-out',
                         'lg:sticky lg:top-0 lg:z-auto lg:self-start lg:max-h-screen',
                         sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
-                        // mobile: always w-64 — desktop: respects collapsed
-                        sidebarCollapsed ? 'w-64 lg:w-16' : 'w-64',
+                        // mobile: always w-56 — desktop: respects collapsed
+                        sidebarCollapsed ? 'w-56 lg:w-16' : 'w-56',
                     )}>
                         {/* Brand */}
                         <div className={cn(
