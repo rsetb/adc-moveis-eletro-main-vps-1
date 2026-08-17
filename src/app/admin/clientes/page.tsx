@@ -1223,7 +1223,7 @@ Não esqueça de enviar o comprovante!`;
                                                         <UserIcon className="h-5 w-5 text-muted-foreground" />
                                                     </div>
                                                     <div className="min-w-0 flex-1 overflow-hidden">
-                                                        <p className="font-semibold truncate" title={customer.name}>{customer.name}</p>
+                                                        <p className="font-semibold whitespace-normal break-words leading-snug">{customer.name}</p>
                                                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                                             <span className="truncate">
                                                                 {customer.code ? `${customer.code.replace(/^CLI-/i, '')} • ` : ''}
@@ -1281,7 +1281,7 @@ Não esqueça de enviar o comprovante!`;
                                                         <UserIcon className="h-5 w-5 text-red-600" />
                                                     </div>
                                                     <div className="min-w-0 flex-1 overflow-hidden">
-                                                        <p className="font-semibold truncate" title={customer.name}>{customer.name}</p>
+                                                        <p className="font-semibold whitespace-normal break-words leading-snug">{customer.name}</p>
                                                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                                             <span className="truncate">
                                                                 {customer.code ? `${customer.code.replace(/^CLI-/i, '')} • ` : ''}
@@ -1333,7 +1333,7 @@ Não esqueça de enviar o comprovante!`;
                                                             <Trash className="h-5 w-5 text-destructive" />
                                                         </div>
                                                         <div className="flex-grow overflow-hidden">
-                                                            <p className="font-semibold truncate" title={customer.name}>{customer.name}</p>
+                                                            <p className="font-semibold whitespace-normal break-words leading-snug">{customer.name}</p>
                                                             <p className="text-xs text-muted-foreground">
                                                                 {customer.code ? `${customer.code.replace(/^CLI-/i, '')} • ` : ''}
                                                                 {customer.cpf}
