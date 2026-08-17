@@ -1153,7 +1153,7 @@ Não esqueça de enviar o comprovante!`;
                                 <Users className="h-5 w-5" />
                                 Clientes
                             </CardTitle>
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-2">
                                 <Button
                                     variant="outline"
                                     size="sm"
