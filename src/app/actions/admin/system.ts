@@ -92,29 +92,44 @@ export async function resetAllAdminDataAction(user: User | null) {
 
 export async function importProductsAction(products: Product[], user: User | null) {
     try {
+        // Produtos sem id (lista "solta", sem vir de um backup exportado) recebiam um id
+        // aleatorio novo a cada importacao, entao reimportar o mesmo arquivo duas vezes
+        // criava produtos duplicados (skipDuplicates so olha id, que nunca repetia).
+        // Aqui, quando falta id mas tem codigo, checamos se ja existe um produto com
+        // esse codigo e pulamos, em vez de criar um duplicado.
+        const codesWithoutId = Array.from(new Set(
+            products.filter(p => !p.id && p.code).map(p => String(p.code))
+        ));
+        const existingByCode = codesWithoutId.length > 0
+            ? await db.product.findMany({ where: { code: { in: codesWithoutId } }, select: { code: true } })
+            : [];
+        const existingCodeSet = new Set(existingByCode.map(p => p.code));
+
         // Bulk create is efficient
         // Prisma createMany is supported in Postgres
-        const productsToCreate = products.map(p => ({
-            id: p.id || `PROD-${Math.random().toString(36).substr(2, 9)}`,
-            name: p.name,
-            code: p.code,
-            description: p.description,
-            longDescription: p.longDescription,
-            price: p.price,
-            originalPrice: p.originalPrice,
-            cost: p.cost,
-            onSale: p.onSale,
-            isHidden: p.isHidden,
-            category: p.category,
-            subcategory: p.subcategory,
-            stock: p.stock,
-            imageUrls: p.imageUrls || (p.imageUrl ? [p.imageUrl] : []),
-            maxInstallments: p.maxInstallments,
-            paymentCondition: p.paymentCondition,
-            commissionType: p.commissionType,
-            commissionValue: p.commissionValue,
-            createdAt: new Date().toISOString()
-        }));
+        const productsToCreate = products
+            .filter(p => p.id || !p.code || !existingCodeSet.has(String(p.code)))
+            .map(p => ({
+                id: p.id || `PROD-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`,
+                name: p.name,
+                code: p.code,
+                description: p.description,
+                longDescription: p.longDescription,
+                price: p.price,
+                originalPrice: p.originalPrice,
+                cost: p.cost,
+                onSale: p.onSale,
+                isHidden: p.isHidden,
+                category: p.category,
+                subcategory: p.subcategory,
+                stock: p.stock,
+                imageUrls: p.imageUrls || (p.imageUrl ? [p.imageUrl] : []),
+                maxInstallments: p.maxInstallments,
+                paymentCondition: p.paymentCondition,
+                commissionType: p.commissionType,
+                commissionValue: p.commissionValue,
+                createdAt: new Date().toISOString()
+            }));
 
         await db.product.createMany({
             data: productsToCreate,

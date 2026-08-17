@@ -66,15 +66,22 @@ export async function payCommissionAction(
 ) {
     try {
         const payment = await db.$transaction(async (tx: any) => {
+            if (orderIds.length > 0) {
+                // Atualização condicional: só "reivindica" pedidos ainda não pagos.
+                // Sob concorrência (duplo clique, duas abas), a segunda transação
+                // encontra commissionPaid=true (já commitado pela primeira) e
+                // o count não bate, evitando pagar a mesma comissão duas vezes.
+                const { count } = await tx.order.updateMany({
+                    where: { id: { in: orderIds }, commissionPaid: { not: true } },
+                    data: { commissionPaid: true, commissionDate: new Date().toISOString() },
+                });
+                if (count !== orderIds.length) {
+                    throw new Error('Uma ou mais comissões selecionadas já foram pagas. Atualize a página e tente novamente.');
+                }
+            }
             const newPayment = await tx.commissionPayment.create({
                 data: { sellerId, sellerName, amount, period, paymentDate: new Date().toISOString(), orderIds: orderIds as any },
             });
-            if (orderIds.length > 0) {
-                await tx.order.updateMany({
-                    where: { id: { in: orderIds } },
-                    data: { commissionPaid: true, commissionDate: new Date().toISOString() },
-                });
-            }
             return newPayment;
         });
         revalidatePath('/admin/financeiro');

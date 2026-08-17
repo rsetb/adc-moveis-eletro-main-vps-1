@@ -238,7 +238,9 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
   const addOrder = async (order: Partial<Order> & { firstDueDate: Date }, logAction: LogAction, user: User | null): Promise<Order | null> => {
     lastUpdateRef.current = Date.now(); // Pause polling on new order creation attempt
     lastUpdateRef.current = Date.now(); // Pause polling on new order creation attempt (and success)
-    const orderId = `PED-${Date.now().toString().slice(-6)}`;
+    // Ultimos 6 digitos de Date.now() se repetem a cada ~16.7min (ciclo de 10^6 ms);
+    // o sufixo aleatorio evita colisao de ID entre pedidos criados nesse intervalo.
+    const orderId = `PED-${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 900 + 100)}`;
     const subtotal = order.items?.reduce((acc, item) => acc + item.price * item.quantity, 0) || 0;
     const total = subtotal - (order.discount || 0);
     const totalFinanced = total - (order.downPayment || 0);
@@ -840,6 +842,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
       return newPayment.id;
     }
+    toast({ title: "Erro ao pagar comissão", description: (res as any).error || 'Erro desconhecido', variant: 'destructive' });
     return null;
   };
   const reverseCommissionPayment = async (paymentId: string, logAction: LogAction, user: User | null) => {

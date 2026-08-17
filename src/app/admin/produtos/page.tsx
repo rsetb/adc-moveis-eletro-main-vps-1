@@ -60,6 +60,7 @@ export default function ManageProductsPage() {
     const [deletedProducts, setDeletedProducts] = useState<Product[]>([]);
     const [isLoadingTrash, setIsLoadingTrash] = useState(false);
     const importInputRef = useRef<HTMLInputElement | null>(null);
+    const [isImporting, setIsImporting] = useState(false);
     const canDelete = user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor' || user?.role === 'vendedor_cobranca';
     const canImport = user?.role === 'admin';
 
@@ -113,8 +114,9 @@ export default function ManageProductsPage() {
     }
 
     const handleRestoreFromCache = async () => {
-        if (!user || !canImport) return;
+        if (!user || !canImport || isImporting) return;
 
+        setIsImporting(true);
         try {
             const raw = localStorage.getItem('productsCache');
             if (!raw) {
@@ -129,16 +131,19 @@ export default function ManageProductsPage() {
             await importProducts(parsed as Product[], logAction, user);
         } catch {
             toast({ title: 'Erro ao restaurar', description: 'Falha ao ler o cache local.', variant: 'destructive', duration: 3000 });
+        } finally {
+            setIsImporting(false);
         }
     };
 
     const handleImportProductsFile = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (!user || !canImport) return;
+        if (!user || !canImport || isImporting) return;
         const file = event.target.files?.[0];
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = async (e) => {
+            setIsImporting(true);
             try {
                 const text = e.target?.result as string;
                 const parsed = JSON.parse(text);
@@ -153,6 +158,7 @@ export default function ManageProductsPage() {
             } catch {
                 toast({ title: 'Erro ao importar', description: 'Não foi possível ler o JSON.', variant: 'destructive' });
             } finally {
+                setIsImporting(false);
                 if (importInputRef.current) importInputRef.current.value = '';
             }
         };
@@ -200,13 +206,13 @@ export default function ManageProductsPage() {
                             <>
                                 {products.length === 0 && (
                                     <>
-                                        <Button variant="outline" onClick={handleRestoreFromCache} disabled={!canImport}>
+                                        <Button variant="outline" onClick={handleRestoreFromCache} disabled={!canImport || isImporting}>
                                             <History className="mr-2 h-4 w-4" />
-                                            Restaurar do cache
+                                            {isImporting ? 'Importando...' : 'Restaurar do cache'}
                                         </Button>
-                                        <Button variant="outline" onClick={() => importInputRef.current?.click()} disabled={!canImport}>
+                                        <Button variant="outline" onClick={() => importInputRef.current?.click()} disabled={!canImport || isImporting}>
                                             <Import className="mr-2 h-4 w-4" />
-                                            Importar JSON
+                                            {isImporting ? 'Importando...' : 'Importar JSON'}
                                         </Button>
                                         <input
                                             ref={importInputRef}

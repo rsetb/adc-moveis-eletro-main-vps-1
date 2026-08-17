@@ -101,6 +101,7 @@ export default function MyCommissionsPage() {
   
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
   const [sellerToPay, setSellerToPay] = useState<SellerCommissionDetails | null>(null);
+  const [isPayingCommission, setIsPayingCommission] = useState(false);
   const [paymentMonth, setPaymentMonth] = useState(() => format(new Date(), 'MM'));
   const [paymentYear, setPaymentYear] = useState(() => format(new Date(), 'yyyy'));
 
@@ -228,16 +229,21 @@ export default function MyCommissionsPage() {
   }
 
   const handlePayCommission = async () => {
-    if (!sellerToPay) return;
-    
+    if (!sellerToPay || isPayingCommission) return;
+    setIsPayingCommission(true);
+
     const monthLabel = meses.find(m => m.value === paymentMonth)?.label || paymentMonth;
     const period = `${monthLabel}/${paymentYear}`;
-    
-    const paymentId = await payCommissions(sellerToPay.id, sellerToPay.name, sellerToPay.total, sellerToPay.orderIds, period, logAction, user);
-    if (paymentId) {
-      setIsPayModalOpen(false);
-      setSellerToPay(null);
-      router.push(`/admin/comprovante-comissao/${paymentId}`);
+
+    try {
+      const paymentId = await payCommissions(sellerToPay.id, sellerToPay.name, sellerToPay.total, sellerToPay.orderIds, period, logAction, user);
+      if (paymentId) {
+        setIsPayModalOpen(false);
+        setSellerToPay(null);
+        router.push(`/admin/comprovante-comissao/${paymentId}`);
+      }
+    } finally {
+      setIsPayingCommission(false);
     }
   };
 
@@ -868,10 +874,10 @@ export default function MyCommissionsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsPayModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handlePayCommission}>
+            <Button variant="outline" onClick={() => setIsPayModalOpen(false)} disabled={isPayingCommission}>Cancelar</Button>
+            <Button onClick={handlePayCommission} disabled={isPayingCommission}>
               <DollarSign className="mr-2 h-4 w-4" />
-              Confirmar Pagamento
+              {isPayingCommission ? 'Pagando...' : 'Confirmar Pagamento'}
             </Button>
           </DialogFooter>
         </DialogContent>

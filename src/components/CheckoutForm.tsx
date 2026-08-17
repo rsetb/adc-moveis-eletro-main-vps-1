@@ -594,7 +594,9 @@ Confirmação de Entrega: O pedido será enviado para o endereço acima.${vencTe
     const orderDate = new Date();
 
     const prefix = cartItems.length > 0 ? 'PED' : 'REG';
-    const orderId = `${prefix}-${Date.now().toString().slice(-6)}`;
+    // Ultimos 6 digitos de Date.now() se repetem a cada ~16.7min (ciclo de 10^6 ms);
+    // o sufixo aleatorio evita colisao de ID entre pedidos criados nesse intervalo.
+    const orderId = `${prefix}-${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 900 + 100)}`;
 
     const installmentDetails = (() => {
       if (!isCrediario || finalInstallments <= 0) return [];
