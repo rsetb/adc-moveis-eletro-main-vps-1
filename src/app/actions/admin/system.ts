@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import type { User, Product, CustomerInfo } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 import { normalizeCustomerCodeInput, reserveCustomerCodes, formatCustomerCode } from '@/lib/customer-code';
+import { normalizeDigits } from '@/lib/customer-search';
 import { getSession } from '@/lib/session';
 
 // --- Resets ---
@@ -196,11 +197,13 @@ export async function importCustomersAction(customers: CustomerInfo[], user: Use
             }
         }
 
-        const customersToCreate = normalized.map(c => ({
+        const customersToCreate = normalized.map(c => {
+            const cpfDigits = normalizeDigits(String(c.cpf || ''));
+            return {
             id: c.id || `CUST-${Math.random().toString(36).substr(2, 9)}`,
             name: c.name,
             code: c.code,
-            cpf: c.cpf,
+            cpf: cpfDigits.length === 11 ? cpfDigits : null,
             phone: c.phone,
             email: c.email,
             address: c.address,
@@ -210,7 +213,8 @@ export async function importCustomersAction(customers: CustomerInfo[], user: Use
             city: c.city,
             state: c.state,
             createdAt: new Date().toISOString()
-        }));
+            };
+        });
 
         await db.customer.createMany({
             data: customersToCreate,

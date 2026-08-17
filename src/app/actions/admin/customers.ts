@@ -9,11 +9,15 @@ import { matchesAllTokens, normalizeDigits, normalizeSearchText, splitTokens, ty
 export async function addCustomerAction(customerData: CustomerInfo, user: User | null) {
     try {
         const normalizedCode = normalizeCustomerCodeInput((customerData as any)?.code);
+        // CPF sempre normalizado (só dígitos) antes de checar duplicidade e salvar,
+        // senão "625.349.603-42" e "62534960342" são tratados como CPFs diferentes.
+        const cpfDigits = normalizeDigits(String(customerData.cpf || ''));
+        const cpfToSave = cpfDigits.length === 11 ? cpfDigits : null;
 
         // Prevent duplicate CPF
-        if (customerData.cpf) {
+        if (cpfToSave) {
             const existing = await db.customer.findFirst({
-                where: { cpf: customerData.cpf }
+                where: { cpf: cpfToSave }
             });
             if (existing) {
                 return { success: false, error: 'Um cliente com este CPF já existe.' };
@@ -34,6 +38,7 @@ export async function addCustomerAction(customerData: CustomerInfo, user: User |
         const { source, ...customerFields } = customerData as any;
         const dataBase: any = {
             ...customerFields,
+            cpf: cpfToSave,
             code: normalizedCode,
             id: idToUse
         };
@@ -347,7 +352,22 @@ export async function updateCustomerAction(customerData: CustomerInfo, user: Use
             }
         }
 
-        const { id, source, ...updateData } = customerData as any;
+        const { id, source, cpf, ...updateData } = customerData as any;
+
+        // CPF sempre normalizado (só dígitos) antes de checar duplicidade e salvar.
+        if (cpf !== undefined) {
+            const cpfDigits = normalizeDigits(String(cpf || ''));
+            const cpfToSave = cpfDigits.length === 11 ? cpfDigits : null;
+            if (cpfToSave) {
+                const existingByCpf = await db.customer.findFirst({
+                    where: { cpf: cpfToSave, NOT: { id: customerData.id } }
+                });
+                if (existingByCpf) {
+                    return { success: false, error: 'Um cliente com este CPF já existe.' };
+                }
+            }
+            updateData.cpf = cpfToSave;
+        }
 
         await db.customer.update({
             where: { id: customerData.id },
