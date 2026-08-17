@@ -302,7 +302,7 @@ const resizeImage = (file: File, MAX_WIDTH = 1920, MAX_HEIGHT = 1080): Promise<s
 
 function CustomersAdminPageInner() {
     const { products } = useData();
-    const { updateCustomer, recordInstallmentPayment, updateInstallmentDueDate, updateOrderDetails, reversePayment, importCustomers, addCustomer, deleteCustomer, restoreCustomerFromTrash, permanentlyDeleteCustomerFromTrash, permanentlyDeleteCustomer, updateOrderStatus, generateCustomerCodes, deleteOrder } = useAdmin();
+    const { updateCustomer, recordInstallmentPayment, updateInstallmentDueDate, updateOrderDetails, reversePayment, importCustomers, addCustomer, deleteCustomer, restoreCustomerFromTrash, permanentlyDeleteCustomerFromTrash, permanentlyDeleteCustomer, updateOrderStatus, deleteOrder } = useAdmin();
     const { customers, customerOrders, deletedCustomers } = useAdminData();
     const { user, users } = useAuth();
     const { settings } = useSettings();
@@ -331,7 +331,6 @@ function CustomersAdminPageInner() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const lastAutofilledZipRef = useRef<string | null>(null);
     const serverSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [isGeneratingCustomerCodes, setIsGeneratingCustomerCodes] = useState(false);
     const [isOrderEditDialogOpen, setIsOrderEditDialogOpen] = useState(false);
     const [orderToEdit, setOrderToEdit] = useState<Order | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -1170,40 +1169,6 @@ Não esqueça de enviar o comprovante!`;
                                     <UserPlus className="h-4 w-4 mr-2" />
                                     Cadastrar
                                 </Button>
-                                {isAdmin && (
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="outline" size="sm" disabled={isGeneratingCustomerCodes}>
-                                                <KeyRound className="h-4 w-4 mr-2" />
-                                                Gerar Códigos
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Gerar códigos para todos os clientes?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    Isso vai preencher o código em todos os pedidos antigos. Pode levar alguns segundos.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                <AlertDialogAction
-                                                    onClick={async () => {
-                                                        if (!user) return;
-                                                        try {
-                                                            setIsGeneratingCustomerCodes(true);
-                                                            await generateCustomerCodes(logAction, user);
-                                                        } finally {
-                                                            setIsGeneratingCustomerCodes(false);
-                                                        }
-                                                    }}
-                                                >
-                                                    Gerar
-                                                </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                )}
                                 {isAdmin && (
                                     <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                                         <Import className="h-4 w-4 mr-2" />

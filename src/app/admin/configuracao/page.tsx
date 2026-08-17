@@ -13,7 +13,7 @@ import { useSettings } from '@/context/SettingsContext';
 import { useAdmin, useAdminData } from '@/context/AdminContext';
 import { useAuth } from '@/context/AuthContext';
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { Settings, Save, FileDown, Upload, AlertTriangle, RotateCcw, Trash2, Lock, History, User, Calendar, Shield, Image as ImageIcon, Clock, Package, DollarSign, Users, ShoppingCart } from 'lucide-react';
+import { Settings, Save, FileDown, Upload, AlertTriangle, RotateCcw, Trash2, Lock, History, User, Calendar, Shield, Image as ImageIcon, Clock, Package, DollarSign, Users, ShoppingCart, KeyRound } from 'lucide-react';
 import type { RolePermissions, UserRole, AppSection, StoreSettings, CustomerInfo, AsaasSettings } from '@/lib/types';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -153,7 +153,7 @@ function AuditLogCard() {
 
 export default function ConfiguracaoPage() {
   const { settings, updateSettings, isLoading: settingsLoading, restoreSettings, resetSettings } = useSettings();
-  const { restoreAdminData, resetOrders, resetProducts, resetFinancials, resetAllAdminData } = useAdmin();
+  const { restoreAdminData, resetOrders, resetProducts, resetFinancials, resetAllAdminData, generateCustomerCodes } = useAdmin();
   const { products, categories } = useData();
   const { orders, customers, deletedCustomers, commissionPayments, stockAudits, avarias, chatSessions } = useAdminData();
   const { user, users, restoreUsers } = useAuth();
@@ -163,6 +163,7 @@ export default function ConfiguracaoPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [dialogOpenFor, setDialogOpenFor] = useState<'resetOrders' | 'resetProducts' | 'resetFinancials' | 'resetAll' | null>(null);
+  const [isGeneratingCustomerCodes, setIsGeneratingCustomerCodes] = useState(false);
   const [localPermissions, setLocalPermissions] = useState<RolePermissions | null>(null);
 
   const [isAsaasLoading, setIsAsaasLoading] = useState(false);
@@ -890,6 +891,53 @@ export default function ConfiguracaoPage() {
             ) : (
               <p>Carregando permissões...</p>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {user?.role === 'admin' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <KeyRound className="h-6 w-6" />
+              Códigos de Clientes
+            </CardTitle>
+            <CardDescription>Gere o código sequencial para clientes antigos que ainda não têm um.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" disabled={isGeneratingCustomerCodes}>
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  Gerar Códigos
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Gerar códigos para todos os clientes?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Isso vai preencher o código em todos os pedidos antigos. Pode levar alguns segundos.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={async () => {
+                      if (!user) return;
+                      try {
+                        setIsGeneratingCustomerCodes(true);
+                        await generateCustomerCodes(logAction, user);
+                        toast({ title: 'Códigos gerados!', description: 'Os códigos dos clientes foram atualizados.' });
+                      } finally {
+                        setIsGeneratingCustomerCodes(false);
+                      }
+                    }}
+                  >
+                    Gerar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardContent>
         </Card>
       )}
