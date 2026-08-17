@@ -5,6 +5,7 @@ import type { CustomerInfo, User } from '@/lib/types';
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
 import { allocateNextCustomerCode, normalizeCustomerCodeInput, reserveCustomerCodes } from '@/lib/customer-code';
 import { matchesAllTokens, normalizeDigits, normalizeSearchText, splitTokens, type CustomerSearchFilters } from '@/lib/customer-search';
+import { getSession } from '@/lib/session';
 
 export async function addCustomerAction(customerData: CustomerInfo, user: User | null) {
     try {
@@ -526,9 +527,11 @@ export async function restoreCustomerFromTrashAction(customer: CustomerInfo, use
 
 export async function permanentlyDeleteCustomerFromTrashAction(customer: CustomerInfo, user: User | null) {
     try {
-        if (!user) return { success: false, error: 'Usuário não autenticado.' };
-        if (user.role === 'vendedor_cobranca') {
-            throw new Error('Permissão negada: Vendedor Cobrança não pode excluir clientes permanentemente.');
+        // Exclusão permanente é restrita a admin (a UI já só mostra o botão pra admin;
+        // isso garante que a regra vale mesmo chamando a action diretamente).
+        const session = await getSession();
+        if (!session || session.role !== 'admin') {
+            throw new Error('Permissão negada: apenas administradores podem excluir clientes permanentemente.');
         }
 
         const cpfDigits = String(customer.cpf || '').replace(/\D/g, '');
@@ -547,8 +550,11 @@ export async function permanentlyDeleteCustomerFromTrashAction(customer: Custome
 
 export async function permanentlyDeleteCustomerAction(id: string, user: User | null) {
     try {
-        if (user?.role === 'vendedor_cobranca') {
-            throw new Error('Permissão negada: Vendedor Cobrança não pode excluir clientes permanentemente.');
+        // Exclusão permanente é restrita a admin (a UI já só mostra o botão pra admin;
+        // isso garante que a regra vale mesmo chamando a action diretamente).
+        const session = await getSession();
+        if (!session || session.role !== 'admin') {
+            throw new Error('Permissão negada: apenas administradores podem excluir clientes permanentemente.');
         }
 
         const existing = await db.customer.findUnique({ where: { id } });

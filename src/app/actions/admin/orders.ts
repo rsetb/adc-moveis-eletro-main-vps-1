@@ -531,8 +531,11 @@ export async function moveOrderToTrashAction(orderId: string, user: User | null)
 
 export async function permanentlyDeleteOrderAction(orderId: string, user: User | null) {
     try {
-        if (user?.role === 'vendedor_cobranca') {
-            throw new Error('Permissão negada: Vendedor Cobrança não pode excluir pedidos permanentemente.');
+        // Exclusão permanente é restrita a admin (a UI já só mostra o botão pra admin;
+        // isso garante que a regra vale mesmo chamando a action diretamente).
+        const session = await getSession();
+        if (!session || session.role !== 'admin') {
+            throw new Error('Permissão negada: apenas administradores podem excluir pedidos permanentemente.');
         }
         // 1. Check if exists first to avoid Prisma error
         const exists = await db.order.findUnique({ where: { id: orderId } });

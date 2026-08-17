@@ -246,6 +246,7 @@ export async function importCustomersAction(customers: CustomerInfo[], user: Use
 
 export async function emptyTrashAction(user: User | null) {
     try {
+        await requireAdminSession();
         // Permanently delete soft-deleted products
         await db.product.deleteMany({
             where: { deletedAt: { not: null } }
@@ -279,6 +280,9 @@ export async function restoreProductAction(id: string, user: User | null) {
 
 export async function permanentlyDeleteProductWithIdAction(id: string, user: User | null) {
     try {
+        // Exclusão permanente é restrita a admin (a UI já só mostra o botão pra admin;
+        // isso garante que a regra vale mesmo chamando a action diretamente).
+        await requireAdminSession();
         await db.product.delete({
             where: { id }
         });
