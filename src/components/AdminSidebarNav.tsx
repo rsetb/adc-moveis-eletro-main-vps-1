@@ -27,7 +27,6 @@ import {
     UserCog,
     Landmark,
     FileSearch,
-    ChevronDown,
     QrCode,
     TrendingUp,
     type LucideIcon,
@@ -139,13 +138,7 @@ export default function AdminSidebarNav({ onNavigate, sidebarCollapsed }: AdminS
         return () => window.removeEventListener('order-updated', handleOrderUpdated);
     }, []);
 
-    // collapsed state for groups: undefined = open, true = collapsed
-    const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-
     if (!user || !permissions) return null;
-
-    const toggle = (groupId: string) =>
-        setCollapsed(prev => ({ ...prev, [groupId]: !prev[groupId] }));
 
     return (
         <nav className={cn('space-y-1', sidebarCollapsed ? 'lg:px-1 px-2' : 'px-2')}>
@@ -154,11 +147,6 @@ export default function AdminSidebarNav({ onNavigate, sidebarCollapsed }: AdminS
                     hasAccess(user.role, item.id, permissions)
                 );
                 if (visibleItems.length === 0) return null;
-
-                const isOpen = !collapsed[group.id];
-                const hasActive = visibleItems.some(item =>
-                    pathname.startsWith(`/admin/${item.id}`)
-                );
 
                 return (
                     <div key={group.id}>
@@ -171,39 +159,20 @@ export default function AdminSidebarNav({ onNavigate, sidebarCollapsed }: AdminS
                         )}
 
                         {/* Group header — hidden when sidebar is collapsed on desktop */}
-                        <button
-                            onClick={() => toggle(group.id)}
+                        <div
                             className={cn(
-                                'flex w-full items-center justify-between px-3 py-1.5 rounded-md transition-colors duration-150',
-                                'hover:bg-sidebar-accent/60',
-                                hasActive && !isOpen
-                                    ? 'text-sidebar-foreground/80'
-                                    : 'text-sidebar-foreground/40',
+                                'flex w-full items-center px-3 py-1.5',
+                                'text-sidebar-foreground/40',
                                 sidebarCollapsed && 'lg:hidden',
                             )}
                         >
                             <span className="text-[10px] font-bold uppercase tracking-widest select-none">
                                 {group.label}
                             </span>
-                            <ChevronDown
-                                className={cn(
-                                    'h-3 w-3 transition-transform duration-200 text-sidebar-foreground/40',
-                                    !isOpen && '-rotate-90',
-                                )}
-                            />
-                        </button>
+                        </div>
 
                         {/* Items */}
-                        <div
-                            className={cn(
-                                'overflow-hidden transition-all duration-200',
-                                // when sidebar is collapsed on desktop, always show items (no group toggle)
-                                sidebarCollapsed
-                                    ? 'lg:max-h-none lg:opacity-100'
-                                    : '',
-                                isOpen ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0',
-                            )}
-                        >
+                        <div>
                             <div className="space-y-0.5 pt-0.5 pb-1">
                                 {visibleItems.map(item => {
                                     const Icon = item.icon;
