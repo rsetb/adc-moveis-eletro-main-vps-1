@@ -512,7 +512,10 @@ function CustomersAdminPageInner() {
     const customersToDisplay = useMemo(() => {
         if (!hasAnySearchFilter(searchFilters)) return filteredCustomers;
         const byKey = new Map<string, CustomerInfo>();
-        for (const c of [...filteredCustomers, ...serverResultsForTab]) {
+        // serverResultsForTab é um snapshot da busca no servidor (só refaz quando o filtro
+        // muda), então pode ficar desatualizado logo após editar um cliente. filteredCustomers
+        // vem do contexto ao vivo — precisa ser inserido por último pra "ganhar" no merge.
+        for (const c of [...serverResultsForTab, ...filteredCustomers]) {
             const key = getCustomerListKey(c);
             if (key) byKey.set(key, c);
         }
@@ -539,7 +542,8 @@ function CustomersAdminPageInner() {
         if (activeTab !== 'trash') return filteredDeletedCustomers;
         if (!hasAnySearchFilter(searchFilters)) return filteredDeletedCustomers;
         const byKey = new Map<string, CustomerInfo>();
-        for (const c of [...filteredDeletedCustomers, ...serverResultsForTab]) {
+        // Mesmo motivo do customersToDisplay: contexto ao vivo por último pra vencer o merge.
+        for (const c of [...serverResultsForTab, ...filteredDeletedCustomers]) {
             const key = getCustomerListKey(c);
             if (key) byKey.set(key, c);
         }
