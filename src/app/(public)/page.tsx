@@ -229,7 +229,7 @@ export default function Home() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto">
                   <DropdownMenuItem
-                    className="min-h-[44px] py-3 text-base"
+                    className="min-h-[48px] py-3.5 text-base"
                     onClick={() => handleFilterChange({ category: 'all', subcategory: 'all' })}
                   >
                     Todas
@@ -241,7 +241,7 @@ export default function Home() {
                       return (
                         <div key={cat.id}>
                           <DropdownMenuItem
-                            className="min-h-[44px] py-3 text-base capitalize justify-between"
+                            className="min-h-[48px] py-3.5 text-base capitalize justify-between"
                             onSelect={(e) => {
                               e.preventDefault();
                               setMobileCatExpanded(isExpanded ? null : cat.name);
@@ -253,7 +253,7 @@ export default function Home() {
                           {isExpanded && (
                             <div className="ml-3 pl-2 border-l border-border">
                               <DropdownMenuItem
-                                className="min-h-[44px] py-3 text-base"
+                                className="min-h-[48px] py-3.5 text-base"
                                 onClick={() => handleFilterChange({ category: cat.name, subcategory: 'all' })}
                               >
                                 Tudo em {cat.name}
@@ -261,7 +261,7 @@ export default function Home() {
                               {subs.map((sub) => (
                                 <DropdownMenuItem
                                   key={sub}
-                                  className="min-h-[44px] py-3 text-base capitalize"
+                                  className="min-h-[48px] py-3.5 text-base capitalize"
                                   onClick={() => handleFilterChange({ category: cat.name, subcategory: sub })}
                                 >
                                   {sub}
@@ -275,7 +275,7 @@ export default function Home() {
                     return (
                       <DropdownMenuItem
                         key={cat.id}
-                        className="min-h-[44px] py-3 text-base capitalize"
+                        className="min-h-[48px] py-3.5 text-base capitalize"
                         onClick={() => handleFilterChange({ category: cat.name, subcategory: 'all' })}
                       >
                         {cat.name}
