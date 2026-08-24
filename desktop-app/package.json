@@ -1,0 +1,38 @@
+{
+  "name": "adc-erp-desktop",
+  "version": "1.0.0",
+  "description": "ADC Móveis e Eletros - Painel Administrativo (versão desktop)",
+  "main": "main.js",
+  "author": "ADC Móveis e Eletros",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "br.com.adcmoveiseletro.erp",
+    "productName": "ADC ERP",
+    "icon": "build/icon.png",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ADC ERP"
+    },
+    "files": [
+      "main.js",
+      "preload.js"
+    ]
+  }
+}
