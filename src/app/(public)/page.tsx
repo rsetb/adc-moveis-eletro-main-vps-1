@@ -227,7 +227,7 @@ export default function Home() {
                     <ChevronDown className="h-4 w-4 opacity-60 flex-shrink-0" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto">
+                <DropdownMenuContent align="start" className="w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto divide-y divide-border">
                   <DropdownMenuItem
                     className="min-h-[48px] py-3.5 text-base"
                     onClick={() => handleFilterChange({ category: 'all', subcategory: 'all' })}
@@ -251,7 +251,7 @@ export default function Home() {
                             <ChevronDown className={cn('h-4 w-4 opacity-60 transition-transform', isExpanded && 'rotate-180')} />
                           </DropdownMenuItem>
                           {isExpanded && (
-                            <div className="ml-3 pl-2 border-l border-border">
+                            <div className="ml-3 pl-2 border-l border-border divide-y divide-border/60 bg-muted/30">
                               <DropdownMenuItem
                                 className="min-h-[48px] py-3.5 text-base"
                                 onClick={() => handleFilterChange({ category: cat.name, subcategory: 'all' })}
