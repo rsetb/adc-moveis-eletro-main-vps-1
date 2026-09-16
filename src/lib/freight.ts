@@ -6,6 +6,9 @@ export const freightSchema = z.object({
     return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
   }, 'Informe uma data válida.'),
   customerName: z.string().trim().min(2, 'Informe o nome.').max(160),
+  zipCode: z.string().trim().optional(),
+  address: z.string().trim().optional(),
+  complement: z.string().trim().max(100).optional(),
   neighborhood: z.string().trim().min(2, 'Informe o bairro.').max(160),
   amountCents: z.number().int().min(1, 'O valor deve ser maior que zero.').max(100_000_000),
   notes: z.string().trim().max(1000).default(''),
@@ -33,6 +36,9 @@ export function canAccessFreight(
 
 export type FreightRow = FreightInput & {
   id: string;
+  zipCode?: string | null;
+  address?: string | null;
+  complement?: string | null;
   createdByName: string;
   createdAt: string;
   updatedAt: string;

@@ -6,6 +6,9 @@ model FreightPayment {
   id            String    @id @default(uuid())
   deliveryDate  DateTime  @db.Date @map("delivery_date")
   customerName  String    @map("customer_name")
+  zipCode       String?   @map("zip_code")
+  address       String?
+  complement    String?
   neighborhood  String
   amountCents   Int       @map("amount_cents")
   notes         String?   @db.Text

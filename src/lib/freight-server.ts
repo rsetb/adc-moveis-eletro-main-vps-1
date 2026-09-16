@@ -27,7 +27,7 @@ export async function requireFreightAccess(tx: Prisma.TransactionClient = db) {
 export function mapFreight(row: FreightPayment): FreightRow {
   return {
     id: row.id, deliveryDate: row.deliveryDate.toISOString().slice(0, 10),
-    customerName: row.customerName, neighborhood: row.neighborhood,
+    customerName: row.customerName, zipCode: row.zipCode, address: row.address, complement: row.complement, neighborhood: row.neighborhood,
     amountCents: row.amountCents, notes: row.notes ?? '',
     createdByName: row.createdByName, createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(), paidAt: row.paidAt?.toISOString() ?? null,

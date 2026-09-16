@@ -50,6 +50,25 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
 
   const formValues = editing ?? draft?.input;
 
+  function handleCepMask(e: React.ChangeEvent<HTMLInputElement>) {
+    let raw = e.target.value.replace(/\D/g, '');
+    if (raw.length > 8) raw = raw.slice(0, 8);
+    e.target.value = raw.length > 5 ? raw.slice(0, 5) + '-' + raw.slice(5) : raw;
+    if (raw.length === 8) {
+      fetch(`https://viacep.com.br/ws/${raw}/json/`).then(r => r.json()).then(data => {
+        if (!data.erro) {
+          const form = e.target.form;
+          if (form) {
+            const addrInput = form.elements.namedItem('address') as HTMLInputElement;
+            const neighInput = form.elements.namedItem('neighborhood') as HTMLInputElement;
+            if (addrInput && !addrInput.value) { addrInput.value = data.logradouro; }
+            if (neighInput && !neighInput.value) { neighInput.value = data.bairro; }
+          }
+        }
+      }).catch(() => { });
+    }
+  }
+
   function handleAmountChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value.replace(/\D/g, '');
     if (!raw) { e.target.value = ''; return; }
@@ -133,7 +152,7 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
         const form = new FormData(event.currentTarget);
         const amountCents = parseFreightAmount(String(form.get('amount')));
         if (amountCents === null) { setError('Informe um valor positivo, por exemplo: 45,50.'); return; }
-        const parsed = freightSchema.safeParse({ deliveryDate: form.get('deliveryDate'), customerName: form.get('customerName'), neighborhood: form.get('neighborhood'), amountCents, notes: form.get('notes') });
+        const parsed = freightSchema.safeParse({ deliveryDate: form.get('deliveryDate'), customerName: form.get('customerName'), zipCode: form.get('zipCode'), address: form.get('address'), complement: form.get('complement'), neighborhood: form.get('neighborhood'), amountCents, notes: form.get('notes') });
         if (!parsed.success) { setError(parsed.error.issues[0].message); return; }
         if (editing) {
           void run(() => saveAction(parsed.data, editing.id, editing.updatedAt));
@@ -151,7 +170,14 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
         {!editing && draft && <p className="text-sm text-muted-foreground">Confirme este envio antes de cadastrar outro frete. Depois de salvo, você poderá editar os dados.</p>}
         <div><Label htmlFor="freight-date">Data do frete</Label><Input id="freight-date" name="deliveryDate" type="date" required readOnly={!editing && !!draft} defaultValue={formValues?.deliveryDate ?? today()} /></div>
         <div><Label htmlFor="freight-name">Nome</Label><Input id="freight-name" name="customerName" required readOnly={!editing && !!draft} minLength={2} maxLength={160} defaultValue={formValues?.customerName} placeholder="Adriano Cavalcante" /></div>
-        <div><Label htmlFor="freight-neighborhood">Bairro</Label><Input id="freight-neighborhood" name="neighborhood" required readOnly={!editing && !!draft} minLength={2} maxLength={160} defaultValue={formValues?.neighborhood} /></div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div><Label htmlFor="freight-cep">CEP</Label><Input id="freight-cep" name="zipCode" readOnly={!editing && !!draft} onChange={handleCepMask} defaultValue={formValues?.zipCode ?? ''} placeholder="00000-000" maxLength={9} /></div>
+          <div className="sm:col-span-2"><Label htmlFor="freight-address">Endereço</Label><Input id="freight-address" name="address" required readOnly={!editing && !!draft} minLength={2} maxLength={160} defaultValue={formValues?.address ?? ''} /></div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div><Label htmlFor="freight-complement">Complemento</Label><Input id="freight-complement" name="complement" readOnly={!editing && !!draft} maxLength={100} defaultValue={formValues?.complement ?? ''} placeholder="Ex: Apto 101" /></div>
+          <div><Label htmlFor="freight-neighborhood">Bairro</Label><Input id="freight-neighborhood" name="neighborhood" required readOnly={!editing && !!draft} minLength={2} maxLength={160} defaultValue={formValues?.neighborhood} /></div>
+        </div>
         <div><Label htmlFor="freight-amount">Valor do frete (R$)</Label><Input id="freight-amount" name="amount" inputMode="decimal" required readOnly={!editing && !!draft} onChange={handleAmountChange} defaultValue={formValues ? (formValues.amountCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : ''} placeholder="0,00" /></div>
         <div><Label htmlFor="freight-notes">Observações (opcional)</Label><Textarea id="freight-notes" name="notes" maxLength={1000} readOnly={!editing && !!draft} defaultValue={formValues?.notes} /></div>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
