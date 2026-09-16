@@ -27,7 +27,7 @@ model FreightAccess {
   id            String   @id
   ownerId       String   @map("owner_id")
   owner         User     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  responsibleId String?  @map("responsible_id")
+  responsibleIds String[] @default([]) @map("responsible_ids")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@map("freight_access")

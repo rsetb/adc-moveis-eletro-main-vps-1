@@ -13,7 +13,7 @@ export const freightSchema = z.object({
 
 export type FreightInput = z.infer<typeof freightSchema>;
 
-export class FreightError extends Error {}
+export class FreightError extends Error { }
 
 export function canConfigureFreight(
   user: { id: string; username: string; role: string; active: boolean } | null,
@@ -26,9 +26,9 @@ export function canConfigureFreight(
 
 export function canAccessFreight(
   user: { id: string; active: boolean } | null,
-  access: { ownerId: string; responsibleId: string | null } | null,
+  access: { ownerId: string; responsibleIds: string[] } | null,
 ): boolean {
-  return !!user?.active && !!access && (user.id === access.ownerId || user.id === access.responsibleId);
+  return !!user?.active && !!access && (user.id === access.ownerId || access.responsibleIds.includes(user.id));
 }
 
 export type FreightRow = FreightInput & {
@@ -41,7 +41,7 @@ export type FreightRow = FreightInput & {
 };
 
 export function parseFreightAmount(value: string): number | null {
-  const normalized = value.trim();
+  const normalized = value.trim().replace(/[R$\s]/ig, '').replace(/\.(?=\d{3})/g, '');
   if (!/^\d+(?:[,.]\d{1,2})?$/.test(normalized)) return null;
   const [whole, fraction = ''] = normalized.replace(',', '.').split('.');
   const cents = Number(whole) * 100 + Number(fraction.padEnd(2, '0'));

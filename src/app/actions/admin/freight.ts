@@ -22,24 +22,26 @@ export async function getFreightSettingsAction() {
       where: { active: true, id: { not: user.id } },
       select: { id: true, name: true, username: true }, orderBy: { name: 'asc' },
     });
-    return { success: true as const, canConfigure: true as const, users, ownerName: user.name, configured: !!access, responsibleId: access?.responsibleId ?? null, updatedAt: access?.updatedAt.toISOString() ?? null };
+    return { success: true as const, canConfigure: true as const, users, ownerName: user.name, configured: !!access, responsibleIds: access?.responsibleIds ?? [], updatedAt: access?.updatedAt.toISOString() ?? null };
   } catch (error) { return freightError(error); }
 }
 
-export async function saveFreightSettingsAction(responsibleId: string | null, updatedAt: string | null) {
+export async function saveFreightSettingsAction(responsibleIds: string[], updatedAt: string | null) {
   try {
-    const selectedId = z.string().min(1).max(200).nullable().parse(responsibleId);
+    const selectedIds = z.array(z.string().min(1).max(200)).max(4, 'Selecione no máximo 4 responsáveis.').parse(responsibleIds);
     z.string().datetime().nullable().parse(updatedAt);
     await db.$transaction(async tx => {
       const { user, access } = await freightIdentity(tx);
       if (!canConfigureFreight(user, access)) throw new FreightError('Somente o titular pode configurar o acesso aos fretes.');
       if ((access?.updatedAt.toISOString() ?? null) !== updatedAt) throw new FreightError('A configuração mudou. Atualize a página antes de salvar.');
-      if (selectedId) {
-        const responsible = await tx.user.findUnique({ where: { id: selectedId }, select: { active: true } });
-        if (!responsible?.active || selectedId === user.id) throw new FreightError('Selecione outra conta ativa ou deixe o responsável em aberto.');
+      if (selectedIds.length > 0) {
+        const responsible = await tx.user.findMany({ where: { id: { in: selectedIds } }, select: { id: true, active: true } });
+        if (responsible.length !== selectedIds.length || responsible.some(r => !r.active || r.id === user.id)) {
+          throw new FreightError('Todas as contas de responsáveis devem estar ativas e ser diferentes do titular.');
+        }
       }
-      if (access) await tx.freightAccess.update({ where: { id: FREIGHT_ACCESS_ID }, data: { responsibleId: selectedId } });
-      else await tx.freightAccess.create({ data: { id: FREIGHT_ACCESS_ID, ownerId: user.id, responsibleId: selectedId } });
+      if (access) await tx.freightAccess.update({ where: { id: FREIGHT_ACCESS_ID }, data: { responsibleIds: selectedIds } });
+      else await tx.freightAccess.create({ data: { id: FREIGHT_ACCESS_ID, ownerId: user.id, responsibleIds: selectedIds } });
     }, { isolationLevel: 'Serializable' });
     revalidatePath('/admin/fretes');
     return { success: true as const };
@@ -82,6 +84,22 @@ export async function setFreightPaidAction(id: string, paid: boolean, updatedAt:
       });
       if (changed.count !== 1) throw new FreightError('O frete foi alterado. Atualize a página para conferir o pagamento.');
       await tx.freightPaymentEvent.create({ data: { freightId: id, actorId: user.id, actorName: user.name, action: paid ? 'PAGO' : 'PAGAMENTO_DESFEITO', details: { paid } } });
+      return listFreights(tx);
+    }, { isolationLevel: 'Serializable' });
+    revalidatePath('/admin/fretes');
+    return { success: true as const, rows };
+  } catch (error) { return freightError(error); }
+}
+
+export async function deleteFreightAction(id: string) {
+  try {
+    z.string().uuid().parse(id);
+    const rows = await db.$transaction(async tx => {
+      await requireFreightAccess(tx);
+      const freight = await tx.freightPayment.findUnique({ where: { id } });
+      if (!freight) throw new FreightError('Frete não encontrado.');
+      await tx.freightPaymentEvent.deleteMany({ where: { freightId: id } });
+      await tx.freightPayment.delete({ where: { id } });
       return listFreights(tx);
     }, { isolationLevel: 'Serializable' });
     revalidatePath('/admin/fretes');

@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Pencil, Truck } from 'lucide-react';
+import { Plus, Pencil, Truck, Trash2 } from 'lucide-react';
 import { freightSchema, parseFreightAmount, type FreightInput, type FreightRow } from '@/lib/freight';
 import { readFreightDraft, persistFreightDraft, clearFreightDraft, type FreightDraft } from '@/lib/freight-draft';
 
@@ -18,6 +18,7 @@ type Props = {
   currentUserId: string;
   saveAction: (input: FreightInput, id?: string, updatedAt?: string, requestId?: string) => Promise<Result>;
   paymentAction: (id: string, paid: boolean, updatedAt: string) => Promise<Result>;
+  deleteAction: (id: string) => Promise<Result>;
 };
 
 const currency = (cents: number) => (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -26,7 +27,7 @@ function today() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Fortaleza' }).format(new Date());
 }
 
-export default function FreightPaymentsTable({ initialRows, currentUserId, saveAction, paymentAction }: Props) {
+export default function FreightPaymentsTable({ initialRows, currentUserId, saveAction, paymentAction, deleteAction }: Props) {
   const [rows, setRows] = useState(initialRows);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
@@ -38,6 +39,7 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [paymentTarget, setPaymentTarget] = useState<FreightRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FreightRow | null>(null);
   const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const filtered = useMemo(() => rows.filter(row =>
     normalize(`${row.customerName} ${row.neighborhood}`).includes(normalize(search)) &&
@@ -47,6 +49,12 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
   const paid = rows.reduce((sum, row) => sum + (row.paidAt ? row.amountCents : 0), 0);
 
   const formValues = editing ?? draft?.input;
+
+  function handleAmountChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value.replace(/\D/g, '');
+    if (!raw) { e.target.value = ''; return; }
+    e.target.value = (parseInt(raw, 10) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  }
 
   function openNewFreight() {
     setError('');
@@ -80,6 +88,7 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
       }
       setOpen(false);
       setPaymentTarget(null);
+      setDeleteTarget(null);
       setNotice('Registro salvo.');
     } catch {
       setError(created ? 'O envio ficou sem confirmação. Clique em Salvar frete novamente; ele não será duplicado.' : 'Não foi possível confirmar a operação. Atualize a página antes de tentar novamente.');
@@ -99,7 +108,7 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
       {[['A pagar', currency(pending)], ['Pago', currency(paid)], ['Fretes registrados', String(rows.length)]].map(([label, value]) =>
         <div key={label} className="rounded-xl border bg-card p-5"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-semibold">{value}</p></div>)}
     </div>
-    {error && !open && !paymentTarget && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    {error && !open && !paymentTarget && !deleteTarget && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {notice && <p role="status" className="text-sm">{notice}</p>}
     <div className="flex flex-wrap items-end gap-3">
       <div className="min-w-56 flex-1"><Label htmlFor="freight-search">Buscar por nome ou bairro</Label><Input id="freight-search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Ex.: Adriano Cavalcante" /></div>
@@ -113,7 +122,7 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
         <TableCell>{row.neighborhood}</TableCell><TableCell className="whitespace-nowrap text-right">{currency(row.amountCents)}</TableCell>
         <TableCell><Badge variant={row.paidAt ? 'secondary' : 'outline'}>{row.paidAt ? 'Pago' : 'Pendente'}</Badge>{row.paidAt && <p className="mt-1 text-xs text-muted-foreground">{new Date(row.paidAt).toLocaleDateString('pt-BR', { timeZone: 'America/Fortaleza' })} · {row.paidByName}</p>}</TableCell>
         <TableCell>{row.createdByName}</TableCell>
-        <TableCell><div className="flex justify-end gap-2"><Button variant="outline" size="sm" disabled={busy || !!row.paidAt} aria-label={`Editar frete de ${row.customerName}`} onClick={() => { setEditing(row); setError(''); setOpen(true); }}><Pencil className="h-4 w-4" /></Button><Button size="sm" variant={row.paidAt ? 'outline' : 'default'} disabled={busy} onClick={() => { setError(''); setPaymentTarget(row); }}>{row.paidAt ? 'Desfazer pagamento' : 'Marcar pago'}</Button></div></TableCell>
+        <TableCell><div className="flex justify-end gap-2"><Button variant="outline" size="sm" disabled={busy || !!row.paidAt} aria-label={`Editar frete`} onClick={() => { setEditing(row); setError(''); setOpen(true); }}><Pencil className="h-4 w-4" /></Button><Button variant="destructive" size="icon" className="h-8 w-8" disabled={busy} aria-label={`Excluir frete`} onClick={() => { setError(''); setDeleteTarget(row); }}><Trash2 className="h-4 w-4" /></Button><Button size="sm" variant={row.paidAt ? 'outline' : 'default'} disabled={busy} onClick={() => { setError(''); setPaymentTarget(row); }}>{row.paidAt ? 'Desfazer pagamento' : 'Marcar pago'}</Button></div></TableCell>
       </TableRow>)}</TableBody>
     </Table></div>
     <p className="text-sm text-muted-foreground">{filtered.length} frete(s) exibido(s) · Total exibido: {currency(filtered.reduce((sum, row) => sum + row.amountCents, 0))}</p>
@@ -143,11 +152,16 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
         <div><Label htmlFor="freight-date">Data do frete</Label><Input id="freight-date" name="deliveryDate" type="date" required readOnly={!editing && !!draft} defaultValue={formValues?.deliveryDate ?? today()} /></div>
         <div><Label htmlFor="freight-name">Nome</Label><Input id="freight-name" name="customerName" required readOnly={!editing && !!draft} minLength={2} maxLength={160} defaultValue={formValues?.customerName} placeholder="Adriano Cavalcante" /></div>
         <div><Label htmlFor="freight-neighborhood">Bairro</Label><Input id="freight-neighborhood" name="neighborhood" required readOnly={!editing && !!draft} minLength={2} maxLength={160} defaultValue={formValues?.neighborhood} /></div>
-        <div><Label htmlFor="freight-amount">Valor do frete (R$)</Label><Input id="freight-amount" name="amount" inputMode="decimal" required readOnly={!editing && !!draft} defaultValue={formValues ? (formValues.amountCents / 100).toFixed(2).replace('.', ',') : ''} placeholder="0,00" /></div>
+        <div><Label htmlFor="freight-amount">Valor do frete (R$)</Label><Input id="freight-amount" name="amount" inputMode="decimal" required readOnly={!editing && !!draft} onChange={handleAmountChange} defaultValue={formValues ? (formValues.amountCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : ''} placeholder="0,00" /></div>
         <div><Label htmlFor="freight-notes">Observações (opcional)</Label><Textarea id="freight-notes" name="notes" maxLength={1000} readOnly={!editing && !!draft} defaultValue={formValues?.notes} /></div>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <div className="flex justify-end gap-2"><Button type="button" variant="outline" disabled={busy} onClick={() => setOpen(false)}>Cancelar</Button><Button type="submit" disabled={busy}>{busy ? 'Salvando…' : 'Salvar frete'}</Button></div>
       </form>
+    </DialogContent></Dialog>
+    <Dialog open={!!deleteTarget} onOpenChange={value => { if (!value && !busy) setDeleteTarget(null); }}><DialogContent><DialogHeader><DialogTitle>Excluir frete?</DialogTitle></DialogHeader>
+      {deleteTarget && <><p>Tem certeza que deseja excluir o frete de <strong>{deleteTarget.customerName}</strong> ({currency(deleteTarget.amountCents)})?</p><p className="text-sm text-muted-foreground">Esta operação não pode ser desfeita e ele deixará de ser somado nos totais.</p>
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        <div className="flex justify-end gap-2"><Button variant="outline" disabled={busy} onClick={() => setDeleteTarget(null)}>Cancelar</Button><Button variant="destructive" disabled={busy} onClick={() => void run(() => deleteAction(deleteTarget.id))}>{busy ? 'Excluindo…' : 'Excluir definitivamente'}</Button></div></>}
     </DialogContent></Dialog>
     <Dialog open={!!paymentTarget} onOpenChange={value => { if (!value && !busy) setPaymentTarget(null); }}><DialogContent><DialogHeader><DialogTitle>{paymentTarget?.paidAt ? 'Desfazer pagamento?' : 'Confirmar pagamento?'}</DialogTitle></DialogHeader>
       {paymentTarget && <><p>{paymentTarget.customerName} · {paymentTarget.neighborhood} · {currency(paymentTarget.amountCents)}</p><p className="text-sm text-muted-foreground">{paymentTarget.paidAt ? 'O frete voltará a ficar pendente.' : 'Confirme somente depois de realizar o pagamento do frete.'}</p>

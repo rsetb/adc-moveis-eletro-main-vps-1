@@ -17,24 +17,28 @@ test('depois da ativação vale o ID do titular, mesmo se seu login mudar', () =
   assert.equal(canConfigureFreight({ id: 'other', username: 'admin', role: 'admin', active: true }, access), false);
 });
 
-test('acesso aos fretes fica restrito ao titular e ao único responsável ativo', () => {
-  const access = { ownerId: 'owner', responsibleId: 'gerson' };
+test('acesso aos fretes fica restrito ao titular e aos responsáveis ativos', () => {
+  const access = { ownerId: 'owner', responsibleIds: ['gerson', 'jefferson'] };
   assert.equal(canAccessFreight({ id: 'owner', active: true }, access), true);
   assert.equal(canAccessFreight({ id: 'gerson', active: true }, access), true);
+  assert.equal(canAccessFreight({ id: 'jefferson', active: true }, access), true);
   assert.equal(canAccessFreight({ id: 'outro-admin', active: true }, access), false);
   assert.equal(canAccessFreight({ id: 'gerson', active: false }, access), false);
   assert.equal(canAccessFreight(null, access), false);
   assert.equal(canAccessFreight({ id: 'owner', active: true }, null), false);
-  assert.equal(canAccessFreight({ id: 'gerson', active: true }, { ownerId: 'owner', responsibleId: 'jefferson' }), false);
-  assert.equal(canAccessFreight({ id: 'jefferson', active: true }, { ownerId: 'owner', responsibleId: 'jefferson' }), true);
-  assert.equal(canAccessFreight({ id: 'gerson', active: true }, { ownerId: 'owner', responsibleId: null }), false);
+  assert.equal(canAccessFreight({ id: 'gerson', active: true }, { ownerId: 'owner', responsibleIds: ['jefferson'] }), false);
+  assert.equal(canAccessFreight({ id: 'jefferson', active: true }, { ownerId: 'owner', responsibleIds: ['jefferson'] }), true);
+  assert.equal(canAccessFreight({ id: 'gerson', active: true }, { ownerId: 'owner', responsibleIds: [] }), false);
 });
 
 test('frete converte reais em centavos sem aceitar valores ambíguos ou negativos', () => {
   assert.equal(parseFreightAmount('45,50'), 4550);
   assert.equal(parseFreightAmount('0.29'), 29);
   assert.equal(parseFreightAmount('100'), 10000);
-  for (const value of ['', '-1', '0', '1.234', '1e3', 'NaN', '1.234,56']) {
+  assert.equal(parseFreightAmount('1.234'), 123400);
+  assert.equal(parseFreightAmount('1.234,56'), 123456);
+  assert.equal(parseFreightAmount('R$ 1.500,00'), 150000);
+  for (const value of ['', '-1', '0', '1e3', 'NaN']) {
     assert.equal(parseFreightAmount(value), null, value);
   }
 });
