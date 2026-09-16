@@ -10,11 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, Pencil, Truck } from 'lucide-react';
 import { freightSchema, parseFreightAmount, type FreightInput, type FreightRow } from '@/lib/freight';
+import { readFreightDraft, persistFreightDraft, clearFreightDraft, type FreightDraft } from '@/lib/freight-draft';
 
 type Result = { success: true; rows: FreightRow[] } | { success: false; error: string };
 type Props = {
   initialRows: FreightRow[];
-  saveAction: (input: FreightInput, id?: string, updatedAt?: string) => Promise<Result>;
+  currentUserId: string;
+  saveAction: (input: FreightInput, id?: string, updatedAt?: string, requestId?: string) => Promise<Result>;
   paymentAction: (id: string, paid: boolean, updatedAt: string) => Promise<Result>;
 };
 
@@ -24,12 +26,13 @@ function today() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Fortaleza' }).format(new Date());
 }
 
-export default function FreightPaymentsTable({ initialRows, saveAction, paymentAction }: Props) {
+export default function FreightPaymentsTable({ initialRows, currentUserId, saveAction, paymentAction }: Props) {
   const [rows, setRows] = useState(initialRows);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<FreightRow | null>(null);
+  const [draft, setDraft] = useState<FreightDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const locked = useRef(false);
   const [error, setError] = useState('');
@@ -43,7 +46,25 @@ export default function FreightPaymentsTable({ initialRows, saveAction, paymentA
   const pending = rows.reduce((sum, row) => sum + (row.paidAt ? 0 : row.amountCents), 0);
   const paid = rows.reduce((sum, row) => sum + (row.paidAt ? row.amountCents : 0), 0);
 
-  async function run(action: () => Promise<Result>) {
+  const formValues = editing ?? draft?.input;
+
+  function openNewFreight() {
+    setError('');
+    try {
+      let pendingDraft = readFreightDraft(sessionStorage, currentUserId);
+      if (pendingDraft && rows.some(row => row.id === pendingDraft!.requestId)) {
+        clearFreightDraft(sessionStorage, currentUserId);
+        pendingDraft = null;
+      }
+      setDraft(pendingDraft);
+      setEditing(null);
+      setOpen(true);
+    } catch {
+      setError('Não foi possível recuperar o envio pendente. Verifique o armazenamento do navegador antes de cadastrar outro frete.');
+    }
+  }
+
+  async function run(action: () => Promise<Result>, created = false) {
     if (locked.current) return;
     locked.current = true;
     setBusy(true);
@@ -53,11 +74,15 @@ export default function FreightPaymentsTable({ initialRows, saveAction, paymentA
       const result = await action();
       if (!result.success) { setError(result.error); return; }
       setRows(result.rows);
+      if (created) {
+        try { clearFreightDraft(sessionStorage, currentUserId); } catch { /* O registro retornado confirma o envio. */ }
+        setDraft(null);
+      }
       setOpen(false);
       setPaymentTarget(null);
       setNotice('Registro salvo.');
     } catch {
-      setError('Não foi possível confirmar a operação. Atualize a página antes de tentar novamente.');
+      setError(created ? 'O envio ficou sem confirmação. Clique em Salvar frete novamente; ele não será duplicado.' : 'Não foi possível confirmar a operação. Atualize a página antes de tentar novamente.');
     } finally {
       locked.current = false;
       setBusy(false);
@@ -68,7 +93,7 @@ export default function FreightPaymentsTable({ initialRows, saveAction, paymentA
     <div className="flex flex-wrap items-center justify-between gap-4">
       <div><h1 className="flex items-center gap-2 text-2xl font-bold"><Truck className="h-6 w-6" />Pagamentos de frete</h1>
         <p className="mt-1 text-sm text-muted-foreground">Registre os fretes realizados e acompanhe os pagamentos.</p></div>
-      <Button onClick={() => { setEditing(null); setError(''); setOpen(true); }} disabled={busy}><Plus className="mr-2 h-4 w-4" />Novo frete</Button>
+      <Button onClick={openNewFreight} disabled={busy}><Plus className="mr-2 h-4 w-4" />Novo frete</Button>
     </div>
     <div className="grid gap-3 sm:grid-cols-3">
       {[['A pagar', currency(pending)], ['Pago', currency(paid)], ['Fretes registrados', String(rows.length)]].map(([label, value]) =>
@@ -94,20 +119,32 @@ export default function FreightPaymentsTable({ initialRows, saveAction, paymentA
     <p className="text-sm text-muted-foreground">{filtered.length} frete(s) exibido(s) · Total exibido: {currency(filtered.reduce((sum, row) => sum + row.amountCents, 0))}</p>
 
     <Dialog open={open} onOpenChange={value => { if (!busy) setOpen(value); }}><DialogContent><DialogHeader><DialogTitle>{editing ? 'Editar frete' : 'Novo frete'}</DialogTitle></DialogHeader>
-      <form key={editing?.id ?? 'new'} className="space-y-4" onSubmit={event => {
+      <form key={editing?.id ?? draft?.requestId ?? 'new'} className="space-y-4" onSubmit={event => {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
         const amountCents = parseFreightAmount(String(form.get('amount')));
         if (amountCents === null) { setError('Informe um valor positivo, por exemplo: 45,50.'); return; }
         const parsed = freightSchema.safeParse({ deliveryDate: form.get('deliveryDate'), customerName: form.get('customerName'), neighborhood: form.get('neighborhood'), amountCents, notes: form.get('notes') });
         if (!parsed.success) { setError(parsed.error.issues[0].message); return; }
-        void run(() => saveAction(parsed.data, editing?.id, editing?.updatedAt));
+        if (editing) {
+          void run(() => saveAction(parsed.data, editing.id, editing.updatedAt));
+          return;
+        }
+        try {
+          const pendingDraft = draft ?? { requestId: crypto.randomUUID(), input: parsed.data };
+          persistFreightDraft(sessionStorage, currentUserId, pendingDraft);
+          setDraft(pendingDraft);
+          void run(() => saveAction(pendingDraft.input, undefined, undefined, pendingDraft.requestId), true);
+        } catch {
+          setError('Não foi possível preservar este envio no navegador. Nenhum frete foi enviado.');
+        }
       }}>
-        <div><Label htmlFor="freight-date">Data do frete</Label><Input id="freight-date" name="deliveryDate" type="date" required defaultValue={editing?.deliveryDate ?? today()} /></div>
-        <div><Label htmlFor="freight-name">Nome</Label><Input id="freight-name" name="customerName" required minLength={2} maxLength={160} defaultValue={editing?.customerName} placeholder="Adriano Cavalcante" /></div>
-        <div><Label htmlFor="freight-neighborhood">Bairro</Label><Input id="freight-neighborhood" name="neighborhood" required minLength={2} maxLength={160} defaultValue={editing?.neighborhood} /></div>
-        <div><Label htmlFor="freight-amount">Valor do frete (R$)</Label><Input id="freight-amount" name="amount" inputMode="decimal" required defaultValue={editing ? (editing.amountCents / 100).toFixed(2).replace('.', ',') : ''} placeholder="0,00" /></div>
-        <div><Label htmlFor="freight-notes">Observações (opcional)</Label><Textarea id="freight-notes" name="notes" maxLength={1000} defaultValue={editing?.notes} /></div>
+        {!editing && draft && <p className="text-sm text-muted-foreground">Confirme este envio antes de cadastrar outro frete. Depois de salvo, você poderá editar os dados.</p>}
+        <div><Label htmlFor="freight-date">Data do frete</Label><Input id="freight-date" name="deliveryDate" type="date" required readOnly={!editing && !!draft} defaultValue={formValues?.deliveryDate ?? today()} /></div>
+        <div><Label htmlFor="freight-name">Nome</Label><Input id="freight-name" name="customerName" required readOnly={!editing && !!draft} minLength={2} maxLength={160} defaultValue={formValues?.customerName} placeholder="Adriano Cavalcante" /></div>
+        <div><Label htmlFor="freight-neighborhood">Bairro</Label><Input id="freight-neighborhood" name="neighborhood" required readOnly={!editing && !!draft} minLength={2} maxLength={160} defaultValue={formValues?.neighborhood} /></div>
+        <div><Label htmlFor="freight-amount">Valor do frete (R$)</Label><Input id="freight-amount" name="amount" inputMode="decimal" required readOnly={!editing && !!draft} defaultValue={formValues ? (formValues.amountCents / 100).toFixed(2).replace('.', ',') : ''} placeholder="0,00" /></div>
+        <div><Label htmlFor="freight-notes">Observações (opcional)</Label><Textarea id="freight-notes" name="notes" maxLength={1000} readOnly={!editing && !!draft} defaultValue={formValues?.notes} /></div>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <div className="flex justify-end gap-2"><Button type="button" variant="outline" disabled={busy} onClick={() => setOpen(false)}>Cancelar</Button><Button type="submit" disabled={busy}>{busy ? 'Salvando…' : 'Salvar frete'}</Button></div>
       </form>

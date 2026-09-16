@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache';
 import { createSession, deleteSession, getSession } from '@/lib/session';
 import bcrypt from 'bcryptjs';
 import type { User } from '@/lib/types';
+import { assertFreightOwnerCanChange } from '@/lib/freight-integrity';
+import { FreightError } from '@/lib/freight';
 
 const USER_SELECT = {
   id: true,
@@ -128,47 +130,54 @@ export async function updateUserAction(userId: string, data: Partial<Omit<User, 
     } else {
       delete updateData.password;
     }
-    await db.user.update({ where: { id: userId }, data: updateData });
+    await db.$transaction(async tx => {
+      await assertFreightOwnerCanChange(tx, userId, { active: updateData.active });
+      await tx.user.update({ where: { id: userId }, data: updateData });
+    }, { isolationLevel: 'Serializable' });
     revalidatePath('/admin');
     revalidatePath('/admin/configuracao');
     return { success: true };
   } catch (error: any) {
     if (error.message === 'Sem permissão.') return { success: false, error: 'Sem permissão.' };
     if (error.code === 'P2002') return { success: false, error: 'Este nome de usuário já está em uso.' };
-    return { success: false, error: 'Erro ao atualizar usuário.' };
+    return { success: false, error: error instanceof FreightError ? error.message : 'Erro ao atualizar usuário.' };
   }
 }
 
 export async function deleteUserAction(userId: string) {
   try {
     await requireAdmin();
-    await db.user.delete({ where: { id: userId } });
+    await db.$transaction(async tx => {
+      await assertFreightOwnerCanChange(tx, userId, { deleting: true });
+      await tx.user.delete({ where: { id: userId } });
+    }, { isolationLevel: 'Serializable' });
     revalidatePath('/admin');
     revalidatePath('/admin/configuracao');
     return { success: true };
   } catch (error: any) {
     if (error.message === 'Sem permissão.') return { success: false, error: 'Sem permissão.' };
-    return { success: false, error: 'Erro ao excluir usuário.' };
+    return { success: false, error: error instanceof FreightError ? error.message : 'Erro ao excluir usuário.' };
   }
 }
 
 export async function restoreUsersAction(usersToRestore: User[]) {
   try {
     await requireAdmin();
-    await db.$transaction(
-      usersToRestore.map(u =>
-        db.user.upsert({
+    await db.$transaction(async tx => {
+      for (const u of usersToRestore) {
+        await assertFreightOwnerCanChange(tx, u.id, { active: u.active });
+        await tx.user.upsert({
           where: { id: u.id },
           update: { username: u.username, name: u.name, role: u.role, active: u.active, canBeAssigned: u.canBeAssigned } as any,
           create: u as any,
-        })
-      )
-    );
+        });
+      }
+    }, { isolationLevel: 'Serializable' });
     revalidatePath('/admin');
     return { success: true };
   } catch (error: any) {
     if (error.message === 'Sem permissão.') return { success: false, error: 'Sem permissão.' };
-    return { success: false, error: 'Erro ao restaurar usuários.' };
+    return { success: false, error: error instanceof FreightError ? error.message : 'Erro ao restaurar usuários.' };
   }
 }
 

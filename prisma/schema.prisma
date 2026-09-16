@@ -26,6 +26,7 @@ model FreightPayment {
 model FreightAccess {
   id            String   @id
   ownerId       String   @map("owner_id")
+  owner         User     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   responsibleId String?  @map("responsible_id")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -61,6 +62,7 @@ model User {
   canBeAssigned Boolean  @default(true) @map("can_be_assigned")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
+  freightOwnership FreightAccess[]
 
   @@map("users")
 }

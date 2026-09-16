@@ -13,6 +13,17 @@ export const freightSchema = z.object({
 
 export type FreightInput = z.infer<typeof freightSchema>;
 
+export class FreightError extends Error {}
+
+export function canConfigureFreight(
+  user: { id: string; username: string; role: string; active: boolean } | null,
+  access: { ownerId: string } | null,
+): boolean {
+  if (!user?.active) return false;
+  // Login do titular confirmado pelo proprietário. Não escolher o primeiro admin.
+  return access ? access.ownerId === user.id : user.role === 'admin' && user.username === 'admin';
+}
+
 export function canAccessFreight(
   user: { id: string; active: boolean } | null,
   access: { ownerId: string; responsibleId: string | null } | null,

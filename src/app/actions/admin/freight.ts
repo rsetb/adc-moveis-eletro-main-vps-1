@@ -3,7 +3,8 @@
 import { db } from '@/lib/db';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { freightSchema, canAccessFreight, type FreightInput } from '@/lib/freight';
+import { freightSchema, canAccessFreight, canConfigureFreight, type FreightInput } from '@/lib/freight';
+import { createFreightOnce, retryFreightTransaction } from '@/lib/freight-integrity';
 import { FREIGHT_ACCESS_ID, FreightError, freightIdentity, requireFreightAccess, listFreights, freightError } from '@/lib/freight-server';
 
 export async function getFreightAccessAction() {
@@ -16,7 +17,7 @@ export async function getFreightAccessAction() {
 export async function getFreightSettingsAction() {
   try {
     const { user, access } = await freightIdentity();
-    if (access ? access.ownerId !== user.id : user.role !== 'admin') return { success: true as const, canConfigure: false as const };
+    if (!canConfigureFreight(user, access)) return { success: true as const, canConfigure: false as const };
     const users = await db.user.findMany({
       where: { active: true, id: { not: user.id } },
       select: { id: true, name: true, username: true }, orderBy: { name: 'asc' },
@@ -31,7 +32,7 @@ export async function saveFreightSettingsAction(responsibleId: string | null, up
     z.string().datetime().nullable().parse(updatedAt);
     await db.$transaction(async tx => {
       const { user, access } = await freightIdentity(tx);
-      if (access ? access.ownerId !== user.id : user.role !== 'admin') throw new FreightError('Somente o titular pode configurar o acesso aos fretes.');
+      if (!canConfigureFreight(user, access)) throw new FreightError('Somente o titular pode configurar o acesso aos fretes.');
       if ((access?.updatedAt.toISOString() ?? null) !== updatedAt) throw new FreightError('A configuração mudou. Atualize a página antes de salvar.');
       if (selectedId) {
         const responsible = await tx.user.findUnique({ where: { id: selectedId }, select: { active: true } });
@@ -45,12 +46,13 @@ export async function saveFreightSettingsAction(responsibleId: string | null, up
   } catch (error) { return freightError(error); }
 }
 
-export async function saveFreightAction(input: FreightInput, id?: string, updatedAt?: string) {
+export async function saveFreightAction(input: FreightInput, id?: string, updatedAt?: string, requestId?: string) {
   try {
     const parsed = freightSchema.safeParse(input);
     if (!parsed.success) throw new FreightError(parsed.error.issues[0].message);
     if (id !== undefined) { z.string().uuid().parse(id); z.string().datetime().parse(updatedAt); }
-    const rows = await db.$transaction(async tx => {
+    else if (!z.string().uuid().safeParse(requestId).success) throw new FreightError('Reabra o formulário para iniciar um envio válido.');
+    const rows = await retryFreightTransaction(() => db.$transaction(async tx => {
       const user = await requireFreightAccess(tx);
       const data = { ...parsed.data, deliveryDate: new Date(`${parsed.data.deliveryDate}T00:00:00Z`) };
       if (id) {
@@ -60,13 +62,10 @@ export async function saveFreightAction(input: FreightInput, id?: string, update
         if (changed.count !== 1) throw new FreightError('O frete mudou ou já foi pago. Atualize a página antes de editar.');
         await tx.freightPaymentEvent.create({ data: { freightId: id, actorId: user.id, actorName: user.name, action: 'EDITADO', details: parsed.data } });
       } else {
-        await tx.freightPayment.create({ data: {
-          ...data, createdById: user.id, createdByName: user.name,
-          events: { create: { actorId: user.id, actorName: user.name, action: 'CRIADO', details: parsed.data } },
-        } });
+        await createFreightOnce(tx, requestId!, parsed.data, user);
       }
       return listFreights(tx);
-    }, { isolationLevel: 'Serializable' });
+    }, { isolationLevel: 'Serializable' }));
     revalidatePath('/admin/fretes');
     return { success: true as const, rows };
   } catch (error) { return freightError(error); }

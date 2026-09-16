@@ -1,17 +1,17 @@
 import { db } from '@/lib/db';
 import { getSession } from '@/lib/session';
-import { canAccessFreight, type FreightRow } from '@/lib/freight';
+import { canAccessFreight, FreightError, type FreightRow } from '@/lib/freight';
 import type { Prisma, FreightPayment } from '@prisma/client';
 
 export const FREIGHT_ACCESS_ID = 'freight';
-export class FreightError extends Error {}
+export { FreightError } from '@/lib/freight';
 
 export async function freightIdentity(tx: Prisma.TransactionClient = db) {
   const session = await getSession();
   if (!session) throw new FreightError('Acesso negado. Entre com uma conta autorizada.');
   const user = await tx.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, name: true, role: true, active: true },
+    select: { id: true, username: true, name: true, role: true, active: true },
   });
   if (!user?.active) throw new FreightError('Acesso negado. Entre com uma conta autorizada.');
   const access = await tx.freightAccess.findUnique({ where: { id: FREIGHT_ACCESS_ID } });

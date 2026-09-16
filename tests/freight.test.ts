@@ -1,6 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { freightSchema, parseFreightAmount, canAccessFreight } from '../src/lib/freight';
+import { freightSchema, parseFreightAmount, canAccessFreight, canConfigureFreight } from '../src/lib/freight';
+
+test('somente o login admin confirmado pode fazer a primeira ativação', () => {
+  const owner = { id: 'owner', username: 'admin', role: 'admin', active: true };
+  assert.equal(canConfigureFreight(owner, null), true);
+  assert.equal(canConfigureFreight({ ...owner, username: 'outro-admin' }, null), false);
+  assert.equal(canConfigureFreight({ ...owner, role: 'gerente' }, null), false);
+  assert.equal(canConfigureFreight({ ...owner, active: false }, null), false);
+  assert.equal(canConfigureFreight(null, null), false);
+});
+
+test('depois da ativação vale o ID do titular, mesmo se seu login mudar', () => {
+  const access = { ownerId: 'owner' };
+  assert.equal(canConfigureFreight({ id: 'owner', username: 'rafael', role: 'admin', active: true }, access), true);
+  assert.equal(canConfigureFreight({ id: 'other', username: 'admin', role: 'admin', active: true }, access), false);
+});
 
 test('acesso aos fretes fica restrito ao titular e ao único responsável ativo', () => {
   const access = { ownerId: 'owner', responsibleId: 'gerson' };
