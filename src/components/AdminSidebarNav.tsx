@@ -9,6 +9,7 @@ import { hasAccess } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 import type { AppSection } from '@/lib/types';
 import { getPendingOrdersCountAction } from '@/app/actions/admin/pending-orders';
+import { getFreightAccessAction } from '@/app/actions/admin/freight';
 import {
     LayoutDashboard,
     ShoppingCart,
@@ -29,13 +30,14 @@ import {
     FileSearch,
     QrCode,
     TrendingUp,
+    Truck,
     type LucideIcon,
 } from 'lucide-react';
 
 // ─── Nav definitions ──────────────────────────────────────────────────────────
 
 type NavItem = {
-    id: AppSection;
+    id: AppSection | 'fretes';
     label: string;
     icon: LucideIcon;
 };
@@ -89,6 +91,7 @@ const GROUPS: NavGroup[] = [
             { id: 'financeiro',   label: 'Financeiro',   icon: BarChart3 },
             { id: 'caixa',        label: 'Caixa Diário', icon: Landmark },
             { id: 'validar-pix',  label: 'Validar PIX',  icon: QrCode },
+            { id: 'fretes', label: 'Pagamentos de frete', icon: Truck },
         ],
     },
     {
@@ -125,6 +128,26 @@ export default function AdminSidebarNav({ onNavigate, sidebarCollapsed }: AdminS
     const { user } = useAuth();
     const { permissions } = usePermissions();
     const [pendingCount, setPendingCount] = useState(0);
+    const [freightAllowed, setFreightAllowed] = useState(false);
+
+    useEffect(() => {
+        let active = true;
+        setFreightAllowed(false);
+        const refresh = () => {
+            if (!user) return;
+            getFreightAccessAction().then(result => {
+                if (active) setFreightAllowed(result.allowed);
+            }).catch(() => { if (active) setFreightAllowed(false); });
+        };
+        refresh();
+        window.addEventListener('freight-access-updated', refresh);
+        window.addEventListener('focus', refresh);
+        return () => {
+            active = false;
+            window.removeEventListener('freight-access-updated', refresh);
+            window.removeEventListener('focus', refresh);
+        };
+    }, [user?.id]);
 
     useEffect(() => {
         getPendingOrdersCountAction().then(setPendingCount);
@@ -144,7 +167,7 @@ export default function AdminSidebarNav({ onNavigate, sidebarCollapsed }: AdminS
         <nav className={cn('space-y-1', sidebarCollapsed ? 'lg:px-1 px-2' : 'px-2')}>
             {GROUPS.map((group, groupIndex) => {
                 const visibleItems = group.items.filter(item =>
-                    hasAccess(user.role, item.id, permissions)
+                    item.id === 'fretes' ? freightAllowed : hasAccess(user.role, item.id, permissions)
                 );
                 if (visibleItems.length === 0) return null;
 

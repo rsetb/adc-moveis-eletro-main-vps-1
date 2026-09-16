@@ -33,6 +33,7 @@ import { useData } from '@/context/DataContext';
 import { maskPhone, onlyDigits } from '@/lib/utils';
 import { validatePixKey } from '@/lib/pix';
 import { getAsaasSettingsAction, updateAsaasSettingsAction, getCustomerCodeCounterAction, updateCustomerCodeCounterAction } from '@/app/actions/settings';
+import FreightAccessSettings from '@/components/FreightAccessSettings';
 
 const settingsSchema = z.object({
   storeName: z.string().min(3, 'O nome da loja é obrigatório.'),
@@ -444,6 +445,7 @@ export default function ConfiguracaoPage() {
 
   return (
     <div className="space-y-8">
+      <FreightAccessSettings />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

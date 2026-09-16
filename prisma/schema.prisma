@@ -2,6 +2,50 @@ generator client {
   provider = "prisma-client-js"
 }
 
+model FreightPayment {
+  id            String    @id @default(uuid())
+  deliveryDate  DateTime  @db.Date @map("delivery_date")
+  customerName  String    @map("customer_name")
+  neighborhood  String
+  amountCents   Int       @map("amount_cents")
+  notes         String?   @db.Text
+  createdById   String    @map("created_by_id")
+  createdByName String    @map("created_by_name")
+  paidAt        DateTime? @map("paid_at")
+  paidById      String?   @map("paid_by_id")
+  paidByName    String?   @map("paid_by_name")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  events        FreightPaymentEvent[]
+
+  @@index([deliveryDate])
+  @@index([paidAt])
+  @@map("freight_payments")
+}
+
+model FreightAccess {
+  id            String   @id
+  ownerId       String   @map("owner_id")
+  responsibleId String?  @map("responsible_id")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("freight_access")
+}
+
+model FreightPaymentEvent {
+  id        String         @id @default(uuid())
+  freightId String         @map("freight_id")
+  freight   FreightPayment @relation(fields: [freightId], references: [id])
+  actorId   String         @map("actor_id")
+  actorName String         @map("actor_name")
+  action    String
+  details   Json
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  @@index([freightId, createdAt])
+  @@map("freight_payment_events")
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
