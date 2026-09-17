@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Pencil, Truck, Trash2, Printer } from 'lucide-react';
+import { Plus, Pencil, Truck, Trash2, Printer, Eye, RotateCcw } from 'lucide-react';
 import { freightSchema, parseFreightAmount, type FreightInput, type FreightRow } from '@/lib/freight';
 import { readFreightDraft, persistFreightDraft, clearFreightDraft, type FreightDraft } from '@/lib/freight-draft';
 import FreightCustomerName from '@/components/FreightCustomerName';
@@ -46,6 +46,8 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
   const cepRequest = useRef(0);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [viewTarget, setViewTarget] = useState<FreightRow | null>(null);
+  const [refundTarget, setRefundTarget] = useState<FreightRow | null>(null);
   const [paymentTarget, setPaymentTarget] = useState<FreightRow | null>(null);
   const [paymentChoice, setPaymentChoice] = useState<'pending' | 'partial' | 'paid'>('paid');
   const [deleteTarget, setDeleteTarget] = useState<FreightRow | null>(null);
@@ -123,6 +125,7 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
       }
       setOpen(false);
       setPaymentTarget(null);
+      setRefundTarget(null);
       setDeleteTarget(null);
       setNotice('Registro salvo.');
     } catch {
@@ -143,7 +146,7 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
       {[['A pagar', currency(pending)], ['Pago', currency(paid)], ['Fretes registrados', String(filtered.length)]].map(([label, value]) =>
         <div key={label} className="rounded-xl border bg-card p-5"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-semibold">{value}</p></div>)}
     </div>
-    {error && !open && !paymentTarget && !deleteTarget && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    {error && !open && !paymentTarget && !refundTarget && !deleteTarget && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {notice && <p role="status" className="text-sm">{notice}</p>}
     <div className="flex flex-wrap items-end gap-3">
       <div><Label htmlFor="freight-filter-date">Data do frete</Label><Input id="freight-filter-date" type="date" value={selectedDate} onChange={event => setSelectedDate(event.target.value)} /></div><Button variant="outline" onClick={() => setSelectedDate(today())}>Hoje</Button><Button variant="outline" onClick={() => setSelectedDate('')}>Todas as datas</Button>
@@ -157,9 +160,9 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
         <TableCell className="max-w-40 break-words">{row.orderNumber || '—'}</TableCell>
         <TableCell className="font-medium">{row.customerName}{row.notes && <p className="max-w-xs whitespace-pre-wrap break-words text-xs font-normal text-muted-foreground">{row.notes}</p>}</TableCell>
         <TableCell>{row.neighborhood}</TableCell><TableCell className="whitespace-nowrap text-right">{currency(row.amountCents)}<p className="text-xs text-muted-foreground">Recebido: {currency(received(row))}<br />Saldo: {currency(row.amountCents - received(row))}</p></TableCell>
-        <TableCell><Badge variant={row.paidAt ? 'secondary' : 'outline'}>{statusLabels[paymentStatus(row)]}</Badge>{row.paidAt && <p className="mt-1 text-xs text-muted-foreground">{new Date(row.paidAt).toLocaleDateString('pt-BR', { timeZone: 'America/Fortaleza' })} · {row.paidByName}</p>}</TableCell>
+        <TableCell><Badge variant={row.paidAt ? 'secondary' : 'outline'}>{statusLabels[paymentStatus(row)]}</Badge>{received(row) > 0 && <p className="mt-1 text-xs text-muted-foreground">Último recebimento por: {row.paidByName || 'Não informado'}{row.paidAt && <> · {new Date(row.paidAt).toLocaleDateString('pt-BR', { timeZone: 'America/Fortaleza' })}</>}</p>}</TableCell>
         <TableCell>{row.createdByName}</TableCell>
-        <TableCell><div className="flex justify-end gap-2"><Button variant="outline" size="sm" disabled={busy || received(row) > 0} aria-label={`Editar frete`} onClick={() => { setEditing(row); setError(''); setOpen(true); }}><Pencil className="h-4 w-4" /></Button><Button variant="destructive" size="icon" className="h-8 w-8" disabled={busy} aria-label={`Excluir frete`} onClick={() => { setError(''); setDeleteTarget(row); }}><Trash2 className="h-4 w-4" /></Button><Button size="sm" variant={row.paidAt ? 'outline' : 'default'} disabled={busy} onClick={() => { setError(''); setPaymentChoice(received(row) >= row.amountCents ? 'pending' : 'paid'); setPaymentTarget(row); }}>Editar situação</Button></div></TableCell>
+        <TableCell><div className="flex flex-wrap justify-end gap-2"><Button variant="outline" size="icon" className="h-8 w-8" aria-label="Ver frete" title="Ver frete" onClick={() => setViewTarget(row)}><Eye className="h-4 w-4" /></Button>{received(row) > 0 && <Button variant="outline" size="sm" disabled={busy} onClick={() => { setError(''); setRefundTarget(row); }}><RotateCcw className="mr-1 h-4 w-4" />Estornar</Button>}<Button variant="outline" size="sm" disabled={busy || received(row) > 0} aria-label={`Editar frete`} onClick={() => { setEditing(row); setError(''); setOpen(true); }}><Pencil className="h-4 w-4" /></Button><Button variant="destructive" size="icon" className="h-8 w-8" disabled={busy} aria-label={`Excluir frete`} onClick={() => { setError(''); setDeleteTarget(row); }}><Trash2 className="h-4 w-4" /></Button><Button size="sm" variant={row.paidAt ? 'outline' : 'default'} disabled={busy} onClick={() => { setError(''); setPaymentChoice(received(row) >= row.amountCents ? 'pending' : 'paid'); setPaymentTarget(row); }}>Editar situação</Button></div></TableCell>
       </TableRow>)}</TableBody>
     </Table></div>
     <p className="text-sm text-muted-foreground">{filtered.length} frete(s) exibido(s) · Total exibido: {currency(filtered.reduce((sum, row) => sum + row.amountCents, 0))}</p>
@@ -204,6 +207,23 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <div className="flex justify-end gap-2"><Button type="button" variant="outline" disabled={busy} onClick={() => setOpen(false)}>Cancelar</Button><Button type="submit" disabled={busy}>{busy ? 'Salvando…' : 'Salvar frete'}</Button></div>
       </form>
+    </DialogContent></Dialog>
+    <Dialog open={!!viewTarget} onOpenChange={value => { if (!value) setViewTarget(null); }}><DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>Detalhes do frete</DialogTitle></DialogHeader>
+      {viewTarget && <div className="space-y-4">
+        <dl className="grid grid-cols-2 gap-3 text-sm">{[
+          ['Cliente', viewTarget.customerName], ['Data do frete', showDate(viewTarget.deliveryDate)], ['Pedido', viewTarget.orderNumber || '—'], ['Situação', statusLabels[paymentStatus(viewTarget)]],
+          ['CEP', viewTarget.zipCode || '—'], ['Endereço', viewTarget.address || '—'], ['Complemento', viewTarget.complement || '—'], ['Bairro', viewTarget.neighborhood],
+          ['Valor total', currency(viewTarget.amountCents)], ['Recebido', currency(received(viewTarget))], ['Saldo', currency(viewTarget.amountCents - received(viewTarget))], ['Registrado por', viewTarget.createdByName],
+          ['Último recebimento por', viewTarget.paidByName || '—'], ['Última forma de pagamento', viewTarget.paymentMethod || '—'],
+        ].map(([label, value]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="whitespace-pre-wrap break-words font-medium">{value}</dd></div>)}</dl>
+        <div><p className="text-sm text-muted-foreground">Observações</p><p className="whitespace-pre-wrap break-words">{viewTarget.notes || '—'}</p></div>
+        <h3 className="font-semibold">Histórico de recebimentos e alterações</h3>
+        <p className="text-xs text-muted-foreground">O responsável é a conta que confirmou a operação no sistema.</p>
+        {viewTarget.history?.length ? <ul className="space-y-2">{viewTarget.history.map(event => <li key={event.id} className="rounded-md border p-3 text-sm"><p className="font-medium">{{ CRIADO: 'Frete criado', EDITADO: 'Frete editado', PAGO: 'Pagamento total registrado', PAGAMENTO_REGISTRADO: 'Pagamento recebido', PAGAMENTO_DESFEITO: 'Estorno de pagamentos' }[event.action] || event.action}</p><p>{event.action === 'PAGAMENTO_REGISTRADO' || event.action === 'PAGO' ? 'Recebido por' : 'Realizado por'}: {event.actorName} · {new Date(event.createdAt).toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' })}</p>{event.amountCents !== null && <p>Valor: {currency(event.amountCents)}</p>}{event.method && <p>Forma: {event.method}</p>}</li>)}</ul> : <p className="text-sm text-muted-foreground">Nenhum evento disponível.</p>}
+      </div>}
+    </DialogContent></Dialog>
+    <Dialog open={!!refundTarget} onOpenChange={value => { if (!value && !busy) setRefundTarget(null); }}><DialogContent><DialogHeader><DialogTitle>Estornar pagamentos do frete?</DialogTitle></DialogHeader>
+      {refundTarget && <><p>{refundTarget.customerName}</p><p>Serão estornados todos os recebimentos deste frete, no total de <strong>{currency(received(refundTarget))}</strong>. O saldo voltará a {currency(refundTarget.amountCents)} e a situação ficará Pendente.</p><p className="text-sm text-muted-foreground">O histórico será preservado com seu usuário, data e valor do estorno. Esta ação registra o estorno no sistema; não devolve dinheiro por banco ou cartão.</p>{error && <p role="alert" className="text-sm text-destructive">{error}</p>}<div className="flex justify-end gap-2"><Button variant="outline" disabled={busy} onClick={() => setRefundTarget(null)}>Cancelar</Button><Button variant="destructive" disabled={busy} onClick={() => void run(() => paymentAction(refundTarget.id, { status: 'pending', amountCents: 0 }, refundTarget.updatedAt))}>{busy ? 'Estornando…' : 'Confirmar estorno'}</Button></div></>}
     </DialogContent></Dialog>
     <Dialog open={!!deleteTarget} onOpenChange={value => { if (!value && !busy) setDeleteTarget(null); }}><DialogContent><DialogHeader><DialogTitle>Excluir frete?</DialogTitle></DialogHeader>
       {deleteTarget && <><p>Tem certeza que deseja excluir o frete de <strong>{deleteTarget.customerName}</strong> ({currency(deleteTarget.amountCents)})?</p><p className="text-sm text-muted-foreground">Esta operação não pode ser desfeita e ele deixará de ser somado nos totais.</p>

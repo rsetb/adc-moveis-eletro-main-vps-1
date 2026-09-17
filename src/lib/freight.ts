@@ -46,6 +46,7 @@ export type FreightRow = FreightInput & {
   updatedAt: string;
   paidAt: string | null;
   paidByName: string | null;
+  history?: { id: string; action: string; actorName: string; createdAt: string; amountCents: number | null; method: string | null }[];
   receivedCents?: number;
   paymentMethod?: string | null;
 };
