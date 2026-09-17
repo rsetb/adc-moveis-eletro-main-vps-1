@@ -775,9 +775,9 @@ Não esqueça de enviar o comprovante!`;
                     <CardContent className="pt-6">
                         <Tabs value={activeTab} onValueChange={setActiveTab}>
                             <div className="overflow-x-auto mb-5">
-                                <TabsList className="h-10 bg-muted/60 rounded-lg p-1">
-                                    <TabsTrigger value="active" className="rounded-md text-sm font-medium">Pedidos Ativos</TabsTrigger>
-                                    <TabsTrigger value="web-requests" className="relative rounded-md text-sm font-medium">
+                                <TabsList className="h-10 bg-muted rounded-lg p-1">
+                                    <TabsTrigger value="active" className="rounded-md text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Pedidos Ativos</TabsTrigger>
+                                    <TabsTrigger value="web-requests" className="relative rounded-md text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">
                                         Solicitações Web
                                         {filteredPendingOrders.length > 0 && (
                                             <Badge variant="destructive" className="ml-2 h-5 w-5 p-0 flex items-center justify-center rounded-full text-[10px]">
@@ -785,9 +785,9 @@ Não esqueça de enviar o comprovante!`;
                                             </Badge>
                                         )}
                                     </TabsTrigger>
-                                    {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && <TabsTrigger value="vencimento" className="rounded-md text-sm font-medium">Vencimento</TabsTrigger>}
-                                    {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && <TabsTrigger value="deleted" className="rounded-md text-sm font-medium">Lixeira</TabsTrigger>}
-                                    {(user?.role === 'admin' || user?.role === 'gerente') && <TabsTrigger value="lixeira-completa" className="rounded-md text-sm font-medium">Lixeira Completa</TabsTrigger>}
+                                    {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && <TabsTrigger value="vencimento" className="rounded-md text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Vencimento</TabsTrigger>}
+                                    {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && <TabsTrigger value="deleted" className="rounded-md text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Lixeira</TabsTrigger>}
+                                    {(user?.role === 'admin' || user?.role === 'gerente') && <TabsTrigger value="lixeira-completa" className="rounded-md text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Lixeira Completa</TabsTrigger>}
                                 </TabsList>
                             </div>
                             <TabsContent value="web-requests">
