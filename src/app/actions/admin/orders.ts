@@ -924,6 +924,7 @@ export async function restoreDeletedOrderAction(orderId: string, status: string)
     try {
         const session = await getSession();
         if (!session) throw new Error('Não autenticado.');
+        if (session.role !== 'admin' && session.role !== 'gerente') throw new Error('Permissão negada.');
 
         await db.$executeRaw(Prisma.sql`
             UPDATE orders SET status = ${status}, updated_at = NOW() WHERE id = ${orderId}
