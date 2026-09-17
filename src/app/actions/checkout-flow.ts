@@ -7,10 +7,11 @@ import { logActionAction } from '@/app/actions/audit';
 import { notifyChange } from '@/lib/change-notifier';
 import { revalidatePath } from 'next/cache';
 
-function assertTrashPermission(user: User | null) {
+function assertRejectPermission(user: User | null) {
     if (!user) throw new Error('Permissão negada: usuário não autenticado.');
-    if (user.role !== 'admin' && user.role !== 'gerente') {
-        throw new Error('Permissão negada: apenas Admin e Gerente podem rejeitar solicitações.');
+    const allowed = ['admin', 'gerente', 'vendedor', 'vendedor_externo'];
+    if (!allowed.includes(user.role)) {
+        throw new Error('Permissão negada.');
     }
 }
 
@@ -47,25 +48,23 @@ export async function confirmTemporaryOrderAction(tempId: string) {
     const canConfirm = ['admin', 'gerente', 'vendedor', 'vendedor_externo'].includes(session.role);
     if (!canConfirm) return { success: false, error: 'Permissão negada.' };
     try {
-        const tempOrder = await db.temporaryOrder.findUnique({
-            where: { id: tempId }
+        // Atomically read + delete the temp order in a single transaction to prevent
+        // race condition where two concurrent "Confirmar" clicks create duplicate real orders.
+        let tempData: any = null;
+        await db.$transaction(async (tx) => {
+            const found = await tx.temporaryOrder.findUnique({ where: { id: tempId } });
+            if (!found) throw new Error('Pedido expirado ou não encontrado.');
+            if ((found as any).deletedAt) throw new Error('Esta solicitação foi rejeitada e está na lixeira.');
+            tempData = (found as any).data;
+            await tx.temporaryOrder.delete({ where: { id: tempId } });
         });
 
-        if (!tempOrder) {
-            return { success: false, error: 'Pedido expirado ou não encontrado.' };
-        }
-        if ((tempOrder as any).deletedAt) {
-            return { success: false, error: 'Esta solicitação foi rejeitada e está na lixeira.' };
-        }
+        if (!tempData) return { success: false, error: 'Erro interno de processamento.' };
 
-        const { orderData, customerData } = tempOrder.data as any;
-
-        // Perform the actual order creation (validates stock again)
+        const { orderData, customerData } = tempData;
         const result = await createOrderAction(orderData, customerData);
 
         if (result.success) {
-            // Delete the temporary order on success
-            await db.temporaryOrder.deleteMany({ where: { id: tempId } });
             revalidatePath('/admin/pedidos');
             revalidatePath('/admin/solicitacoes');
             revalidatePath('/admin/pedidos/pendentes');
@@ -82,7 +81,7 @@ export async function confirmTemporaryOrderAction(tempId: string) {
 
 export async function cancelTemporaryOrderAction(tempId: string, reason: string, user: User | null) {
     try {
-        assertTrashPermission(user);
+        assertRejectPermission(user);
         const cleanedReason = String(reason || '').trim();
         if (cleanedReason.length < 3) throw new Error('Informe um motivo (mínimo 3 caracteres).');
 
@@ -107,6 +106,9 @@ export async function cancelTemporaryOrderAction(tempId: string, reason: string,
             `Solicitação ${tempId} enviada para a lixeira. Motivo: ${cleanedReason}`,
             user
         );
+
+        notifyChange('pendingOrders');
+        revalidatePath('/admin/pedidos');
 
         return { success: true };
     } catch (error: any) {

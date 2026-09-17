@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -38,6 +38,11 @@ export function PendingOrderReviewDialog({ isOpen, onClose, order, onSuccess }: 
     const [rejectReason, setRejectReason] = useState('');
     const { toast } = useToast();
     const { user } = useAuth();
+
+    // Reset reason whenever a different order is opened
+    useEffect(() => {
+        if (isOpen) setRejectReason('');
+    }, [isOpen, order?.id]);
 
     const handleConfirm = async () => {
         if (!order) return;
