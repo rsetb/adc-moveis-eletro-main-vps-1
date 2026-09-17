@@ -5,7 +5,24 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { freightSchema, canAccessFreight, canConfigureFreight, type FreightInput } from '@/lib/freight';
 import { createFreightOnce, retryFreightTransaction } from '@/lib/freight-integrity';
+import type { FreightCustomerSearchResult } from '@/lib/freight-customer';
 import { FREIGHT_ACCESS_ID, FreightError, freightIdentity, requireFreightAccess, listFreights, freightError } from '@/lib/freight-server';
+
+export async function searchFreightCustomersAction(query: string): Promise<FreightCustomerSearchResult> {
+  try {
+    await requireFreightAccess();
+    const parsed = z.string().trim().min(2).max(160).safeParse(query);
+    if (!parsed.success) return { success: true, customers: [] };
+    const tokens = parsed.data.split(/\s+/).slice(0, 8);
+    const customers = await db.customer.findMany({
+      where: { AND: tokens.map(token => ({ name: { contains: token, mode: 'insensitive' as const } })) },
+      select: { id: true, code: true, name: true, zip: true, address: true, number: true, complement: true, neighborhood: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      take: 10,
+    });
+    return { success: true, customers };
+  } catch (error) { return freightError(error); }
+}
 
 export async function getFreightAccessAction() {
   try {

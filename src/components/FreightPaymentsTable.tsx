@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Plus, Pencil, Truck, Trash2 } from 'lucide-react';
 import { freightSchema, parseFreightAmount, type FreightInput, type FreightRow } from '@/lib/freight';
 import { readFreightDraft, persistFreightDraft, clearFreightDraft, type FreightDraft } from '@/lib/freight-draft';
+import FreightCustomerName from '@/components/FreightCustomerName';
+import type { FreightCustomerSearchResult } from '@/lib/freight-customer';
 
 type Result = { success: true; rows: FreightRow[] } | { success: false; error: string };
 type Props = {
@@ -19,6 +21,7 @@ type Props = {
   saveAction: (input: FreightInput, id?: string, updatedAt?: string, requestId?: string) => Promise<Result>;
   paymentAction: (id: string, paid: boolean, updatedAt: string) => Promise<Result>;
   deleteAction: (id: string) => Promise<Result>;
+  searchCustomersAction: (query: string) => Promise<FreightCustomerSearchResult>;
 };
 
 const currency = (cents: number) => (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -27,7 +30,7 @@ function today() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Fortaleza' }).format(new Date());
 }
 
-export default function FreightPaymentsTable({ initialRows, currentUserId, saveAction, paymentAction, deleteAction }: Props) {
+export default function FreightPaymentsTable({ initialRows, currentUserId, saveAction, paymentAction, deleteAction, searchCustomersAction }: Props) {
   const [rows, setRows] = useState(initialRows);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
@@ -36,6 +39,7 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
   const [draft, setDraft] = useState<FreightDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const locked = useRef(false);
+  const cepRequest = useRef(0);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [paymentTarget, setPaymentTarget] = useState<FreightRow | null>(null);
@@ -51,13 +55,15 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
   const formValues = editing ?? draft?.input;
 
   function handleCepMask(e: React.ChangeEvent<HTMLInputElement>) {
+    const request = ++cepRequest.current;
+    const input = e.target;
+    const form = input.form;
     let raw = e.target.value.replace(/\D/g, '');
     if (raw.length > 8) raw = raw.slice(0, 8);
     e.target.value = raw.length > 5 ? raw.slice(0, 5) + '-' + raw.slice(5) : raw;
     if (raw.length === 8) {
       fetch(`https://viacep.com.br/ws/${raw}/json/`).then(r => r.json()).then(data => {
-        if (!data.erro) {
-          const form = e.target.form;
+        if (!data.erro && request === cepRequest.current && input.isConnected && input.value.replace(/\D/g, '') === raw) {
           if (form) {
             const addrInput = form.elements.namedItem('address') as HTMLInputElement;
             const neighInput = form.elements.namedItem('neighborhood') as HTMLInputElement;
@@ -169,7 +175,7 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
       }}>
         {!editing && draft && <p className="text-sm text-muted-foreground">Confirme este envio antes de cadastrar outro frete. Depois de salvo, você poderá editar os dados.</p>}
         <div><Label htmlFor="freight-date">Data do frete</Label><Input id="freight-date" name="deliveryDate" type="date" required readOnly={!editing && !!draft} defaultValue={formValues?.deliveryDate ?? today()} /></div>
-        <div><Label htmlFor="freight-name">Nome</Label><Input id="freight-name" name="customerName" required readOnly={!editing && !!draft} minLength={2} maxLength={160} defaultValue={formValues?.customerName} placeholder="Adriano Cavalcante" /></div>
+        <FreightCustomerName defaultValue={formValues?.customerName} readOnly={busy || (!editing && !!draft)} searchAction={searchCustomersAction} onCustomerSelected={() => { cepRequest.current++; }} />
         <div className="grid gap-3 sm:grid-cols-3">
           <div><Label htmlFor="freight-cep">CEP</Label><Input id="freight-cep" name="zipCode" readOnly={!editing && !!draft} onChange={handleCepMask} defaultValue={formValues?.zipCode ?? ''} placeholder="00000-000" maxLength={9} /></div>
           <div className="sm:col-span-2"><Label htmlFor="freight-address">Endereço</Label><Input id="freight-address" name="address" required readOnly={!editing && !!draft} minLength={2} maxLength={160} defaultValue={formValues?.address ?? ''} /></div>
