@@ -1,61 +1,14 @@
 'use server';
 
+import { mapRawOrder } from '@/lib/order-record';
+import { Prisma } from '@prisma/client';
+import { normalizeOrderSearch } from '@/lib/order-search';
 import { db } from '@/lib/db';
 import type { Order, User } from '@/lib/types';
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
 import { computeStockDeltas, getBillingPriority } from '@/lib/utils';
 import { notifyChange } from '@/lib/change-notifier';
 import { getSession } from '@/lib/session';
-
-/**
- * Maps raw database fields (snake_case) to Order type fields (camelCase).
- * This is necessary because $queryRaw does not respect Prisma model mappings.
- */
-function mapRawOrder(raw: any): Order {
-    if (!raw) return raw;
-
-    const safeParse = (val: any) => {
-        if (typeof val === 'string') {
-            try { return JSON.parse(val); } catch { return val; }
-        }
-        return val;
-    };
-
-    return {
-        ...raw,
-        // Basic mappings
-        paymentMethod: raw.paymentMethod ?? raw.payment_method,
-        installments: raw.installments,
-        installmentValue: raw.installmentValue ?? raw.installment_value,
-        firstDueDate: raw.firstDueDate ?? (raw.first_due_date ? new Date(raw.first_due_date) : undefined),
-        trackingCode: raw.trackingCode ?? raw.tracking_code,
-        sellerId: raw.sellerId ?? raw.seller_id,
-        sellerName: raw.sellerName ?? raw.seller_name,
-        commissionDate: raw.commissionDate ?? raw.commission_date,
-        commissionPaid: row_bool(raw.commissionPaid ?? raw.commission_paid),
-        isCommissionManual: row_bool(raw.isCommissionManual ?? raw.is_commission_manual),
-        createdById: raw.createdById ?? raw.created_by_id,
-        createdByName: raw.createdByName ?? raw.created_by_name,
-        createdByRole: raw.createdByRole ?? raw.created_by_role,
-        createdIp: raw.createdIp ?? raw.created_ip,
-        createdAt: raw.createdAt ?? raw.created_at,
-        updatedAt: raw.updatedAt ?? raw.updated_at,
-
-        // JSON fields (raw queries often return them as strings or need mapping)
-        customer: safeParse(raw.customer),
-        items: safeParse(raw.items),
-        installmentDetails: safeParse(raw.installmentDetails ?? raw.installment_details),
-        installmentCardDetails: safeParse(raw.installmentCardDetails ?? raw.installment_card_details),
-        attachments: safeParse(raw.attachments),
-        asaas: safeParse(raw.asaas),
-        printLogs: safeParse(raw.printLogs ?? raw.print_logs),
-    } as unknown as Order;
-}
-
-function row_bool(val: any) {
-    if (val === null || val === undefined) return val;
-    return val === 1 || val === true || val === 'true' || val === '1';
-}
 
 // Helper to adjust stock in a transaction
 async function adjustStock(
@@ -107,118 +60,54 @@ async function adjustStock(
     }
 }
 
+// Imported historical rows can contain a JSON string instead of a JSON object.
+const customerJson = Prisma.sql`(CASE WHEN jsonb_typeof(customer::jsonb) = 'string' THEN (customer #>> '{}')::jsonb ELSE customer::jsonb END)`;
+
+async function orderVisibility() {
+    const session = await getSession();
+    if (!session) throw new Error('Entre no sistema para consultar pedidos.');
+    return session.role === 'vendedor_cobranca'
+        ? Prisma.sql`(seller_id = ${session.userId} OR created_by_id = ${session.userId})`
+        : Prisma.sql`TRUE`;
+}
+
 export async function searchOrdersAction(term: string) {
     if (!term || term.trim().length < 3) return { success: true, data: [] };
-
     try {
-        const searchTerm = `%${term}%`;
-        const orders = await db.$queryRaw`
-            SELECT * FROM orders
-            WHERE id ILIKE ${searchTerm}
-            OR customer->>'name' ILIKE ${searchTerm}
-            OR customer->>'code' ILIKE ${searchTerm}
-            ORDER BY date DESC
-            LIMIT 50
-        `;
-
-        return { success: true, data: (orders as any[]).map(mapRawOrder) };
+        const visibility = await orderVisibility();
+        const tokens = normalizeOrderSearch(term).split(' ').filter(Boolean).slice(0, 20);
+        const text = Prisma.sql`translate(lower(concat_ws(' ', id, ${customerJson}->>'name', ${customerJson}->>'code', ${customerJson}->>'cpf', ${customerJson}->>'phone')), 'áàâãäéèêëíìîïóòôõöúùûüç', 'aaaaaeeeeiiiiooooouuuuc')`;
+        const conditions = tokens.map(token => Prisma.sql`strpos(${text}, ${token}) > 0`);
+        const orders = await db.$queryRaw<any[]>(Prisma.sql`SELECT * FROM orders WHERE ${visibility} AND ${Prisma.join(conditions, ' AND ')} ORDER BY date DESC, created_at DESC`);
+        return { success: true, data: orders.map(mapRawOrder) };
     } catch (error: any) {
         console.error('Error searching orders:', error);
-        return { success: false, error: error.message };
+        return { success: false, error: 'Não foi possível consultar os pedidos. Tente novamente.' };
     }
 }
 
-export async function getCustomerOrdersAction(
-    customer: { cpf?: string; id?: string; code?: string; name?: string; phone?: string },
-    user: User | null
-) {
+export async function getCustomerOrdersAction(customer: { cpf?: string; id?: string; code?: string; name?: string; phone?: string }, _user: User | null) {
     try {
-        const cpf = String(customer?.cpf || '').replace(/\D/g, '');
-        const id = String(customer?.id || '').replace(/\D/g, '');
-        const code = String(customer?.code || '').trim();
-        const name = String(customer?.name || '').trim();
-        const phone = String(customer?.phone || '').replace(/\D/g, '');
-
-        if (cpf.length === 11 || id.length === 11) {
-            const target = (cpf.length === 11 ? cpf : id);
-            if (user?.role === 'vendedor_cobranca') {
-                const orders = await db.$queryRaw`
-                    SELECT * FROM orders
-                    WHERE (
-                        regexp_replace(customer->>'cpf', '[^0-9]', '', 'g') = ${target}
-                        OR customer->>'id' = ${target}
-                    )
-                    AND seller_id = ${user.id}
-                    ORDER BY date DESC, created_at DESC
-                    LIMIT 5000
-                `;
-                return { success: true, data: (orders as any[]).map(mapRawOrder) };
-            }
-
-            const orders = await db.$queryRaw`
-                SELECT * FROM orders
-                WHERE (
-                    regexp_replace(customer->>'cpf', '[^0-9]', '', 'g') = ${target}
-                    OR customer->>'id' = ${target}
-                )
-                ORDER BY date DESC, created_at DESC
-                LIMIT 5000
-            `;
-            return { success: true, data: (orders as any[]).map(mapRawOrder) };
-        }
-
-        if (code) {
-            if (user?.role === 'vendedor_cobranca') {
-                const orders = await db.$queryRaw`
-                    SELECT * FROM orders
-                    WHERE customer->>'code' ILIKE ${code}
-                    AND seller_id = ${user.id}
-                    ORDER BY date DESC, created_at DESC
-                    LIMIT 5000
-                `;
-                return { success: true, data: (orders as any[]).map(mapRawOrder) };
-            }
-
-            const orders = await db.$queryRaw`
-                SELECT * FROM orders
-                WHERE customer->>'code' ILIKE ${code}
-                ORDER BY date DESC, created_at DESC
-                LIMIT 5000
-            `;
-            return { success: true, data: (orders as any[]).map(mapRawOrder) };
-        }
-
-        if (name && phone) {
-            if (user?.role === 'vendedor_cobranca') {
-                const orders = await db.$queryRaw`
-                    SELECT * FROM orders
-                    WHERE customer->>'name' ILIKE ${name}
-                    AND regexp_replace(customer->>'phone', '[^0-9]', '', 'g') LIKE ${`%${phone}%`}
-                    AND seller_id = ${user.id}
-                    ORDER BY date DESC, created_at DESC
-                    LIMIT 5000
-                `;
-                return { success: true, data: (orders as any[]).map(mapRawOrder) };
-            }
-
-            const orders = await db.$queryRaw`
-                SELECT * FROM orders
-                WHERE customer->>'name' ILIKE ${name}
-                AND regexp_replace(customer->>'phone', '[^0-9]', '', 'g') LIKE ${`%${phone}%`}
-                ORDER BY date DESC, created_at DESC
-                LIMIT 5000
-            `;
-            return { success: true, data: (orders as any[]).map(mapRawOrder) };
-        }
-
-        return { success: true, data: [] as Order[] };
+        const visibility = await orderVisibility();
+        const id = String(customer.id || '').trim();
+        const cpf = String(customer.cpf || '').replace(/\D/g, '');
+        const code = String(customer.code || '').trim();
+        const name = String(customer.name || '').trim();
+        const phone = String(customer.phone || '').replace(/\D/g, '');
+        const matches: Prisma.Sql[] = [];
+        if (id) matches.push(Prisma.sql`${customerJson}->>'id' = ${id}`);
+        if (cpf.length === 11) matches.push(Prisma.sql`(regexp_replace(${customerJson}->>'cpf', '[^0-9]', '', 'g') = ${cpf} OR ${customerJson}->>'id' = ${cpf})`);
+        if (code) matches.push(Prisma.sql`lower(${customerJson}->>'code') = lower(${code})`);
+        if (!matches.length && name && phone) matches.push(Prisma.sql`(lower(${customerJson}->>'name') = lower(${name}) AND regexp_replace(${customerJson}->>'phone', '[^0-9]', '', 'g') = ${phone})`);
+        if (!matches.length) return { success: true, data: [] as Order[] };
+        const orders = await db.$queryRaw<any[]>(Prisma.sql`SELECT * FROM orders WHERE ${visibility} AND (${Prisma.join(matches, ' OR ')}) ORDER BY date DESC, created_at DESC`);
+        return { success: true, data: orders.map(mapRawOrder) };
     } catch (error: any) {
         console.error('Error fetching customer orders:', error);
-        return { success: false, error: error.message };
+        return { success: false, error: 'Não foi possível consultar os pedidos deste cliente.' };
     }
 }
 
-// Fetch all orders with pagination support
 export async function getAdminOrdersAction(limit: number = 1000) {
     try {
         const session = await getSession();
@@ -243,7 +132,7 @@ export async function getAdminOrdersAction(limit: number = 1000) {
         return {
             success: true,
             data: {
-                orders: orders as unknown as Order[],
+                orders: orders.map(mapRawOrder),
                 total
             }
         };

@@ -606,6 +606,8 @@ function CustomersAdminPageInner() {
                 if (cancelled) return;
                 if (res.success && Array.isArray((res as any).data)) {
                     setServerCustomerOrders(prev => ({ ...prev, [key]: (res as any).data as Order[] }));
+                } else {
+                    toast({ title: 'Erro ao consultar pedidos', description: res.error || 'Tente novamente.', variant: 'destructive' });
                 }
             } catch {
             }

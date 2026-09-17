@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
+import { matchesOrderSearch } from '@/lib/order-search';
 import { useAdmin, useAdminData } from '@/context/AdminContext';
 import type { Order, Installment, PaymentMethod, User, Payment, Product } from '@/lib/types';
 import { useAuth } from '@/context/AuthContext';
@@ -160,6 +161,10 @@ export default function OrdersAdminPage() {
         };
     });
     const [activeTab, setActiveTab] = useState('active');
+    useEffect(() => {
+        const approvedId = new URLSearchParams(window.location.search).get('pedido');
+        if (approvedId) setFilters(prev => ({ ...prev, search: approvedId }));
+    }, []);
     const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
     const [activePage, setActivePage] = useState(1);
     const [deletedPage, setDeletedPage] = useState(1);
@@ -202,8 +207,11 @@ export default function OrdersAdminPage() {
     }, [totalOrders, orders.length, loadAllOrders]);
 
     useEffect(() => {
+        let cancelled = false;
         const term = filters.search.trim();
+        setServerSearchResults([]);
         if (term.length < 3) {
+            setIsSearchingServer(false);
             setServerSearchResults([]);
             return;
         }
@@ -212,17 +220,17 @@ export default function OrdersAdminPage() {
             setIsSearchingServer(true);
             try {
                 const res = await searchOrdersAction(term);
-                if (res.success && res.data) {
+                if (!cancelled && res.success && res.data) {
                     setServerSearchResults(res.data);
                 }
             } catch (e) {
                 console.error("Error searching orders", e);
             } finally {
-                setIsSearchingServer(false);
+                if (!cancelled) setIsSearchingServer(false);
             }
         }, 500);
 
-        return () => clearTimeout(timer);
+        return () => { cancelled = true; clearTimeout(timer); };
     }, [filters.search]);
 
     useEffect(() => {
@@ -287,11 +295,7 @@ export default function OrdersAdminPage() {
         }
 
         return ordersToFilter.filter(o => {
-            const searchTerm = filters.search.toLowerCase();
-            const searchMatch = !searchTerm ||
-                o.id.toLowerCase().includes(searchTerm) ||
-                o.customer.name.toLowerCase().includes(searchTerm) ||
-                (o.customer.code || '').toLowerCase().includes(searchTerm);
+            const searchMatch = matchesOrderSearch(o, filters.search);
 
             const statusMatch = filters.status === 'all' || o.status === filters.status;
 
@@ -1445,9 +1449,13 @@ Não esqueça de enviar o comprovante!`;
                 isOpen={!!selectedPendingOrder} 
                 onClose={() => setSelectedPendingOrder(null)} 
                 order={selectedPendingOrder} 
-                onSuccess={() => {
+                onSuccess={(approvedId) => {
                     fetchPendingOrders();
                     refreshOrders();
+                    if (approvedId) {
+                        setActiveTab('active'); setActivePage(1);
+                        setFilters(prev => ({ ...prev, search: approvedId, status: 'all', seller: 'all', month: '', year: '', dueDateRange: 'all', showOverdue: false, showOnTime: false, showPaidOff: false }));
+                    }
                 }} 
             />
         </>

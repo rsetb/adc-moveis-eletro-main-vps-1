@@ -112,6 +112,7 @@ function PendingOrdersContent() {
                 setSelectedOrder(null);
                 fetchPendingOrders();
                 window.dispatchEvent(new CustomEvent('order-updated'));
+                router.push('/admin/pedidos?pedido=' + encodeURIComponent(orderId));
 
                 // Optional: Redirect to permanent order details or generate WhatsApp link
                 if (orderId && selectedOrder) {

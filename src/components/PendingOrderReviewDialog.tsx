@@ -30,7 +30,7 @@ interface PendingOrderReviewDialogProps {
     isOpen: boolean;
     onClose: () => void;
     order: any | null;
-    onSuccess: () => void;
+    onSuccess: (approvedId?: string) => void;
 }
 
 export function PendingOrderReviewDialog({ isOpen, onClose, order, onSuccess }: PendingOrderReviewDialogProps) {
@@ -60,7 +60,7 @@ export function PendingOrderReviewDialog({ isOpen, onClose, order, onSuccess }: 
                     window.dispatchEvent(new Event('order-updated'));
                 }
                 
-                onSuccess();
+                onSuccess(orderId);
                 onClose();
             } else {
                 throw new Error((result as any).error || "Erro ao confirmar.");

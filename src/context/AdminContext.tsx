@@ -133,6 +133,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
   const [deletedCustomers, setDeletedCustomers] = useState<CustomerInfo[]>([]);
 
   const lastUpdateRef = useRef<number>(0);
+  const ordersFetchVersion = useRef(0);
 
   // Polling Function
   const fetchData = useCallback(async () => {
@@ -141,7 +142,9 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       // 1) Carrega pedidos primeiro para aparecerem o mais rápido possível
+      const version = ++ordersFetchVersion.current;
       const ordersResult = await getAdminOrdersAction(ordersLimit);
+      if (version !== ordersFetchVersion.current) return;
       
       // Verificação dupla: se o usuário realizou uma ação enquanto o pedido estava sendo carregado,
       // ignoramos este resultado para evitar sobrescrever o estado otimista/local com dados antigos (stale).

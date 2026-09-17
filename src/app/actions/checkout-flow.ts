@@ -65,9 +65,11 @@ export async function confirmTemporaryOrderAction(tempId: string) {
 
         if (result.success) {
             // Delete the temporary order on success
-            await db.temporaryOrder.delete({
-                where: { id: tempId }
-            });
+            await db.temporaryOrder.deleteMany({ where: { id: tempId } });
+            revalidatePath('/admin/pedidos');
+            revalidatePath('/admin/solicitacoes');
+            revalidatePath('/admin/pedidos/pendentes');
+            notifyChange('pendingOrders');
         }
 
         return result;
