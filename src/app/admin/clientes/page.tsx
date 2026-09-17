@@ -314,6 +314,8 @@ function CustomersAdminPageInner() {
     const [searchQuery, setSearchQuery] = useState('');
     const [serverSearchResults, setServerSearchResults] = useState<CustomerInfo[]>([]);
     const [selectedCustomer, setSelectedCustomer] = useState<CustomerInfo | null>(null);
+    const [customerOrderQuery, setCustomerOrderQuery] = useState<{ key: string; status: 'loading' | 'success' | 'error'; error?: string }>({ key: '', status: 'loading' });
+    const [customerOrderRetry, setCustomerOrderRetry] = useState(0);
     const [serverCustomerOrders, setServerCustomerOrders] = useState<Record<string, Order[]>>({});
     const [imageToView, setImageToView] = useState<string | null>(null);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -587,33 +589,25 @@ function CustomersAdminPageInner() {
         };
     }, [searchFilters, activeTab, user, serverSearchResults.length]);
 
+    const customerOrdersReady = !!selectedCustomer && customerOrderQuery.key === getCustomerKey(selectedCustomer) && customerOrderQuery.status === 'success';
     useEffect(() => {
         let cancelled = false;
+        if (!selectedCustomer) return;
+        const key = getCustomerKey(selectedCustomer);
+        setCustomerOrderQuery({ key, status: 'loading' });
         (async () => {
-            if (!selectedCustomer) return;
-            const key = getCustomerKey(selectedCustomer);
             try {
-                const res = await getCustomerOrdersAction(
-                    {
-                        cpf: selectedCustomer.cpf,
-                        id: (selectedCustomer as any)?.id,
-                        code: (selectedCustomer as any)?.code,
-                        name: selectedCustomer.name,
-                        phone: selectedCustomer.phone,
-                    },
-                    user || null
-                );
+                const res = await getCustomerOrdersAction({ cpf: selectedCustomer.cpf, id: selectedCustomer.id, code: selectedCustomer.code, name: selectedCustomer.name, phone: selectedCustomer.phone }, user || null);
                 if (cancelled) return;
-                if (res.success && Array.isArray((res as any).data)) {
-                    setServerCustomerOrders(prev => ({ ...prev, [key]: (res as any).data as Order[] }));
-                } else {
-                    toast({ title: 'Erro ao consultar pedidos', description: res.error || 'Tente novamente.', variant: 'destructive' });
-                }
-            } catch {
+                if (!res.success || !Array.isArray(res.data)) throw new Error(res.error || 'Não foi possível consultar os pedidos.');
+                setServerCustomerOrders(prev => ({ ...prev, [key]: res.data as Order[] }));
+                setCustomerOrderQuery({ key, status: 'success' });
+            } catch (error) {
+                if (!cancelled) setCustomerOrderQuery({ key, status: 'error', error: error instanceof Error ? error.message : 'Falha de conexão. Tente novamente.' });
             }
         })();
         return () => { cancelled = true; };
-    }, [selectedCustomer, user]);
+    }, [selectedCustomer, user, customerOrderRetry]);
 
     const ordersForSelectedCustomer = useMemo(() => {
         if (!selectedCustomer) return [];
@@ -1595,7 +1589,7 @@ Não esqueça de enviar o comprovante!`;
                                                 <CardTitle className="text-sm font-medium">Total Comprado</CardTitle>
                                             </CardHeader>
                                             <CardContent>
-                                                <p className="text-xl font-bold">{formatCurrency(financialsForSelectedCustomer.totalComprado)}</p>
+                                                <p className="text-xl font-bold">{customerOrdersReady ? formatCurrency(financialsForSelectedCustomer.totalComprado) : '—'}</p>
                                             </CardContent>
                                         </Card>
                                         <Card className="bg-green-500/10 border-green-500/20">
@@ -1603,7 +1597,7 @@ Não esqueça de enviar o comprovante!`;
                                                 <CardTitle className="text-sm font-medium">Total Pago</CardTitle>
                                             </CardHeader>
                                             <CardContent>
-                                                <p className="text-xl font-bold text-green-600">{formatCurrency(financialsForSelectedCustomer.totalPago)}</p>
+                                                <p className="text-xl font-bold text-green-600">{customerOrdersReady ? formatCurrency(financialsForSelectedCustomer.totalPago) : '—'}</p>
                                             </CardContent>
                                         </Card>
                                         <Card className="bg-amber-500/10 border-amber-500/20">
@@ -1611,7 +1605,7 @@ Não esqueça de enviar o comprovante!`;
                                                 <CardTitle className="text-sm font-medium">Saldo Devedor</CardTitle>
                                             </CardHeader>
                                             <CardContent>
-                                                <p className="text-xl font-bold text-amber-600">{formatCurrency(financialsForSelectedCustomer.saldoDevedor)}</p>
+                                                <p className="text-xl font-bold text-amber-600">{customerOrdersReady ? formatCurrency(financialsForSelectedCustomer.saldoDevedor) : '—'}</p>
                                             </CardContent>
                                         </Card>
                                     </div>
@@ -1997,7 +1991,7 @@ Não esqueça de enviar o comprovante!`;
                                             })}
                                         </Accordion>
                                     ) : (
-                                        <p className="text-muted-foreground text-sm text-center py-8">Nenhum pedido encontrado para este cliente.</p>
+                                        <div className="py-8 text-center text-sm">{customerOrderQuery.key === getCustomerKey(selectedCustomer) && customerOrderQuery.status === 'error' ? <div role="alert" className="space-y-3 text-destructive"><p>Não foi possível carregar os pedidos. Os totais não foram calculados.</p><p>{customerOrderQuery.error}</p><Button variant="outline" onClick={() => setCustomerOrderRetry(value => value + 1)}>Tentar novamente</Button></div> : customerOrdersReady ? <p className="text-muted-foreground">Nenhum pedido encontrado para este cliente.</p> : <p role="status">Consultando os pedidos deste cliente…</p>}</div>
                                     )}
                                     <WhatsappHistory
                                         customerId={selectedCustomer.id}
