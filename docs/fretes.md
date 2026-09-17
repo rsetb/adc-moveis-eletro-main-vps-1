@@ -52,3 +52,5 @@ Verificado localmente em 16/09/2026: 25 testes unitários aprovados, TypeScript 
 Revisão das correções: 35 testes aprovados, incluindo primeira ativação restrita ao login confirmado, preservação do titular por ID, bloqueio de exclusão/desativação, repetição sequencial e concorrente de cadastros, colisões com conteúdo/autor diferente e recuperação de envio pendente. Os testes de persistência usam um repositório em memória; a migração e a concorrência do PostgreSQL precisam ser conferidas na homologação.
 
 Na interface, foi simulado um cadastro salvo seguido de resposta HTTP 502: fechar/reabrir o formulário e repetir o envio preservou exatamente um frete, também após recarregar a página. O teste usou o componente real e a função real de criação idempotente, com armazenamento em memória. TypeScript e ESLint passaram após as correções.
+
+- A tela abre nos fretes de hoje (horário de Fortaleza). Selecione outra data ou Todas as datas; busca, situação e totais acompanham o filtro. Imprimir relatório abre os resultados filtrados em uma janela com opção de imprimir ou salvar PDF.

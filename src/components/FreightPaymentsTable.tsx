@@ -8,11 +8,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Pencil, Truck, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Truck, Trash2, Printer } from 'lucide-react';
 import { freightSchema, parseFreightAmount, type FreightInput, type FreightRow } from '@/lib/freight';
 import { readFreightDraft, persistFreightDraft, clearFreightDraft, type FreightDraft } from '@/lib/freight-draft';
 import FreightCustomerName from '@/components/FreightCustomerName';
 import type { FreightCustomerSearchResult } from '@/lib/freight-customer';
+
+import { filterFreights, freightReport } from '@/lib/freight-report';
 
 type Result = { success: true; rows: FreightRow[] } | { success: false; error: string };
 type Props = {
@@ -33,6 +35,7 @@ function today() {
 export default function FreightPaymentsTable({ initialRows, currentUserId, saveAction, paymentAction, deleteAction, searchCustomersAction }: Props) {
   const [rows, setRows] = useState(initialRows);
   const [search, setSearch] = useState('');
+  const [selectedDate, setSelectedDate] = useState(today);
   const [status, setStatus] = useState('all');
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<FreightRow | null>(null);
@@ -44,13 +47,18 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
   const [notice, setNotice] = useState('');
   const [paymentTarget, setPaymentTarget] = useState<FreightRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FreightRow | null>(null);
-  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  const filtered = useMemo(() => rows.filter(row =>
-    normalize(`${row.customerName} ${row.neighborhood} ${row.orderNumber ?? ''}`).includes(normalize(search)) &&
-    (status === 'all' || (status === 'paid' ? !!row.paidAt : !row.paidAt))
-  ), [rows, search, status]);
-  const pending = rows.reduce((sum, row) => sum + (row.paidAt ? 0 : row.amountCents), 0);
-  const paid = rows.reduce((sum, row) => sum + (row.paidAt ? row.amountCents : 0), 0);
+  const filtered = useMemo(() => filterFreights(rows, selectedDate, search, status), [rows, selectedDate, search, status]);
+  const pending = filtered.reduce((sum, row) => sum + (row.paidAt ? 0 : row.amountCents), 0);
+  const paid = filtered.reduce((sum, row) => sum + (row.paidAt ? row.amountCents : 0), 0);
+
+  function printReport() {
+    const report = window.open('', '_blank');
+    if (!report) { setError('Permita abrir a janela do relatório no navegador para imprimir.'); return; }
+    report.opener = null;
+    report.document.write(freightReport(filtered, selectedDate, search, status));
+    report.document.close();
+    report.focus();
+  }
 
   const formValues = editing ?? draft?.input;
 
@@ -127,15 +135,16 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
     <div className="flex flex-wrap items-center justify-between gap-4">
       <div><h1 className="flex items-center gap-2 text-2xl font-bold"><Truck className="h-6 w-6" />Pagamentos de frete</h1>
         <p className="mt-1 text-sm text-muted-foreground">Registre os fretes realizados e acompanhe os pagamentos.</p></div>
-      <Button onClick={openNewFreight} disabled={busy}><Plus className="mr-2 h-4 w-4" />Novo frete</Button>
+      <div className="flex gap-2"><Button variant="outline" onClick={printReport}><Printer className="mr-2 h-4 w-4" />Imprimir relatório</Button><Button onClick={openNewFreight} disabled={busy}><Plus className="mr-2 h-4 w-4" />Novo frete</Button></div>
     </div>
     <div className="grid gap-3 sm:grid-cols-3">
-      {[['A pagar', currency(pending)], ['Pago', currency(paid)], ['Fretes registrados', String(rows.length)]].map(([label, value]) =>
+      {[['A pagar', currency(pending)], ['Pago', currency(paid)], ['Fretes registrados', String(filtered.length)]].map(([label, value]) =>
         <div key={label} className="rounded-xl border bg-card p-5"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-semibold">{value}</p></div>)}
     </div>
     {error && !open && !paymentTarget && !deleteTarget && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {notice && <p role="status" className="text-sm">{notice}</p>}
     <div className="flex flex-wrap items-end gap-3">
+      <div><Label htmlFor="freight-filter-date">Data do frete</Label><Input id="freight-filter-date" type="date" value={selectedDate} onChange={event => setSelectedDate(event.target.value)} /></div><Button variant="outline" onClick={() => setSelectedDate(today())}>Hoje</Button><Button variant="outline" onClick={() => setSelectedDate('')}>Todas as datas</Button>
       <div className="min-w-56 flex-1"><Label htmlFor="freight-search">Buscar por cliente, bairro ou pedido</Label><Input id="freight-search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Cliente, bairro ou número do pedido" /></div>
       <div><Label htmlFor="freight-status">Situação</Label><select id="freight-status" className="flex h-10 w-full rounded-md border bg-background px-3 text-sm" value={status} onChange={event => setStatus(event.target.value)}><option value="all">Todos</option><option value="pending">Pendentes</option><option value="paid">Pagos</option></select></div>
     </div>
