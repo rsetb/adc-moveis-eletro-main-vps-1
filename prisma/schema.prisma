@@ -13,6 +13,8 @@ model FreightPayment {
   complement    String?
   neighborhood  String
   amountCents   Int       @map("amount_cents")
+  receivedCents Int?      @map("received_cents")
+  paymentMethod String?   @map("payment_method")
   notes         String?   @db.Text
   createdById   String    @map("created_by_id")
   createdByName String    @map("created_by_name")

@@ -34,6 +34,7 @@ export function mapFreight(row: FreightPayment): FreightRow {
     createdByName: row.createdByName, createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(), paidAt: row.paidAt?.toISOString() ?? null,
     paidByName: row.paidByName,
+    receivedCents: row.receivedCents ?? (row.paidAt ? row.amountCents : 0), paymentMethod: row.paymentMethod,
   };
 }
 

@@ -46,6 +46,8 @@ export type FreightRow = FreightInput & {
   updatedAt: string;
   paidAt: string | null;
   paidByName: string | null;
+  receivedCents?: number;
+  paymentMethod?: string | null;
 };
 
 export function parseFreightAmount(value: string): number | null {

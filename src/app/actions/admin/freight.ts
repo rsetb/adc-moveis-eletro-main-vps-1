@@ -1,5 +1,6 @@
 'use server';
 
+import { paymentSchema, nextReceived, received, freightAlertTime, type FreightPaymentInput } from '@/lib/freight-payment';
 import { db } from '@/lib/db';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
@@ -75,6 +76,8 @@ export async function saveFreightAction(input: FreightInput, id?: string, update
       const user = await requireFreightAccess(tx);
       const data = { ...parsed.data, deliveryDate: new Date(`${parsed.data.deliveryDate}T00:00:00Z`) };
       if (id) {
+        const existing = await tx.freightPayment.findUnique({ where: { id } });
+        if (existing && received(existing) > 0) throw new FreightError('Volte a situação para Pendente antes de editar um frete com pagamento.');
         const changed = await tx.freightPayment.updateMany({
           where: { id, updatedAt: new Date(updatedAt!), paidAt: null }, data,
         });
@@ -90,22 +93,42 @@ export async function saveFreightAction(input: FreightInput, id?: string, update
   } catch (error) { return freightError(error); }
 }
 
-export async function setFreightPaidAction(id: string, paid: boolean, updatedAt: string) {
+export async function setFreightPaidAction(id: string, input: FreightPaymentInput, updatedAt: string) {
   try {
-    z.string().uuid().parse(id); z.boolean().parse(paid); z.string().datetime().parse(updatedAt);
+    z.string().uuid().parse(id); z.string().datetime().parse(updatedAt);
+    const parsed = paymentSchema.safeParse(input);
+    if (!parsed.success) throw new FreightError('Confira a situação, o valor e a forma de pagamento.');
     const rows = await db.$transaction(async tx => {
       const user = await requireFreightAccess(tx);
+      const row = await tx.freightPayment.findUnique({ where: { id } });
+      if (!row || row.updatedAt.toISOString() !== updatedAt) throw new FreightError('O frete mudou. Atualize a página antes de registrar o pagamento.');
+      const before = received(row);
+      let amount: number;
+      try { amount = nextReceived(row.amountCents, before, parsed.data); }
+      catch (error) { throw new FreightError((error as Error).message); }
+      const full = amount === row.amountCents;
       const changed = await tx.freightPayment.updateMany({
-        where: { id, updatedAt: new Date(updatedAt), paidAt: paid ? null : { not: null } },
-        data: { paidAt: paid ? new Date() : null, paidById: paid ? user.id : null, paidByName: paid ? user.name : null },
+        where: { id, updatedAt: new Date(updatedAt) },
+        data: { receivedCents: amount, paymentMethod: amount ? parsed.data.method : null, paidAt: full ? new Date() : null, paidById: amount ? user.id : null, paidByName: amount ? user.name : null },
       });
-      if (changed.count !== 1) throw new FreightError('O frete foi alterado. Atualize a página para conferir o pagamento.');
-      await tx.freightPaymentEvent.create({ data: { freightId: id, actorId: user.id, actorName: user.name, action: paid ? 'PAGO' : 'PAGAMENTO_DESFEITO', details: { paid } } });
+      if (changed.count !== 1) throw new FreightError('O frete mudou. Atualize a página para conferir.');
+      await tx.freightPaymentEvent.create({ data: { freightId: id, actorId: user.id, actorName: user.name, action: amount ? 'PAGAMENTO_REGISTRADO' : 'PAGAMENTO_DESFEITO', details: { ...parsed.data, beforeCents: before, receivedCents: amount } } });
       return listFreights(tx);
     }, { isolationLevel: 'Serializable' });
     revalidatePath('/admin/fretes');
     return { success: true as const, rows };
   } catch (error) { return freightError(error); }
+}
+
+export async function getFreightReminderAction() {
+  try {
+    await requireFreightAccess();
+    const time = freightAlertTime();
+    if (!time.due) return { count: 0, balance: 0 };
+    const rows = await db.freightPayment.findMany({ where: { deliveryDate: { lte: new Date(time.date + 'T00:00:00Z') }, paidAt: null }, select: { amountCents: true, receivedCents: true, paidAt: true } });
+    const pending = rows.filter(row => received(row) < row.amountCents);
+    return { count: pending.length, balance: pending.reduce((sum, row) => sum + row.amountCents - received(row), 0) };
+  } catch { return { count: 0, balance: 0 }; }
 }
 
 export async function deleteFreightAction(id: string) {

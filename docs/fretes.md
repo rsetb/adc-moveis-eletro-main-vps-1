@@ -54,3 +54,10 @@ Revisão das correções: 35 testes aprovados, incluindo primeira ativação res
 Na interface, foi simulado um cadastro salvo seguido de resposta HTTP 502: fechar/reabrir o formulário e repetir o envio preservou exatamente um frete, também após recarregar a página. O teste usou o componente real e a função real de criação idempotente, com armazenamento em memória. TypeScript e ESLint passaram após as correções.
 
 - A tela abre nos fretes de hoje (horário de Fortaleza). Selecione outra data ou Todas as datas; busca, situação e totais acompanham o filtro. Imprimir relatório abre os resultados filtrados em uma janela com opção de imprimir ou salvar PDF.
+
+## Pagamentos parciais e aviso
+
+- Editar situação permite Pendente, Parcial e Pago total. Para receber, informe o valor desta parcela e a forma de pagamento. O sistema soma as parcelas e calcula o saldo; pagamento total exige quitar o restante. Voltar a Pendente estorna o acumulado, preservando auditoria.
+- Fretes com valores recebidos ficam protegidos contra edição de valor. Pagamentos antigos marcados como pagos continuam quitados.
+- A partir das 16h50 (Fortaleza), o painel aberto avisa titular e responsáveis sobre saldos de hoje e dias anteriores. Atualiza a cada 30 segundos e ao retornar à aba; não envia aviso com o navegador fechado.
+- Antes desta versão, sincronize o schema ou aplique prisma/changes/20260917_freight_partial_payments.sql.
