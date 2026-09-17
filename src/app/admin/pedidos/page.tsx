@@ -8,7 +8,7 @@ import { matchesOrderSearch } from '@/lib/order-search';
 import { useAdmin, useAdminData } from '@/context/AdminContext';
 import type { Order, Installment, PaymentMethod, User, Payment, Product } from '@/lib/types';
 import { useAuth } from '@/context/AuthContext';
-import { searchOrdersAction, getBillingDashboardAction, type BillingDashboardSummary } from '@/app/actions/admin/orders';
+import { searchOrdersAction, getBillingDashboardAction, getDeletedOrdersWithAuditAction, restoreDeletedOrderAction, type BillingDashboardSummary, type DeletedOrderRow } from '@/app/actions/admin/orders';
 import { getPendingOrdersAction } from '@/app/actions/admin/pending-orders';
 import {
     Table,
@@ -174,6 +174,11 @@ export default function OrdersAdminPage() {
     const [isSearchingServer, setIsSearchingServer] = useState(false);
     const [pendingOrders, setPendingOrders] = useState<any[]>([]);
     const [selectedPendingOrder, setSelectedPendingOrder] = useState<any | null>(null);
+    const [allDeletedOrders, setAllDeletedOrders] = useState<DeletedOrderRow[]>([]);
+    const [isLoadingDeleted, setIsLoadingDeleted] = useState(false);
+    const [deletedSearch, setDeletedSearch] = useState('');
+    const [allDeletedPage, setAllDeletedPage] = useState(1);
+    const [restoringId, setRestoringId] = useState<string | null>(null);
 
     const fetchPendingOrders = useCallback(async () => {
         try {
@@ -613,6 +618,52 @@ export default function OrdersAdminPage() {
         emptyTrash(logAction, user);
     }
 
+    const loadAllDeletedOrders = useCallback(async () => {
+        setIsLoadingDeleted(true);
+        try {
+            const res = await getDeletedOrdersWithAuditAction();
+            if (res.success && res.data) setAllDeletedOrders(res.data);
+        } finally {
+            setIsLoadingDeleted(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (activeTab === 'lixeira-completa') loadAllDeletedOrders();
+    }, [activeTab, loadAllDeletedOrders]);
+
+    const filteredAllDeleted = useMemo(() => {
+        const term = deletedSearch.trim().toLowerCase();
+        if (!term) return allDeletedOrders;
+        return allDeletedOrders.filter(o =>
+            o.id.toLowerCase().includes(term) ||
+            o.customerName.toLowerCase().includes(term) ||
+            o.customerCpf.replace(/\D/g, '').includes(term.replace(/\D/g, '')) ||
+            (o.deletedBy || '').toLowerCase().includes(term)
+        );
+    }, [allDeletedOrders, deletedSearch]);
+
+    const paginatedAllDeleted = useMemo(() => {
+        const total = Math.ceil(filteredAllDeleted.length / ORDERS_PER_PAGE);
+        const paginated = filteredAllDeleted.slice((allDeletedPage - 1) * ORDERS_PER_PAGE, allDeletedPage * ORDERS_PER_PAGE);
+        return { paginated, totalPages: total };
+    }, [filteredAllDeleted, allDeletedPage]);
+
+    const handleRestoreWithStatus = async (orderId: string, status: string) => {
+        setRestoringId(orderId);
+        try {
+            const res = await restoreDeletedOrderAction(orderId, status);
+            if (res.success) {
+                toast({ title: 'Pedido restaurado!', description: `${orderId} → ${status}` });
+                setAllDeletedOrders(prev => prev.filter(o => o.id !== orderId));
+            } else {
+                toast({ title: 'Erro ao restaurar', description: res.error, variant: 'destructive' });
+            }
+        } finally {
+            setRestoringId(null);
+        }
+    };
+
     const handleSendWhatsAppReminder = (order: Order, installment: Installment) => {
         const customerName = String(order.customer.name || '').split(' ')[0];
         const customerPhone = order.customer.phone.replace(/\D/g, '');
@@ -736,6 +787,7 @@ Não esqueça de enviar o comprovante!`;
                                     </TabsTrigger>
                                     {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && <TabsTrigger value="vencimento" className="rounded-md text-sm font-medium">Vencimento</TabsTrigger>}
                                     {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && <TabsTrigger value="deleted" className="rounded-md text-sm font-medium">Lixeira</TabsTrigger>}
+                                    {(user?.role === 'admin' || user?.role === 'gerente') && <TabsTrigger value="lixeira-completa" className="rounded-md text-sm font-medium">Lixeira Completa</TabsTrigger>}
                                 </TabsList>
                             </div>
                             <TabsContent value="web-requests">
@@ -1368,6 +1420,98 @@ Não esqueça de enviar o comprovante!`;
                                         <Trash2 className="mx-auto h-12 w-12" />
                                         <h3 className="mt-4 text-lg font-semibold">A lixeira está vazia</h3>
                                         <p className="mt-1 text-sm">Os pedidos excluídos aparecerão aqui.</p>
+                                    </div>
+                                )}
+                            </TabsContent>
+                            <TabsContent value="lixeira-completa">
+                                <div className="flex flex-wrap gap-3 mb-5 p-4 border rounded-lg bg-muted/50 items-center">
+                                    <div className="flex-grow min-w-[200px] relative">
+                                        <PackageSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                                        <Input
+                                            placeholder="Buscar por ID, cliente, CPF ou quem excluiu..."
+                                            value={deletedSearch}
+                                            onChange={e => { setDeletedSearch(e.target.value); setAllDeletedPage(1); }}
+                                            className="pl-9 h-9"
+                                        />
+                                    </div>
+                                    <Button variant="outline" size="sm" onClick={loadAllDeletedOrders} disabled={isLoadingDeleted}>
+                                        {isLoadingDeleted ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent mr-2" /> : <History className="h-4 w-4 mr-2" />}
+                                        Recarregar
+                                    </Button>
+                                    <span className="text-xs text-muted-foreground">{filteredAllDeleted.length} pedidos excluídos</span>
+                                </div>
+
+                                {isLoadingDeleted ? (
+                                    <div className="flex justify-center py-16">
+                                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                    </div>
+                                ) : filteredAllDeleted.length > 0 ? (
+                                    <>
+                                        <div className="rounded-md border overflow-x-auto">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead className="p-2">Pedido</TableHead>
+                                                        <TableHead className="p-2">Cliente</TableHead>
+                                                        <TableHead className="p-2">CPF</TableHead>
+                                                        <TableHead className="p-2 text-right">Total</TableHead>
+                                                        <TableHead className="p-2">Data do Pedido</TableHead>
+                                                        <TableHead className="p-2">Excluído por</TableHead>
+                                                        <TableHead className="p-2">Data Exclusão</TableHead>
+                                                        <TableHead className="p-2 text-right">Restaurar como</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {paginatedAllDeleted.paginated.map(order => (
+                                                        <TableRow key={order.id} className="text-sm">
+                                                            <TableCell className="p-2 font-mono text-xs font-medium">{order.id}</TableCell>
+                                                            <TableCell className="p-2 max-w-[180px] truncate">{order.customerName}</TableCell>
+                                                            <TableCell className="p-2 text-xs text-muted-foreground">{order.customerCpf}</TableCell>
+                                                            <TableCell className="p-2 text-right font-semibold">{formatCurrency(order.total)}</TableCell>
+                                                            <TableCell className="p-2 text-xs whitespace-nowrap">
+                                                                {order.orderDate ? format(new Date(order.orderDate), 'dd/MM/yyyy', { locale: ptBR }) : '-'}
+                                                            </TableCell>
+                                                            <TableCell className="p-2 text-xs">{order.deletedBy || '-'}</TableCell>
+                                                            <TableCell className="p-2 text-xs whitespace-nowrap">
+                                                                {order.deletedAt ? format(new Date(order.deletedAt), 'dd/MM/yyyy', { locale: ptBR }) : '-'}
+                                                            </TableCell>
+                                                            <TableCell className="p-2 text-right">
+                                                                <DropdownMenu>
+                                                                    <DropdownMenuTrigger asChild>
+                                                                        <Button variant="outline" size="sm" disabled={restoringId === order.id}>
+                                                                            {restoringId === order.id
+                                                                                ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent mr-1" />
+                                                                                : <Undo2 className="h-4 w-4 mr-1" />}
+                                                                            Restaurar
+                                                                        </Button>
+                                                                    </DropdownMenuTrigger>
+                                                                    <DropdownMenuContent align="end">
+                                                                        <DropdownMenuLabel>Restaurar como:</DropdownMenuLabel>
+                                                                        <DropdownMenuItem onClick={() => handleRestoreWithStatus(order.id, 'Aguardando pagamento')}>Aguardando pagamento</DropdownMenuItem>
+                                                                        <DropdownMenuItem onClick={() => handleRestoreWithStatus(order.id, 'Processando')}>Processando</DropdownMenuItem>
+                                                                        <DropdownMenuItem onClick={() => handleRestoreWithStatus(order.id, 'Aprovado')}>Aprovado</DropdownMenuItem>
+                                                                        <DropdownMenuItem onClick={() => handleRestoreWithStatus(order.id, 'Entregue')}>Entregue</DropdownMenuItem>
+                                                                        <DropdownMenuItem onClick={() => handleRestoreWithStatus(order.id, 'Cancelado')}>Cancelado</DropdownMenuItem>
+                                                                    </DropdownMenuContent>
+                                                                </DropdownMenu>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                        {paginatedAllDeleted.totalPages > 1 && (
+                                            <div className="flex justify-end items-center gap-2 mt-4">
+                                                <Button variant="outline" size="sm" onClick={() => setAllDeletedPage(p => Math.max(1, p - 1))} disabled={allDeletedPage === 1}>Anterior</Button>
+                                                <span className="text-sm">Página {allDeletedPage} de {paginatedAllDeleted.totalPages}</span>
+                                                <Button variant="outline" size="sm" onClick={() => setAllDeletedPage(p => Math.min(paginatedAllDeleted.totalPages, p + 1))} disabled={allDeletedPage === paginatedAllDeleted.totalPages}>Próxima</Button>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="text-center py-16 text-muted-foreground border-2 border-dashed rounded-lg">
+                                        <Trash2 className="mx-auto h-12 w-12" />
+                                        <h3 className="mt-4 text-lg font-semibold">Nenhum pedido excluído encontrado</h3>
                                     </div>
                                 )}
                             </TabsContent>

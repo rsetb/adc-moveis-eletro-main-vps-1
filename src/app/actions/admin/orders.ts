@@ -851,3 +851,75 @@ export async function reverseInstallmentPaymentAction(orderId: string, installme
         return { success: false, error: error.message };
     }
 }
+
+export type DeletedOrderRow = {
+    id: string;
+    customerName: string;
+    customerCpf: string;
+    total: number;
+    orderDate: string;
+    deletedBy: string | null;
+    deletedAt: string | null;
+};
+
+export async function getDeletedOrdersWithAuditAction(): Promise<{ success: boolean; data?: DeletedOrderRow[]; error?: string }> {
+    noStore();
+    try {
+        const session = await getSession();
+        if (!session) throw new Error('Não autenticado.');
+
+        const rows = await db.$queryRaw<any[]>(Prisma.sql`
+            SELECT
+                o.id,
+                (CASE WHEN jsonb_typeof(o.customer::jsonb) = 'string' THEN (o.customer #>> '{}')::jsonb ELSE o.customer::jsonb END)->>'name' AS customer_name,
+                (CASE WHEN jsonb_typeof(o.customer::jsonb) = 'string' THEN (o.customer #>> '{}')::jsonb ELSE o.customer::jsonb END)->>'cpf' AS customer_cpf,
+                o.total,
+                o.date AS order_date,
+                al.user_name AS deleted_by,
+                al.timestamp AS deleted_at
+            FROM orders o
+            LEFT JOIN LATERAL (
+                SELECT user_name, timestamp
+                FROM audit_logs
+                WHERE details::text ILIKE '%' || o.id || '%'
+                  AND action ILIKE '%Exclus%'
+                ORDER BY timestamp DESC
+                LIMIT 1
+            ) al ON true
+            WHERE o.status ILIKE '%exclu%'
+              AND o.id ILIKE 'PED-%'
+            ORDER BY o.date DESC
+        `);
+
+        const data: DeletedOrderRow[] = rows.map(r => ({
+            id: String(r.id),
+            customerName: String(r.customer_name || ''),
+            customerCpf: String(r.customer_cpf || ''),
+            total: Number(r.total || 0),
+            orderDate: r.order_date ? new Date(r.order_date).toISOString() : '',
+            deletedBy: r.deleted_by ? String(r.deleted_by) : null,
+            deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null,
+        }));
+
+        return { success: true, data };
+    } catch (error: any) {
+        console.error('[getDeletedOrdersWithAuditAction]', error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function restoreDeletedOrderAction(orderId: string, status: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const session = await getSession();
+        if (!session) throw new Error('Não autenticado.');
+
+        await db.$executeRaw(Prisma.sql`
+            UPDATE orders SET status = ${status}, updated_at = NOW() WHERE id = ${orderId}
+        `);
+
+        revalidatePath('/admin/pedidos');
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
