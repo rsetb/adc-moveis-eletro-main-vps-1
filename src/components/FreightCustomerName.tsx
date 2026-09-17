@@ -64,11 +64,11 @@ export default function FreightCustomerName({ defaultValue = '', readOnly, searc
   return <div className="relative" onBlur={event => {
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
   }}>
-    <Label htmlFor="freight-name">Nome</Label>
-    <Input ref={input} id="freight-name" name="customerName" role="combobox" aria-autocomplete="list"
+    <Label htmlFor="freight-recipient-query">Nome</Label>
+    <Input ref={input} id="freight-recipient-query" name="freightRecipientQuery" type="search" role="combobox" aria-autocomplete="list"
       aria-expanded={expanded} aria-controls={expanded ? 'freight-customer-options' : undefined}
       aria-activedescendant={expanded && activeIndex >= 0 ? `freight-customer-option-${activeIndex}` : undefined}
-      aria-describedby="freight-name-help" autoComplete="off" required minLength={2} maxLength={160}
+      aria-describedby="freight-name-help" autoComplete="new-password" autoCorrect="off" autoCapitalize="none" spellCheck={false} required minLength={2} maxLength={160}
       readOnly={readOnly} value={value} placeholder="Digite o nome para buscar um cliente"
       onFocus={() => setFocused(true)}
       onChange={event => { setValue(event.target.value); setTouched(true); setCustomers([]); setActiveIndex(-1); }}

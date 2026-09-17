@@ -155,12 +155,12 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
     <p className="text-sm text-muted-foreground">{filtered.length} frete(s) exibido(s) · Total exibido: {currency(filtered.reduce((sum, row) => sum + row.amountCents, 0))}</p>
 
     <Dialog open={open} onOpenChange={value => { if (!busy) setOpen(value); }}><DialogContent className="max-h-[90dvh] overflow-y-auto"><DialogHeader><DialogTitle>{editing ? 'Editar frete' : 'Novo frete'}</DialogTitle></DialogHeader>
-      <form key={editing?.id ?? draft?.requestId ?? 'new'} className="space-y-4" onSubmit={event => {
+      <form autoComplete="off" key={editing?.id ?? draft?.requestId ?? 'new'} className="space-y-4" onSubmit={event => {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
         const amountCents = parseFreightAmount(String(form.get('amount')));
         if (amountCents === null) { setError('Informe um valor positivo, por exemplo: 45,50.'); return; }
-        const parsed = freightSchema.safeParse({ deliveryDate: form.get('deliveryDate'), orderNumber: form.get('orderNumber'), driverName: form.get('driverName'), customerName: form.get('customerName'), zipCode: form.get('zipCode'), address: form.get('address'), complement: form.get('complement'), neighborhood: form.get('neighborhood'), amountCents, notes: form.get('notes') });
+        const parsed = freightSchema.safeParse({ deliveryDate: form.get('deliveryDate'), orderNumber: form.get('orderNumber'), driverName: form.get('driverName'), customerName: form.get('freightRecipientQuery'), zipCode: form.get('zipCode'), address: form.get('address'), complement: form.get('complement'), neighborhood: form.get('neighborhood'), amountCents, notes: form.get('notes') });
         if (!parsed.success) { setError(parsed.error.issues[0].message); return; }
         if (editing) {
           void run(() => saveAction(parsed.data, editing.id, editing.updatedAt));
