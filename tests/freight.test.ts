@@ -2,6 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { freightSchema, parseFreightAmount, canAccessFreight, canConfigureFreight } from '../src/lib/freight';
 
+test('número de pedido é opcional e mantém zeros iniciais e prefixos', () => {
+  const base = { deliveryDate: '2026-09-16', customerName: 'Cliente', neighborhood: 'Centro', amountCents: 1000 };
+  assert.equal(freightSchema.parse(base).orderNumber, '');
+  assert.equal(freightSchema.parse({ ...base, orderNumber: '  001234  ' }).orderNumber, '001234');
+  assert.equal(freightSchema.parse({ ...base, orderNumber: 'PED-001234' }).orderNumber, 'PED-001234');
+  assert.equal(freightSchema.parse({ ...base, orderNumber: '   ' }).orderNumber, '');
+  assert.equal(freightSchema.safeParse({ ...base, orderNumber: '1'.repeat(61) }).success, false);
+});
+
 test('somente o login admin confirmado pode fazer a primeira ativação', () => {
   const owner = { id: 'owner', username: 'admin', role: 'admin', active: true };
   assert.equal(canConfigureFreight(owner, null), true);

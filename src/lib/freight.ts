@@ -6,6 +6,7 @@ export const freightSchema = z.object({
     return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
   }, 'Informe uma data válida.'),
   customerName: z.string().trim().min(2, 'Informe o nome.').max(160),
+  orderNumber: z.string().trim().max(60, 'O número do pedido deve ter até 60 caracteres.').default(''),
   zipCode: z.string().trim().optional(),
   address: z.string().trim().optional(),
   complement: z.string().trim().max(100).optional(),

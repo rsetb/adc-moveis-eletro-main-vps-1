@@ -31,6 +31,7 @@ Se as tabelas de fretes já existirem, aplique somente `20260916_freight_owner_g
 ## Operação
 
 - Clique em **Novo frete** e informe data, nome, bairro e valor.
+- Informe, se desejar, o **Número do pedido**. Ele pode conter zeros iniciais, letras e hífens, aparece na coluna **Pedido** e pode ser usado na busca. O campo é uma referência informada manualmente; não altera nem exige um pedido cadastrado. Para atualizar um banco existente, aplique `prisma/changes/20260917_freight_order_number.sql` antes desta versão (ou a sincronização de schema já usada na publicação).
 - No campo **Nome**, digite pelo menos duas letras para buscar clientes cadastrados. A seleção preenche CEP, endereço com número, complemento e bairro; é possível corrigir esses campos ou continuar com um nome livre. A busca retorna até dez sugestões e exige o mesmo acesso restrito do módulo de fretes.
 - Use a busca e o filtro de pendentes/pagos para conferir os lançamentos.
 - Clique em **Marcar pago** somente depois do pagamento e confirme.
