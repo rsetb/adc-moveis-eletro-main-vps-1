@@ -68,7 +68,8 @@ export async function findCustomerByCpfAction(cpf: string) {
     }
 }
 
-import { allocateNextCustomerCode } from '@/lib/customer-code';
+import { allocateNextCustomerCode, normalizeCustomerCodeInput } from '@/lib/customer-code';
+import { matchCpf, matchName, matchPhoneTail } from '@/lib/customer-match';
 
 export async function allocateNextCustomerCodeAction(): Promise<{ success: true; code: string }> {
     const code = await allocateNextCustomerCode();
@@ -76,6 +77,125 @@ export async function allocateNextCustomerCodeAction(): Promise<{ success: true;
 }
 
 
+
+/**
+ * Resolve e persiste o cliente do pedido, devolvendo a linha que existe de fato
+ * em `customers`. O snapshot `orders.customer` é gravado a partir dela, senão o
+ * pedido nasce órfão (a tela de Clientes não acha o pedido e o Saldo Devedor
+ * aparece zerado).
+ *
+ * Antes daqui, um P2002 (CPF ou código já em uso) era engolido com console.warn:
+ * o pedido gravava e o cliente não.
+ */
+async function resolveOrderCustomer(tx: any, customerData: any) {
+    const custId = String(customerData?.id || '').trim();
+    const cpfDigits = String(customerData?.cpf || '').replace(/\D/g, '');
+    const cpfToSave = cpfDigits.length === 11 ? cpfDigits : null;
+    const requestedCode = normalizeCustomerCodeInput(customerData?.code);
+
+    // Só grava campo que veio preenchido: o payload do checkout público é mais
+    // pobre que o do admin, e sobrescrever com null apagaria dados do cadastro.
+    // `blocked` só muda se vier booleano explícito (senão um pedido desbloquearia
+    // um cliente bloqueado).
+    const fields: any = {};
+    const assign = (key: string, value: any) => {
+        if (value === undefined || value === null || value === '') return;
+        fields[key] = value;
+    };
+    assign('name', customerData?.name);
+    assign('phone', customerData?.phone);
+    assign('phone2', customerData?.phone2);
+    assign('phone3', customerData?.phone3);
+    assign('email', customerData?.email);
+    assign('zip', customerData?.zip);
+    assign('address', customerData?.address);
+    assign('number', customerData?.number);
+    assign('complement', customerData?.complement);
+    assign('neighborhood', customerData?.neighborhood);
+    assign('city', customerData?.city);
+    assign('state', customerData?.state);
+    assign('password', customerData?.password);
+    assign('observations', customerData?.observations);
+    assign('sellerId', customerData?.sellerId);
+    assign('sellerName', customerData?.sellerName);
+    assign('rating', customerData?.rating);
+    assign('blockedReason', customerData?.blockedReason);
+    if (typeof customerData?.blocked === 'boolean') fields.blocked = customerData.blocked;
+
+    // 1) por id
+    let existing = custId ? await tx.customer.findUnique({ where: { id: custId } }) : null;
+
+    // 2) por CPF: o cliente pode estar cadastrado com outro id (importação gera id novo)
+    if (!existing && cpfToSave) {
+        existing = await tx.customer.findUnique({ where: { cpf: cpfToSave } });
+    }
+
+    // 3) por código, só se nome ou telefone conferirem (código é realocado na importação,
+    //    então código igual sozinho não prova que é a mesma pessoa)
+    if (!existing && requestedCode) {
+        const byCode = await tx.customer.findUnique({ where: { code: requestedCode } });
+        if (byCode) {
+            const sameName = !!matchName(customerData?.name) && matchName(customerData.name) === matchName(byCode.name);
+            const samePhone = !!matchPhoneTail(customerData?.phone) && matchPhoneTail(customerData.phone) === matchPhoneTail(byCode.phone);
+            if (sameName || samePhone) existing = byCode;
+        }
+    }
+
+    if (existing) {
+        const data: any = { ...fields };
+        // Nunca sobrescreve um CPF divergente já cadastrado.
+        if (cpfToSave && (!existing.cpf || matchCpf(existing.cpf) === matchCpf(cpfToSave))) {
+            data.cpf = cpfToSave;
+        }
+        const updated = await tx.customer.update({ where: { id: existing.id }, data });
+        return updated;
+    }
+
+    // 4) criar. Código pedido pode estar em uso por outra pessoa -> aloca um novo.
+    let codeToUse: string | null = requestedCode;
+    if (codeToUse) {
+        const taken = await tx.customer.findUnique({ where: { code: codeToUse } });
+        if (taken) codeToUse = null;
+    }
+    if (!codeToUse) {
+        try {
+            codeToUse = await allocateNextCustomerCode();
+        } catch (codeErr) {
+            console.error('[resolveOrderCustomer] Falha ao alocar código de cliente:', codeErr);
+            codeToUse = null;
+        }
+    }
+
+    const createPayload: any = {
+        ...fields,
+        id: custId || `CUST-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+        name: fields.name || '',
+        phone: fields.phone || '',
+        cpf: cpfToSave,
+    };
+    if (codeToUse) createPayload.code = codeToUse;
+
+    try {
+        return await tx.customer.create({ data: createPayload });
+    } catch (createErr: any) {
+        if (createErr?.code !== 'P2002') throw createErr;
+        const target: string[] = Array.isArray(createErr?.meta?.target) ? createErr.meta.target : [];
+
+        // Corrida: alguém criou o mesmo CPF entre a busca e o insert -> usa o existente.
+        if (cpfToSave) {
+            const raced = await tx.customer.findUnique({ where: { cpf: cpfToSave } });
+            if (raced) {
+                return await tx.customer.update({ where: { id: raced.id }, data: fields });
+            }
+        }
+        // Código tomado na corrida -> cria sem código (a tela de Clientes gera depois).
+        if (target.includes('code')) {
+            delete createPayload.code;
+            return await tx.customer.create({ data: createPayload });
+        }
+        throw createErr;
+    }
+}
 
 export async function createOrderAction(orderData: any, customerData: any) {
     try {
@@ -112,7 +232,27 @@ export async function createOrderAction(orderData: any, customerData: any) {
                 });
             }
 
-            // 3. Save Order
+            // 3. Cliente ANTES do pedido: o snapshot do pedido é gravado a partir da
+            //    linha que existe em `customers`, para não nascer órfão.
+            let linkedCustomer: any = null;
+            try {
+                linkedCustomer = await resolveOrderCustomer(tx, customerData);
+            } catch (customerErr) {
+                // A venda não pode ser perdida por causa do cadastro, mas o erro tem
+                // que aparecer no log em vez de ser engolido.
+                console.error('[createOrderAction] Falha ao vincular o cliente do pedido:', customerErr);
+            }
+
+            const customerSnapshot = linkedCustomer
+                ? {
+                    ...customerData,
+                    id: linkedCustomer.id,
+                    cpf: linkedCustomer.cpf ?? customerData?.cpf ?? null,
+                    code: linkedCustomer.code ?? customerData?.code ?? null,
+                }
+                : customerData;
+
+            // 4. Save Order
             const { firstDueDate, ...orderToSave } = orderData;
 
             // Forçamos a data para o horário do servidor para garantir ordenação correta
@@ -122,6 +262,7 @@ export async function createOrderAction(orderData: any, customerData: any) {
             await tx.order.create({
                 data: {
                     ...orderToSave,
+                    customer: customerSnapshot,
                     date: serverNow, // Sobrescreve a data do cliente
                     firstDueDate: firstDueDate ? new Date(firstDueDate).toISOString() : null,
                     createdAt: new Date(),
@@ -129,88 +270,7 @@ export async function createOrderAction(orderData: any, customerData: any) {
                 }
             });
 
-            // 4. Upsert Customer (sanitize fields to avoid unknown field / unique constraint errors)
-            const {
-                id: custId,
-                code,
-                name,
-                cpf,
-                phone,
-                phone2,
-                phone3,
-                email,
-                zip,
-                address,
-                number,
-                complement,
-                neighborhood,
-                city,
-                state,
-                password,
-                observations,
-                sellerId,
-                sellerName,
-                blocked,
-                blockedReason,
-                rating,
-            } = customerData as any;
-
-            const customerToUpsert: any = {
-                name: name || '',
-                phone: phone || '',
-                phone2: phone2 || null,
-                phone3: phone3 || null,
-                email: email || null,
-                zip: zip || null,
-                address: address || null,
-                number: number || null,
-                complement: complement || null,
-                neighborhood: neighborhood || null,
-                city: city || null,
-                state: state || null,
-                password: password || null,
-                observations: observations || null,
-                sellerId: sellerId || null,
-                sellerName: sellerName || null,
-                blocked: blocked ?? false,
-                blockedReason: blockedReason || null,
-                rating: rating ?? null,
-            };
-
-            // Only include CPF if it's a valid value (avoid unique constraint on empty string)
-            if (cpf && String(cpf).replace(/\D/g, '').length === 11) {
-                customerToUpsert.cpf = String(cpf).replace(/\D/g, '');
-            }
-
-            // Try to update first (most common path — customer already exists)
-            const existingCustomer = await tx.customer.findUnique({ where: { id: custId } });
-            if (existingCustomer) {
-                await tx.customer.update({
-                    where: { id: custId },
-                    data: customerToUpsert,
-                });
-            } else {
-                // Create new customer — generate code if needed
-                const normCode = code && String(code).replace(/\s/g, '') ? String(code) : null;
-                const createPayload: any = {
-                    ...customerToUpsert,
-                    id: custId,
-                };
-                if (normCode) createPayload.code = normCode;
-
-                try {
-                    await tx.customer.create({ data: createPayload });
-                } catch (createErr: any) {
-                    // If unique constraint on code or cpf — ignore, customer data is secondary
-                    if (createErr?.code === 'P2002') {
-                        console.warn('[createOrderAction] Customer upsert skipped (unique conflict):', createErr?.meta?.target);
-                    } else {
-                        throw createErr;
-                    }
-                }
-            }
-
-            return { success: true, orderId: orderData.id };
+            return { success: true, orderId: orderData.id, customerLinked: !!linkedCustomer };
         });
 
         if (result.success) {

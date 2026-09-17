@@ -3,6 +3,7 @@
 import { mapRawOrder } from '@/lib/order-record';
 import { Prisma } from '@prisma/client';
 import { normalizeOrderSearch } from '@/lib/order-search';
+import { matchCode, matchCpf, matchName, matchPhoneTail } from '@/lib/customer-match';
 import { db } from '@/lib/db';
 import type { Order, User } from '@/lib/types';
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
@@ -63,6 +64,15 @@ async function adjustStock(
 // Imported historical rows can contain a JSON string instead of a JSON object.
 const customerJson = Prisma.sql`(CASE WHEN jsonb_typeof(customer::jsonb) = 'string' THEN (customer #>> '{}')::jsonb ELSE customer::jsonb END)`;
 
+// Expressões para comparar o snapshot `customer` gravado no pedido com o cadastro atual.
+// Espelham as normalizações de '@/lib/customer-match' (dígitos, zeros à esquerda, acentos).
+const snapId = Prisma.sql`trim(coalesce(${customerJson}->>'id', ''))`;
+const snapCpfDigits = Prisma.sql`regexp_replace(coalesce(${customerJson}->>'cpf', ''), '[^0-9]', '', 'g')`;
+const snapCodeRaw = Prisma.sql`lower(trim(coalesce(${customerJson}->>'code', '')))`;
+const snapCodeDigits = Prisma.sql`regexp_replace(coalesce(${customerJson}->>'code', ''), '[^0-9]', '', 'g')`;
+const snapPhoneDigits = Prisma.sql`regexp_replace(coalesce(${customerJson}->>'phone', ''), '[^0-9]', '', 'g')`;
+const snapName = Prisma.sql`regexp_replace(translate(lower(trim(coalesce(${customerJson}->>'name', ''))), 'áàâãäéèêëíìîïóòôõöúùûüç', 'aaaaaeeeeiiiiooooouuuuc'), '[[:space:]]+', ' ', 'g')`;
+
 async function orderVisibility() {
     const session = await getSession();
     if (!session) throw new Error('Entre no sistema para consultar pedidos.');
@@ -90,15 +100,39 @@ export async function getCustomerOrdersAction(customer: { cpf?: string; id?: str
     try {
         const visibility = await orderVisibility();
         const id = String(customer.id || '').trim();
-        const cpf = String(customer.cpf || '').replace(/\D/g, '');
-        const code = String(customer.code || '').trim();
-        const name = String(customer.name || '').trim();
-        const phone = String(customer.phone || '').replace(/\D/g, '');
+        const cpf = matchCpf(customer.cpf);          // 11 dígitos, zeros à esquerda restaurados
+        const codeRaw = String(customer.code || '').trim().toLowerCase();
+        const code = matchCode(customer.code);        // 5 dígitos ('5581' -> '05581')
+        const name = matchName(customer.name);        // minúsculo, sem acento, espaços colapsados
+        const phoneTail = matchPhoneTail(customer.phone); // últimos 8 dígitos
+
         const matches: Prisma.Sql[] = [];
-        if (id) matches.push(Prisma.sql`${customerJson}->>'id' = ${id}`);
-        if (cpf.length === 11) matches.push(Prisma.sql`(regexp_replace(${customerJson}->>'cpf', '[^0-9]', '', 'g') = ${cpf} OR ${customerJson}->>'id' = ${cpf})`);
-        if (code) matches.push(Prisma.sql`lower(${customerJson}->>'code') = lower(${code})`);
-        if (!matches.length && name && phone) matches.push(Prisma.sql`(lower(${customerJson}->>'name') = lower(${name}) AND regexp_replace(${customerJson}->>'phone', '[^0-9]', '', 'g') = ${phone})`);
+        if (id) matches.push(Prisma.sql`${snapId} = ${id}`);
+        if (cpf) {
+            // Pedidos importados de sistemas antigos guardam o CPF no próprio campo `id`.
+            matches.push(Prisma.sql`(
+                (${snapCpfDigits} <> '' AND lpad(${snapCpfDigits}, 11, '0') = ${cpf})
+                OR (${snapId} ~ '^[0-9]{9,11}$' AND lpad(${snapId}, 11, '0') = ${cpf})
+            )`);
+        }
+        // Código exato: comportamento anterior, preservado.
+        if (codeRaw) matches.push(Prisma.sql`${snapCodeRaw} = ${codeRaw}`);
+        // Código normalizado (sem zeros à esquerda, gravado como número, com prefixo CLI-).
+        // Exige nome OU telefone conferindo, porque a importação de clientes realoca códigos:
+        // um código antigo no snapshot pode hoje pertencer a outro cliente.
+        if (code && (name || phoneTail)) {
+            const corroboration: Prisma.Sql[] = [];
+            if (name) corroboration.push(Prisma.sql`${snapName} = ${name}`);
+            if (phoneTail) corroboration.push(Prisma.sql`(length(${snapPhoneDigits}) >= 8 AND right(${snapPhoneDigits}, 8) = ${phoneTail})`);
+            matches.push(Prisma.sql`(
+                ${snapCodeDigits} <> '' AND length(${snapCodeDigits}) <= 5 AND lpad(${snapCodeDigits}, 5, '0') = ${code}
+                AND (${Prisma.join(corroboration, ' OR ')})
+            )`);
+        }
+        // Este casamento antes só entrava quando não havia id/cpf/código - ou seja, nunca,
+        // porque cliente vindo do cadastro sempre tem id. Agora é aditivo: pedido cujo snapshot
+        // ficou com id/código antigos (importação, recadastro, CPF em branco) volta a aparecer.
+        if (name && phoneTail) matches.push(Prisma.sql`(${snapName} = ${name} AND length(${snapPhoneDigits}) >= 8 AND right(${snapPhoneDigits}, 8) = ${phoneTail})`);
         if (!matches.length) return { success: true, data: [] as Order[] };
         const orders = await db.$queryRaw<any[]>(Prisma.sql`SELECT * FROM orders WHERE ${visibility} AND (${Prisma.join(matches, ' OR ')}) ORDER BY date DESC, created_at DESC`);
         return { success: true, data: orders.map(mapRawOrder) };
