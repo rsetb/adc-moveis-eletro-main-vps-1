@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
+import { useSettings } from '@/context/SettingsContext';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
@@ -43,6 +45,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
 
 export default function AdminLayoutClient({ children }: { children: React.ReactNode }) {
     const { user, logout, isLoading } = useAuth();
+    const { settings } = useSettings();
     const { resolvedTheme, setTheme } = useTheme();
     const [mounted,          setMounted]          = useState(false);
     const [sidebarOpen,      setSidebarOpen]      = useState(false);
@@ -111,6 +114,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
                             'flex h-16 items-center border-b border-sidebar-border flex-shrink-0',
                             sidebarCollapsed ? 'lg:flex-col lg:h-auto lg:py-3 lg:gap-1 justify-center px-2 gap-3 px-4' : 'gap-3 px-5',
                         )}>
+                            {settings.logoUrl ? <div className="min-w-0 flex-1"><Image src={settings.logoUrl} alt={settings.storeName || 'Logo da loja'} width={320} height={96} className={cn('h-11 w-full object-contain object-left', sidebarCollapsed && 'lg:h-9 lg:object-center')} /></div> : <>
                             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary flex-shrink-0">
                                 <Building2 className="h-4 w-4 text-white" />
                             </div>
@@ -120,6 +124,8 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
                                 <p className="text-sm font-bold text-sidebar-foreground truncate">ADC ERP</p>
                                 <p className="text-[11px] text-sidebar-foreground/50 truncate">Painel Administrativo</p>
                             </div>
+
+                            </>}
 
                             {/* Close on mobile */}
                             <button
@@ -193,10 +199,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
 
                             {/* Mobile brand */}
                             <div className="flex items-center gap-2 lg:hidden">
-                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary">
-                                    <Building2 className="h-3.5 w-3.5 text-white" />
-                                </div>
-                                <span className="text-sm font-bold">ADC ERP</span>
+                                {settings.logoUrl ? <Image src={settings.logoUrl} alt={settings.storeName || 'Logo da loja'} width={160} height={48} className="h-9 w-28 object-contain object-left" /> : <><Building2 className="h-5 w-5 text-primary" /><span className="text-sm font-bold">ADC ERP</span></>}
                             </div>
 
                             <div className="flex-1" />
