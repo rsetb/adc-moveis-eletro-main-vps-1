@@ -7,6 +7,7 @@ export const freightSchema = z.object({
   }, 'Informe uma data válida.'),
   customerName: z.string().trim().min(2, 'Informe o nome.').max(160),
   orderNumber: z.string().trim().max(60, 'O número do pedido deve ter até 60 caracteres.').default(''),
+  driverName: z.string().trim().max(160, 'O nome do motorista deve ter até 160 caracteres.').default(''),
   zipCode: z.string().trim().optional(),
   address: z.string().trim().optional(),
   complement: z.string().trim().max(100).optional(),

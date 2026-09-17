@@ -7,6 +7,7 @@ model FreightPayment {
   deliveryDate  DateTime  @db.Date @map("delivery_date")
   customerName  String    @map("customer_name")
   orderNumber   String?   @map("order_number")
+  driverName    String?   @map("driver_name")
   zipCode       String?   @map("zip_code")
   address       String?
   complement    String?

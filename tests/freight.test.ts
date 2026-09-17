@@ -59,3 +59,12 @@ test('frete valida data real, campos obrigatórios e valor em centavos inteiros'
     assert.equal(freightSchema.safeParse({ ...valid, ...patch }).success, false);
   }
 });
+
+
+test('motorista aceita acentos e preserva compatibilidade com fretes antigos', () => {
+  const base = { deliveryDate: '2026-09-16', customerName: 'Cliente', neighborhood: 'Centro', amountCents: 1000 };
+  assert.equal(freightSchema.parse(base).driverName, '');
+  assert.equal(freightSchema.parse({ ...base, driverName: '  José da Silva  ' }).driverName, 'José da Silva');
+  assert.equal(freightSchema.parse({ ...base, driverName: '   ' }).driverName, '');
+  assert.equal(freightSchema.safeParse({ ...base, driverName: 'A'.repeat(161) }).success, false);
+});

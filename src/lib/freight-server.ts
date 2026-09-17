@@ -28,6 +28,7 @@ export function mapFreight(row: FreightPayment): FreightRow {
   return {
     id: row.id, deliveryDate: row.deliveryDate.toISOString().slice(0, 10),
     orderNumber: row.orderNumber ?? '',
+    driverName: row.driverName ?? '',
     customerName: row.customerName, zipCode: row.zipCode ?? undefined, address: row.address ?? undefined, complement: row.complement ?? undefined, neighborhood: row.neighborhood,
     amountCents: row.amountCents, notes: row.notes ?? '',
     createdByName: row.createdByName, createdAt: row.createdAt.toISOString(),

@@ -91,7 +91,7 @@ const GROUPS: NavGroup[] = [
             { id: 'financeiro',   label: 'Financeiro',   icon: BarChart3 },
             { id: 'caixa',        label: 'Caixa Diário', icon: Landmark },
             { id: 'validar-pix',  label: 'Validar PIX',  icon: QrCode },
-            { id: 'fretes', label: 'Pagamentos de frete', icon: Truck },
+            { id: 'fretes', label: 'Pag. Fretes.', icon: Truck },
         ],
     },
     {

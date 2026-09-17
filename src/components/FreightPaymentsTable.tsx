@@ -46,7 +46,7 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
   const [deleteTarget, setDeleteTarget] = useState<FreightRow | null>(null);
   const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const filtered = useMemo(() => rows.filter(row =>
-    normalize(`${row.customerName} ${row.neighborhood} ${row.orderNumber ?? ''}`).includes(normalize(search)) &&
+    normalize(`${row.customerName} ${row.neighborhood} ${row.orderNumber ?? ''} ${row.driverName ?? ''}`).includes(normalize(search)) &&
     (status === 'all' || (status === 'paid' ? !!row.paidAt : !row.paidAt))
   ), [rows, search, status]);
   const pending = rows.reduce((sum, row) => sum + (row.paidAt ? 0 : row.amountCents), 0);
@@ -136,15 +136,16 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
     {error && !open && !paymentTarget && !deleteTarget && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {notice && <p role="status" className="text-sm">{notice}</p>}
     <div className="flex flex-wrap items-end gap-3">
-      <div className="min-w-56 flex-1"><Label htmlFor="freight-search">Buscar por nome, bairro ou pedido</Label><Input id="freight-search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Nome, bairro ou número do pedido" /></div>
+      <div className="min-w-56 flex-1"><Label htmlFor="freight-search">Buscar por cliente, motorista, bairro ou pedido</Label><Input id="freight-search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Cliente, motorista, bairro ou número do pedido" /></div>
       <div><Label htmlFor="freight-status">Situação</Label><select id="freight-status" className="flex h-10 w-full rounded-md border bg-background px-3 text-sm" value={status} onChange={event => setStatus(event.target.value)}><option value="all">Todos</option><option value="pending">Pendentes</option><option value="paid">Pagos</option></select></div>
     </div>
     <div className="overflow-hidden rounded-xl border bg-card"><Table>
-      <TableHeader><TableRow><TableHead>Data do frete</TableHead><TableHead>Pedido</TableHead><TableHead>Nome</TableHead><TableHead>Bairro</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Situação</TableHead><TableHead>Registrado por</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
-      <TableBody>{filtered.length === 0 ? <TableRow><TableCell colSpan={8} className="h-28 text-center text-muted-foreground">{rows.length ? 'Nenhum frete encontrado para este filtro.' : 'Nenhum frete registrado. Clique em Novo frete para começar.'}</TableCell></TableRow> : filtered.map(row => <TableRow key={row.id}>
+      <TableHeader><TableRow><TableHead>Data do frete</TableHead><TableHead>Pedido</TableHead><TableHead>Nome</TableHead><TableHead>Motorista</TableHead><TableHead>Bairro</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Situação</TableHead><TableHead>Registrado por</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
+      <TableBody>{filtered.length === 0 ? <TableRow><TableCell colSpan={9} className="h-28 text-center text-muted-foreground">{rows.length ? 'Nenhum frete encontrado para este filtro.' : 'Nenhum frete registrado. Clique em Novo frete para começar.'}</TableCell></TableRow> : filtered.map(row => <TableRow key={row.id}>
         <TableCell className="whitespace-nowrap">{showDate(row.deliveryDate)}</TableCell>
         <TableCell className="max-w-40 break-words">{row.orderNumber || '—'}</TableCell>
         <TableCell className="font-medium">{row.customerName}{row.notes && <p className="max-w-xs whitespace-pre-wrap break-words text-xs font-normal text-muted-foreground">{row.notes}</p>}</TableCell>
+        <TableCell className="max-w-48 break-words">{row.driverName || '—'}</TableCell>
         <TableCell>{row.neighborhood}</TableCell><TableCell className="whitespace-nowrap text-right">{currency(row.amountCents)}</TableCell>
         <TableCell><Badge variant={row.paidAt ? 'secondary' : 'outline'}>{row.paidAt ? 'Pago' : 'Pendente'}</Badge>{row.paidAt && <p className="mt-1 text-xs text-muted-foreground">{new Date(row.paidAt).toLocaleDateString('pt-BR', { timeZone: 'America/Fortaleza' })} · {row.paidByName}</p>}</TableCell>
         <TableCell>{row.createdByName}</TableCell>
@@ -159,7 +160,7 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
         const form = new FormData(event.currentTarget);
         const amountCents = parseFreightAmount(String(form.get('amount')));
         if (amountCents === null) { setError('Informe um valor positivo, por exemplo: 45,50.'); return; }
-        const parsed = freightSchema.safeParse({ deliveryDate: form.get('deliveryDate'), orderNumber: form.get('orderNumber'), customerName: form.get('customerName'), zipCode: form.get('zipCode'), address: form.get('address'), complement: form.get('complement'), neighborhood: form.get('neighborhood'), amountCents, notes: form.get('notes') });
+        const parsed = freightSchema.safeParse({ deliveryDate: form.get('deliveryDate'), orderNumber: form.get('orderNumber'), driverName: form.get('driverName'), customerName: form.get('customerName'), zipCode: form.get('zipCode'), address: form.get('address'), complement: form.get('complement'), neighborhood: form.get('neighborhood'), amountCents, notes: form.get('notes') });
         if (!parsed.success) { setError(parsed.error.issues[0].message); return; }
         if (editing) {
           void run(() => saveAction(parsed.data, editing.id, editing.updatedAt));
@@ -180,6 +181,7 @@ export default function FreightPaymentsTable({ initialRows, currentUserId, saveA
           <div><Label htmlFor="freight-order">Número do pedido (opcional)</Label><Input id="freight-order" name="orderNumber" maxLength={60} readOnly={busy || (!editing && !!draft)} defaultValue={formValues?.orderNumber ?? ''} placeholder="Ex.: 001234" /></div>
         </div>
         <FreightCustomerName defaultValue={formValues?.customerName} readOnly={busy || (!editing && !!draft)} searchAction={searchCustomersAction} onCustomerSelected={() => { cepRequest.current++; }} />
+        <div><Label htmlFor="freight-driver">Nome do motorista (opcional)</Label><Input id="freight-driver" name="driverName" maxLength={160} readOnly={busy || (!editing && !!draft)} defaultValue={formValues?.driverName ?? ''} placeholder="Digite o nome do motorista" /></div>
         <div className="grid gap-3 sm:grid-cols-3">
           <div><Label htmlFor="freight-cep">CEP</Label><Input id="freight-cep" name="zipCode" readOnly={!editing && !!draft} onChange={handleCepMask} defaultValue={formValues?.zipCode ?? ''} placeholder="00000-000" maxLength={9} /></div>
           <div className="sm:col-span-2"><Label htmlFor="freight-address">Endereço</Label><Input id="freight-address" name="address" required readOnly={!editing && !!draft} minLength={2} maxLength={160} defaultValue={formValues?.address ?? ''} /></div>
