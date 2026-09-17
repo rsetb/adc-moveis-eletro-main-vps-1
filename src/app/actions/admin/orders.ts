@@ -868,38 +868,50 @@ export async function getDeletedOrdersWithAuditAction(): Promise<{ success: bool
         const session = await getSession();
         if (!session) throw new Error('Não autenticado.');
 
-        const rows = await db.$queryRaw<any[]>(Prisma.sql`
-            SELECT
-                o.id,
-                (CASE WHEN jsonb_typeof(o.customer::jsonb) = 'string' THEN (o.customer #>> '{}')::jsonb ELSE o.customer::jsonb END)->>'name' AS customer_name,
-                (CASE WHEN jsonb_typeof(o.customer::jsonb) = 'string' THEN (o.customer #>> '{}')::jsonb ELSE o.customer::jsonb END)->>'cpf' AS customer_cpf,
-                o.total,
-                o.date AS order_date,
-                al.user_name AS deleted_by,
-                al.timestamp AS deleted_at
-            FROM orders o
-            LEFT JOIN LATERAL (
-                SELECT user_name, timestamp
+        // Fetch deleted orders and audit logs in two separate fast queries, then join in memory
+        const [orderRows, auditRows] = await Promise.all([
+            db.$queryRaw<any[]>(Prisma.sql`
+                SELECT
+                    id,
+                    (CASE WHEN jsonb_typeof(customer::jsonb) = 'string' THEN (customer #>> '{}')::jsonb ELSE customer::jsonb END)->>'name' AS customer_name,
+                    (CASE WHEN jsonb_typeof(customer::jsonb) = 'string' THEN (customer #>> '{}')::jsonb ELSE customer::jsonb END)->>'cpf' AS customer_cpf,
+                    total,
+                    date AS order_date
+                FROM orders
+                WHERE status ILIKE '%exclu%' AND id ILIKE 'PED-%'
+                ORDER BY date DESC
+            `),
+            db.$queryRaw<any[]>(Prisma.sql`
+                SELECT
+                    substring(details from 'PED-[0-9]+') AS order_id,
+                    user_name,
+                    timestamp
                 FROM audit_logs
-                WHERE details::text ILIKE '%' || o.id || '%'
-                  AND action ILIKE '%Exclus%'
+                WHERE action ILIKE '%Exclus%' AND details ILIKE '%PED-%'
                 ORDER BY timestamp DESC
-                LIMIT 1
-            ) al ON true
-            WHERE o.status ILIKE '%exclu%'
-              AND o.id ILIKE 'PED-%'
-            ORDER BY o.date DESC
-        `);
+            `),
+        ]);
 
-        const data: DeletedOrderRow[] = rows.map(r => ({
-            id: String(r.id),
-            customerName: String(r.customer_name || ''),
-            customerCpf: String(r.customer_cpf || ''),
-            total: Number(r.total || 0),
-            orderDate: r.order_date ? new Date(r.order_date).toISOString() : '',
-            deletedBy: r.deleted_by ? String(r.deleted_by) : null,
-            deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null,
-        }));
+        // Build a map: orderId -> latest deletion audit entry
+        const auditMap = new Map<string, { user_name: string; timestamp: any }>();
+        for (const row of auditRows) {
+            if (row.order_id && !auditMap.has(row.order_id)) {
+                auditMap.set(row.order_id, row);
+            }
+        }
+
+        const data: DeletedOrderRow[] = orderRows.map(r => {
+            const audit = auditMap.get(String(r.id));
+            return {
+                id: String(r.id),
+                customerName: String(r.customer_name || ''),
+                customerCpf: String(r.customer_cpf || ''),
+                total: Number(r.total || 0),
+                orderDate: r.order_date ? new Date(r.order_date).toISOString() : '',
+                deletedBy: audit?.user_name ? String(audit.user_name) : null,
+                deletedAt: audit?.timestamp ? new Date(audit.timestamp).toISOString() : null,
+            };
+        });
 
         return { success: true, data };
     } catch (error: any) {
