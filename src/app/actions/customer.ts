@@ -69,14 +69,10 @@ export async function getCustomerOrdersAction(customerCpf: string) {
 
         const orders = await db.order.findMany({
             where: {
-                AND: [
-                    { status: { not: { contains: 'exclu', mode: 'insensitive' } } },
-                    {
-                        OR: [
-                            { customer: { path: ['cpf'], string_contains: digits } },
-                            { customer: { path: ['cpf'], string_contains: formatted } },
-                        ],
-                    },
+                NOT: { status: { contains: 'exclu', mode: 'insensitive' } },
+                OR: [
+                    { customer: { path: ['cpf'], string_contains: digits } },
+                    { customer: { path: ['cpf'], string_contains: formatted } },
                 ],
             },
             orderBy: { createdAt: 'desc' },
