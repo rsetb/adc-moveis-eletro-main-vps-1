@@ -41,48 +41,28 @@ export async function verifyCustomerPasswordAction(cpf: string, password: string
 export async function getCustomerOrdersAction(customerCpf: string) {
     try {
         const digits = customerCpf.replace(/\D/g, '');
+        // Build formatted CPF (e.g. "073.745.413-09") to also match orders that
+        // stored it with punctuation instead of digits-only.
+        const formatted = digits.length === 11
+            ? `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`
+            : digits;
 
-        // Use text extraction (customer->>'cpf') which handles both "07374541309"
-        // and "073.745.413-09" stored formats via regexp_replace normalization.
-        // Explicit camelCase aliases so the client receives the expected field names.
-        const rows = await db.$queryRaw<any[]>`
-            SELECT
-                id, customer, items, total, subtotal, discount,
-                down_payment             AS "downPayment",
-                delivery_fee             AS "deliveryFee",
-                installments,
-                installment_value        AS "installmentValue",
-                date,
-                first_due_date           AS "firstDueDate",
-                status,
-                payment_method           AS "paymentMethod",
-                installment_details      AS "installmentDetails",
-                installment_card_details AS "installmentCardDetails",
-                tracking_code            AS "trackingCode",
-                attachments,
-                seller_id                AS "sellerId",
-                seller_name              AS "sellerName",
-                commission,
-                commission_date          AS "commissionDate",
-                commission_paid          AS "commissionPaid",
-                is_commission_manual     AS "isCommissionManual",
-                observations,
-                source,
-                asaas,
-                created_by_id            AS "createdById",
-                created_by_name          AS "createdByName",
-                created_by_role          AS "createdByRole",
-                created_ip               AS "createdIp"
-            FROM orders
-            WHERE (
-                customer->>'cpf' = ${digits}
-                OR regexp_replace(customer->>'cpf', '[^0-9]', '', 'g') = ${digits}
-            )
-            AND status NOT ILIKE '%exclu%'
-            ORDER BY date DESC
-        `;
+        const orders = await db.order.findMany({
+            where: {
+                AND: [
+                    { status: { not: { contains: 'exclu', mode: 'insensitive' } } },
+                    {
+                        OR: [
+                            { customer: { path: ['cpf'], string_contains: digits } },
+                            { customer: { path: ['cpf'], string_contains: formatted } },
+                        ],
+                    },
+                ],
+            },
+            orderBy: { createdAt: 'desc' },
+        });
 
-        return { success: true, data: rows as unknown as Order[] };
+        return { success: true, data: orders as unknown as Order[] };
     } catch (error: any) {
         return { success: false, error: error.message };
     }
