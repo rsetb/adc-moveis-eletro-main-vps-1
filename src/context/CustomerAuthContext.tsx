@@ -48,9 +48,13 @@ export const CustomerAuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const fetchOrders = async () => {
-      const result = await getCustomerOrdersAction(customer.cpf!);
-      if (result.success && result.data) {
-        setCustomerOrders(result.data);
+      try {
+        const result = await getCustomerOrdersAction(customer.cpf!);
+        if (result.success && result.data) {
+          setCustomerOrders(result.data);
+        }
+      } catch (err) {
+        console.error('Erro ao buscar pedidos do cliente:', err);
       }
     };
 
@@ -69,7 +73,15 @@ export const CustomerAuthProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
 
+      // Pre-fetch orders before navigating to avoid the timing race
+      let orders: Order[] = [];
+      try {
+        const ordersResult = await getCustomerOrdersAction(result.data.cpf || normalizedCpf);
+        if (ordersResult.success && ordersResult.data) orders = ordersResult.data;
+      } catch { /* non-blocking */ }
+
       setCustomer(result.data);
+      setCustomerOrders(orders);
       localStorage.setItem('customer', JSON.stringify(result.data));
       router.push('/area-cliente/minha-conta');
       toast({

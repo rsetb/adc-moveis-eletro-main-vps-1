@@ -41,20 +41,44 @@ export async function verifyCustomerPasswordAction(cpf: string, password: string
 export async function getCustomerOrdersAction(customerCpf: string) {
     try {
         const digits = customerCpf.replace(/\D/g, '');
-        // Use raw query to normalize both sides before comparing, handling CPFs stored
-        // with or without formatting (e.g. "07374541309" vs "073.745.413-09")
-        const result = await db.$queryRaw<any[]>`
-            SELECT * FROM orders
-            WHERE regexp_replace(
-                (CASE WHEN jsonb_typeof(customer::jsonb) = 'string'
-                      THEN (customer #>> '{}')::jsonb
-                      ELSE customer::jsonb END)->>'cpf',
-                '[^0-9]', '', 'g'
-            ) = ${digits}
-            AND status NOT ILIKE '%exclu%'
-            ORDER BY created_at DESC
-        `;
-        return { success: true, data: result as unknown as Order[] };
+
+        // Primary: use Prisma findMany with JSON path filter for digits-only CPF
+        // (returns camelCase columns, no serialization issues)
+        let orders = await (db as any).order.findMany({
+            where: {
+                status: { not: { contains: 'exclu', mode: 'insensitive' } },
+                customer: { path: ['cpf'], equals: digits },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        // Fallback: CPF stored with formatting (e.g. "073.745.413-09") — raw query to normalize
+        if (orders.length === 0) {
+            const rawRows = await db.$queryRaw<any[]>`
+                SELECT id, customer, items, total, subtotal, discount,
+                       down_payment AS "downPayment", delivery_fee AS "deliveryFee",
+                       installments, installment_value AS "installmentValue",
+                       date, first_due_date AS "firstDueDate", status,
+                       payment_method AS "paymentMethod",
+                       installment_details AS "installmentDetails",
+                       installment_card_details AS "installmentCardDetails",
+                       tracking_code AS "trackingCode", attachments,
+                       seller_id AS "sellerId", seller_name AS "sellerName",
+                       commission, commission_date AS "commissionDate",
+                       commission_paid AS "commissionPaid",
+                       is_commission_manual AS "isCommissionManual",
+                       observations, source, asaas,
+                       created_by_id AS "createdById", created_by_name AS "createdByName",
+                       created_by_role AS "createdByRole", created_ip AS "createdIp"
+                FROM orders
+                WHERE regexp_replace((customer::jsonb)->>'cpf', '[^0-9]', '', 'g') = ${digits}
+                AND status NOT ILIKE '%exclu%'
+                ORDER BY date DESC
+            `;
+            orders = rawRows;
+        }
+
+        return { success: true, data: orders as unknown as Order[] };
     } catch (error: any) {
         return { success: false, error: error.message };
     }
