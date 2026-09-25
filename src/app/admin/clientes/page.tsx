@@ -330,6 +330,7 @@ function CustomersAdminPageInner() {
     const [orderForPayment, setOrderForPayment] = useState<Order | null>(null);
     const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState('active');
+    const [ratingFilter, setRatingFilter] = useState<number | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const lastAutofilledZipRef = useRef<string | null>(null);
     const serverSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -407,6 +408,10 @@ function CustomersAdminPageInner() {
             result = result.filter(c => c.blocked);
         } else {
             result = result.filter(c => !c.blocked);
+        }
+
+        if (ratingFilter !== null) {
+            result = result.filter(c => ratingFilter === 0 ? !c.rating || c.rating === 0 : c.rating === ratingFilter);
         }
 
         if (hasAnySearchFilter(searchFilters)) {
@@ -1152,30 +1157,23 @@ Não esqueça de enviar o comprovante!`;
                                 <Users className="h-5 w-5" />
                                 Clientes
                             </CardTitle>
-                            <div className="flex flex-wrap gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                        const myAssignableId = assignableSellers.find(s => s.id === user?.id)?.id;
-                                        if (myAssignableId) {
-                                            setNewCustomerSellerId(myAssignableId);
-                                        } else if (assignableSellers[0]?.id) {
-                                            setNewCustomerSellerId(assignableSellers[0].id);
-                                        }
-                                        setIsAddCustomerDialogOpen(true);
-                                    }}
-                                >
-                                    <UserPlus className="h-4 w-4 mr-2" />
-                                    Cadastrar
-                                </Button>
-                                {isAdmin && (
-                                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-                                        <Import className="h-4 w-4 mr-2" />
-                                        Importar
-                                    </Button>
-                                )}
-                            </div>
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                title="Cadastrar cliente"
+                                onClick={() => {
+                                    const myAssignableId = assignableSellers.find(s => s.id === user?.id)?.id;
+                                    if (myAssignableId) {
+                                        setNewCustomerSellerId(myAssignableId);
+                                    } else if (assignableSellers[0]?.id) {
+                                        setNewCustomerSellerId(assignableSellers[0].id);
+                                    }
+                                    setIsAddCustomerDialogOpen(true);
+                                }}
+                            >
+                                <Plus className="h-4 w-4" />
+                            </Button>
                             {isAdmin && (
                                 <input
                                     type="file"
@@ -1208,6 +1206,24 @@ Não esqueça de enviar o comprovante!`;
                                     </Button>
                                 )}
                             </div>
+                            <div className="flex flex-wrap gap-1 mb-3">
+                                {[
+                                    { label: 'RUIM', value: 1, className: ratingFilter === 1 ? 'bg-destructive text-destructive-foreground border-destructive' : 'border-input text-muted-foreground hover:bg-muted' },
+                                    { label: 'REGULAR', value: 2, className: ratingFilter === 2 ? 'bg-yellow-500 text-white border-yellow-500' : 'border-input text-muted-foreground hover:bg-muted' },
+                                    { label: 'BOM', value: 3, className: ratingFilter === 3 ? 'bg-blue-600 text-white border-blue-600' : 'border-input text-muted-foreground hover:bg-muted' },
+                                    { label: 'EXCELENTE', value: 4, className: ratingFilter === 4 ? 'bg-green-600 text-white border-green-600' : 'border-input text-muted-foreground hover:bg-muted' },
+                                    { label: 'SEM CLASSIF.', value: 0, className: ratingFilter === 0 ? 'bg-secondary text-secondary-foreground border-secondary' : 'border-input text-muted-foreground hover:bg-muted' },
+                                ].map(({ label, value, className }) => (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => setRatingFilter(prev => prev === value ? null : value)}
+                                        className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border transition-colors', className)}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
                             <TabsContent value="active">
                                 {customersToDisplay.length > 0 ? (
                                     <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-2">
@@ -1233,7 +1249,8 @@ Não esqueça de enviar o comprovante!`;
                                                                 const rating = customer.rating;
                                                                 if (rating === 1) return <Badge variant="destructive" className="text-[10px] h-4 px-1 py-0">RUIM</Badge>;
                                                                 if (rating === 2) return <Badge variant="secondary" className="bg-yellow-500 text-white hover:bg-yellow-600 border-none text-[10px] h-4 px-1 py-0">REGULAR</Badge>;
-                                                                if (rating === 3) return <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-[10px] h-4 px-1 py-0">EXCELENTE</Badge>;
+                                                                if (rating === 3) return <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 text-[10px] h-4 px-1 py-0">BOM</Badge>;
+                                                                if (rating === 4) return <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-[10px] h-4 px-1 py-0">EXCELENTE</Badge>;
                                                                 return null;
                                                             })()}
                                                         </div>
@@ -1291,7 +1308,8 @@ Não esqueça de enviar o comprovante!`;
                                                                 const rating = customer.rating;
                                                                 if (rating === 1) return <Badge variant="destructive" className="text-[10px] h-4 px-1 py-0">RUIM</Badge>;
                                                                 if (rating === 2) return <Badge variant="secondary" className="bg-yellow-500 text-white hover:bg-yellow-600 border-none text-[10px] h-4 px-1 py-0">REGULAR</Badge>;
-                                                                if (rating === 3) return <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-[10px] h-4 px-1 py-0">EXCELENTE</Badge>;
+                                                                if (rating === 3) return <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 text-[10px] h-4 px-1 py-0">BOM</Badge>;
+                                                                if (rating === 4) return <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-[10px] h-4 px-1 py-0">EXCELENTE</Badge>;
                                                                 return null;
                                                             })()}
                                                         </div>
@@ -1407,7 +1425,8 @@ Não esqueça de enviar o comprovante!`;
                                                     const rating = selectedCustomer.rating;
                                                     if (rating === 1) return <Badge variant="destructive" className="ml-2 text-[10px] h-5 px-1 py-0">RUIM</Badge>;
                                                     if (rating === 2) return <Badge variant="secondary" className="ml-2 bg-yellow-500 text-white hover:bg-yellow-600 border-none text-[10px] h-5 px-1 py-0">REGULAR</Badge>;
-                                                    if (rating === 3) return <Badge variant="default" className="ml-2 bg-green-600 hover:bg-green-700 text-[10px] h-5 px-1 py-0">EXCELENTE</Badge>;
+                                                    if (rating === 3) return <Badge variant="default" className="ml-2 bg-blue-600 hover:bg-blue-700 text-[10px] h-5 px-1 py-0">BOM</Badge>;
+                                                    if (rating === 4) return <Badge variant="default" className="ml-2 bg-green-600 hover:bg-green-700 text-[10px] h-5 px-1 py-0">EXCELENTE</Badge>;
                                                     return null;
                                                 })()
                                             )}
@@ -2113,12 +2132,12 @@ Não esqueça de enviar o comprovante!`;
                         <div className="pt-4 border-t space-y-4">
                             <div>
                                 <Label className="mb-2 block">Classificação do Cliente</Label>
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                     <button
                                         type="button"
-                                        onClick={() => setEditedInfo(prev => ({ ...prev, rating: 1 }))}
+                                        onClick={() => setEditedInfo(prev => ({ ...prev, rating: editedInfo.rating === 1 ? 0 : 1 }))}
                                         className={cn(
-                                            "px-4 py-2 rounded-md text-sm font-medium transition-colors border",
+                                            "px-3 py-1.5 rounded-md text-sm font-medium transition-colors border",
                                             (editedInfo.rating === 1)
                                                 ? "bg-destructive text-destructive-foreground border-destructive"
                                                 : "bg-background hover:bg-muted text-muted-foreground border-input"
@@ -2128,9 +2147,9 @@ Não esqueça de enviar o comprovante!`;
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => setEditedInfo(prev => ({ ...prev, rating: 2 }))}
+                                        onClick={() => setEditedInfo(prev => ({ ...prev, rating: editedInfo.rating === 2 ? 0 : 2 }))}
                                         className={cn(
-                                            "px-4 py-2 rounded-md text-sm font-medium transition-colors border",
+                                            "px-3 py-1.5 rounded-md text-sm font-medium transition-colors border",
                                             (editedInfo.rating === 2)
                                                 ? "bg-yellow-500 text-white border-yellow-500 hover:bg-yellow-600"
                                                 : "bg-background hover:bg-muted text-muted-foreground border-input"
@@ -2140,10 +2159,22 @@ Não esqueça de enviar o comprovante!`;
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => setEditedInfo(prev => ({ ...prev, rating: 3 }))}
+                                        onClick={() => setEditedInfo(prev => ({ ...prev, rating: editedInfo.rating === 3 ? 0 : 3 }))}
                                         className={cn(
-                                            "px-4 py-2 rounded-md text-sm font-medium transition-colors border",
+                                            "px-3 py-1.5 rounded-md text-sm font-medium transition-colors border",
                                             (editedInfo.rating === 3)
+                                                ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
+                                                : "bg-background hover:bg-muted text-muted-foreground border-input"
+                                        )}
+                                    >
+                                        BOM
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditedInfo(prev => ({ ...prev, rating: editedInfo.rating === 4 ? 0 : 4 }))}
+                                        className={cn(
+                                            "px-3 py-1.5 rounded-md text-sm font-medium transition-colors border",
+                                            (editedInfo.rating === 4)
                                                 ? "bg-green-600 text-white border-green-600 hover:bg-green-700"
                                                 : "bg-background hover:bg-muted text-muted-foreground border-input"
                                         )}
