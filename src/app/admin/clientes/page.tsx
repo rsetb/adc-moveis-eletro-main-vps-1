@@ -485,7 +485,7 @@ function CustomersAdminPageInner() {
         }
 
         return sortCustomersByRelevance(result, searchQuery);
-    }, [customers, searchFilters, activeTab, user, searchQuery]);
+    }, [customers, searchFilters, activeTab, user, searchQuery, ratingFilter]);
 
     const getCustomerSource = useCallback((c: CustomerInfo) => {
         const anyC: any = c as any;
@@ -1143,6 +1143,14 @@ Não esqueça de enviar o comprovante!`;
         setSelectedCustomer(prev => prev ? ({ ...prev, blocked: false, blockedReason: undefined }) : null);
     };
 
+    const handleQuickRating = async (newRating: number) => {
+        if (!selectedCustomer || !user) return;
+        const rating = selectedCustomer.rating === newRating ? 0 : newRating;
+        const updated = { ...selectedCustomer, rating };
+        await updateCustomer(selectedCustomer, updated, logAction, user);
+        setSelectedCustomer(updated);
+    };
+
     return (
         <>
             <div className="mb-6">
@@ -1415,21 +1423,32 @@ Não esqueça de enviar o comprovante!`;
                             <div className="space-y-8">
                                 <div>
                                     <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex flex-col gap-1.5">
                                             <h3 className="text-lg font-semibold flex items-center gap-2">
                                                 <UserIcon className="h-5 w-5 text-primary" />
                                                 Informações Pessoais
                                             </h3>
-                                            {selectedCustomer.rating && selectedCustomer.rating > 0 && (
-                                                (() => {
-                                                    const rating = selectedCustomer.rating;
-                                                    if (rating === 1) return <Badge variant="destructive" className="ml-2 text-[10px] h-5 px-1 py-0">RUIM</Badge>;
-                                                    if (rating === 2) return <Badge variant="secondary" className="ml-2 bg-yellow-500 text-white hover:bg-yellow-600 border-none text-[10px] h-5 px-1 py-0">REGULAR</Badge>;
-                                                    if (rating === 3) return <Badge variant="default" className="ml-2 bg-blue-600 hover:bg-blue-700 text-[10px] h-5 px-1 py-0">BOM</Badge>;
-                                                    if (rating === 4) return <Badge variant="default" className="ml-2 bg-green-600 hover:bg-green-700 text-[10px] h-5 px-1 py-0">EXCELENTE</Badge>;
-                                                    return null;
-                                                })()
-                                            )}
+                                            <div className="flex flex-wrap items-center gap-1.5 ml-1">
+                                                <span className="text-xs text-muted-foreground">Classificação:</span>
+                                                {[
+                                                    { label: 'RUIM', value: 1, active: 'bg-destructive text-destructive-foreground border-destructive', inactive: 'border-input text-muted-foreground hover:bg-muted' },
+                                                    { label: 'REGULAR', value: 2, active: 'bg-yellow-500 text-white border-yellow-500', inactive: 'border-input text-muted-foreground hover:bg-muted' },
+                                                    { label: 'BOM', value: 3, active: 'bg-blue-600 text-white border-blue-600', inactive: 'border-input text-muted-foreground hover:bg-muted' },
+                                                    { label: 'EXCELENTE', value: 4, active: 'bg-green-600 text-white border-green-600', inactive: 'border-input text-muted-foreground hover:bg-muted' },
+                                                ].map(({ label, value, active, inactive }) => (
+                                                    <button
+                                                        key={value}
+                                                        type="button"
+                                                        onClick={() => handleQuickRating(value)}
+                                                        className={cn(
+                                                            'text-[10px] font-semibold px-2 py-0.5 rounded border transition-colors',
+                                                            selectedCustomer.rating === value ? active : inactive
+                                                        )}
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
                                         <div className="flex gap-2">
                                             <Button variant="outline" size="sm" onClick={handleOpenEditDialog}>
