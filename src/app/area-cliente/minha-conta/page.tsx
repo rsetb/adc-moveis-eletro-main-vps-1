@@ -9,26 +9,41 @@ import type { Order } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { User, Mail, Phone, MapPin, CreditCard, LogOut, FileText, CheckCircle, Clock } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { User, Mail, Phone, MapPin, CreditCard, LogOut, FileText, CheckCircle, Clock, Copy, MessageSquare, QrCode } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import Link from 'next/link';
+import { useSettings } from '@/context/SettingsContext';
+import { generatePixPayload } from '@/lib/pix';
+import PixQRCode from '@/components/PixQRCode';
+import { useToast } from '@/hooks/use-toast';
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
+interface PayingInstallment {
+  orderId: string;
+  installmentNumber: number;
+  amount: number;
+  dueDate: string;
+}
+
 export default function MyAccountPage() {
   const { customer, customerOrders, logout, isAuthenticated, isLoading } = useCustomerAuth();
+  const { settings } = useSettings();
   const router = useRouter();
+  const { toast } = useToast();
+  const [payingInstallment, setPayingInstallment] = useState<PayingInstallment | null>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.replace('/area-cliente/login');
     }
   }, [isLoading, isAuthenticated, router]);
-  
+
   const sortedCustomerOrders = useMemo(() => {
     if (!customerOrders) return [];
     return [...customerOrders]
@@ -40,7 +55,7 @@ export default function MyAccountPage() {
     if (!customer) {
       return { totalComprado: 0, totalPago: 0, saldoDevedor: 0 };
     }
-    
+
     const totalComprado = sortedCustomerOrders.reduce((acc, order) => acc + order.total, 0);
     const totalPago = sortedCustomerOrders.reduce((sum, order) => {
       if (order.paymentMethod === 'Crediário') {
@@ -61,6 +76,22 @@ export default function MyAccountPage() {
 
     return { totalComprado, totalPago, saldoDevedor };
   }, [customer, sortedCustomerOrders]);
+
+  const dialogPixPayload = useMemo(() => {
+    if (!payingInstallment || !settings.pixKey) return null;
+    const { pixKey, storeName, storeCity } = settings;
+    const txid = `${payingInstallment.orderId}-P${payingInstallment.installmentNumber}`;
+    return generatePixPayload(pixKey, storeName || 'Loja', storeCity || '', txid, payingInstallment.amount);
+  }, [payingInstallment, settings]);
+
+  const dialogWhatsappUrl = useMemo(() => {
+    if (!payingInstallment || !settings.storePhone) return '';
+    const phone = settings.storePhone.replace(/\D/g, '');
+    const { orderId, installmentNumber, amount, dueDate } = payingInstallment;
+    const venc = format(parseISO(dueDate), "dd/MM/yyyy");
+    const msg = `Olá! Gostaria de pagar a Parcela ${installmentNumber} do pedido ${orderId}, no valor de ${formatCurrency(amount)} com vencimento em ${venc}. Poderia me ajudar?`;
+    return `https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`;
+  }, [payingInstallment, settings]);
 
   const getStatusVariant = (status: Order['status']): 'secondary' | 'default' | 'outline' | 'destructive' => {
     switch (status) {
@@ -191,13 +222,28 @@ export default function MyAccountPage() {
                                                     {(order.installmentDetails && order.installmentDetails.length > 0) ? (
                                                         <div>
                                                             <h4 className="font-semibold mb-2">Parcelas</h4>
+                                                            <p className="text-xs text-muted-foreground mb-2">Clique em uma parcela pendente para pagar via PIX.</p>
                                                             <div className="space-y-2">
                                                                 {order.installmentDetails.map(inst => {
                                                                     const remainingAmount = inst.amount - (inst.paidAmount || 0);
                                                                     const isPaid = inst.status === 'Pago';
                                                                     const isPartiallyPaid = inst.status === 'Pendente' && (inst.paidAmount || 0) > 0;
+                                                                    const amountToPay = isPartiallyPaid ? remainingAmount : inst.amount;
                                                                     return (
-                                                                        <div key={inst.installmentNumber} className="flex justify-between items-center text-sm p-2 rounded-md bg-muted/50">
+                                                                        <div
+                                                                            key={inst.installmentNumber}
+                                                                            onClick={() => {
+                                                                                if (!isPaid) {
+                                                                                    setPayingInstallment({
+                                                                                        orderId: order.id,
+                                                                                        installmentNumber: inst.installmentNumber,
+                                                                                        amount: amountToPay,
+                                                                                        dueDate: inst.dueDate,
+                                                                                    });
+                                                                                }
+                                                                            }}
+                                                                            className={`flex justify-between items-center text-sm p-2 rounded-md bg-muted/50 ${!isPaid ? 'cursor-pointer hover:bg-muted transition-colors' : ''}`}
+                                                                        >
                                                                             <div>
                                                                                 <p className="font-medium">Parcela {inst.installmentNumber}</p>
                                                                                 <p className="text-xs text-muted-foreground">Venc. {format(parseISO(inst.dueDate), "dd/MM/yy")}</p>
@@ -207,7 +253,10 @@ export default function MyAccountPage() {
                                                                             </div>
                                                                             <div className="flex items-center gap-2">
                                                                                 <span className="font-semibold">{formatCurrency(inst.amount)}</span>
-                                                                                {isPaid ? <CheckCircle className="h-4 w-4 text-green-600"/> : <Clock className="h-4 w-4 text-amber-600" />}
+                                                                                {isPaid
+                                                                                    ? <CheckCircle className="h-4 w-4 text-green-600"/>
+                                                                                    : <Clock className="h-4 w-4 text-amber-600" />
+                                                                                }
                                                                             </div>
                                                                         </div>
                                                                     );
@@ -241,6 +290,64 @@ export default function MyAccountPage() {
                 </div>
             </div>
         </div>
+
+        {/* Dialog de pagamento de parcela */}
+        <Dialog open={!!payingInstallment} onOpenChange={open => { if (!open) setPayingInstallment(null); }}>
+            <DialogContent className="max-w-sm">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <QrCode className="h-5 w-5" />
+                        Pagar Parcela {payingInstallment?.installmentNumber}
+                    </DialogTitle>
+                    <DialogDescription>
+                        Pedido {payingInstallment?.orderId} · Venc.{' '}
+                        {payingInstallment ? format(parseISO(payingInstallment.dueDate), "dd/MM/yyyy") : ''}
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="text-center py-2">
+                    <p className="text-sm text-muted-foreground">Valor a pagar</p>
+                    <p className="text-4xl font-bold text-primary mt-1">
+                        {payingInstallment && formatCurrency(payingInstallment.amount)}
+                    </p>
+                </div>
+
+                {dialogPixPayload && (
+                    <div className="flex justify-center py-2">
+                        <PixQRCode payload={dialogPixPayload} size={200} className="rounded-lg" />
+                    </div>
+                )}
+
+                {settings.pixKey && (
+                    <div>
+                        <p className="text-xs text-muted-foreground mb-1">Chave PIX</p>
+                        <div className="flex items-center gap-2 bg-muted p-3 rounded-md">
+                            <span className="flex-1 font-mono text-sm break-all select-all">{settings.pixKey}</span>
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 flex-shrink-0"
+                                onClick={() => {
+                                    navigator.clipboard.writeText(settings.pixKey);
+                                    toast({ title: 'Chave PIX copiada!' });
+                                }}
+                            >
+                                <Copy className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
+                )}
+
+                {dialogWhatsappUrl && (
+                    <Button asChild className="w-full bg-green-600 hover:bg-green-700 text-white">
+                        <a href={dialogWhatsappUrl} target="_blank" rel="noopener noreferrer">
+                            <MessageSquare className="mr-2 h-4 w-4" />
+                            Falar no WhatsApp
+                        </a>
+                    </Button>
+                )}
+            </DialogContent>
+        </Dialog>
     </div>
   );
 }
