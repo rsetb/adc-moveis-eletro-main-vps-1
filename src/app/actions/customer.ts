@@ -39,17 +39,16 @@ export async function verifyCustomerPasswordAction(cpf: string, password: string
         } else {
             // Plain-text comparison for legacy passwords
             isValid = password === customer.password;
-            if (isValid) {
-                // Auto-upgrade to bcrypt so the next login goes through the secure path
-                const newHash = await bcrypt.hash(password, 10);
-                await db.customer.update({
-                    where: { id: customer.id },
-                    data: { password: newHash },
-                });
-            }
         }
 
         if (!isValid) return { success: false, error: 'Senha inválida.' };
+
+        // Non-blocking upgrade to bcrypt — failure must never prevent login
+        if (!isBcrypt) {
+            bcrypt.hash(password, 10)
+                .then(newHash => db.customer.update({ where: { id: customer.id }, data: { password: newHash } }))
+                .catch(() => { /* ignore — will retry on next login */ });
+        }
 
         const { password: _pw, ...customerWithoutPassword } = customer as any;
         return { success: true, data: customerWithoutPassword as CustomerInfo };
