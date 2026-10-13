@@ -607,7 +607,7 @@ const UPDATABLE_ORDER_FIELDS = [
     'attachments', 'sellerId', 'sellerName', 'commission',
     'commissionDate', 'commissionPaid', 'isCommissionManual',
     'observations', 'source', 'createdById', 'createdByName',
-    'createdByRole', 'createdIp', 'asaas'
+    'createdByRole', 'createdIp', 'asaas', 'deliveryFeePaid'
 ];
 
 // Update Order Details (General) - Only sends valid, updatable fields to Prisma

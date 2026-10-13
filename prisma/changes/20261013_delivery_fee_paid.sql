@@ -1,0 +1,1 @@
+ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "delivery_fee_paid" BOOLEAN;

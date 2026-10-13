@@ -189,6 +189,7 @@ model Order {
   discount               Float?
   downPayment            Float?   @map("down_payment")
   deliveryFee            Float?   @map("delivery_fee")
+  deliveryFeePaid        Boolean? @map("delivery_fee_paid")
   installments           Int?
   installmentValue       Float?   @map("installment_value")
   date                   String
