@@ -52,7 +52,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             try {
                 const result = await getSettingsAction();
                 if (result.success && result.data) {
-                    setSettings(result.data);
+                    setSettings({ ...initialSettings, ...result.data });
                 }
             } catch (error) {
                 console.error("Failed to load settings:", error);
