@@ -405,15 +405,19 @@ Parcelamento: Até ${maxInstallments}x de ${formatCurrency(installmentValue)}`;
       (lastOrder as any)?.firstDueDate;
     const vencText = dueDateSource ? ` Venc ${format(new Date(dueDateSource), 'dd/MM')}` : '';
 
+    const deliveryZoneName = deliveryFee > 0
+      ? ((settings?.deliveryZones ?? []).find(z => z.fee === deliveryFee)?.name ?? 'Entrega')
+      : null;
+
     const message = `NOVO PEDIDO ONLINE
 Cód. Pedido (Temporário): ${tempOrderId}
 Vendedor: ${lastOrder.sellerName || 'Não atribuído'}
- 
+
 PRODUTOS:
 ${productsText}
- 
+
 ---------------------------
- 
+ ${deliveryFee > 0 ? `\nSubtotal Produtos: ${formatCurrency(lastOrder.total - deliveryFee)}\nTaxa de Entrega (${deliveryZoneName}): ${formatCurrency(deliveryFee)}` : ''}
 TOTAL DA COMPRA: ${formatCurrency(lastOrder.total)}
 FORMA DE PAGAMENTO: ${lastOrder.paymentMethod}
 CONDIÇÃO SUGERIDA: ${lastOrder.paymentMethod === 'Crediário' ? `Até ${finalMaxInstallments}x` : '-'}
@@ -434,7 +438,7 @@ OBSERVAÇÃO: ${(lastOrder.observations || '').trim() || '-'}
 Confirmação de Entrega: O pedido será enviado para o endereço acima.${vencText}`;
     
     return `https://wa.me/${storePhone}?text=${encodeURIComponent(message)}`;
-  }, [lastOrder, tempOrderId, settings, orderMaxInstallments, products]);
+  }, [lastOrder, tempOrderId, settings, orderMaxInstallments, products, deliveryFee]);
 
   useEffect(() => {
     if (isSuccess && !hasOpenedWhatsApp && lastOrder && tempOrderId) {
