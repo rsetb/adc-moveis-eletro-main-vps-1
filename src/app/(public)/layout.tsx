@@ -70,14 +70,14 @@ export default function PublicPageLayout({ children }: { children: ReactNode }) 
                     </div>
 
                     {/* Title */}
-                    <h2 className="text-center text-lg font-bold text-gray-900 dark:text-gray-100 leading-tight">
+                    <h2 className="text-center text-base font-bold text-gray-900 dark:text-gray-100 leading-tight sm:text-lg">
                         Aviso de Taxa de Entrega
                     </h2>
 
                     {/* Body */}
                     <div className="flex items-start gap-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
-                        <span className="text-base flex-shrink-0 mt-0.5">📍</span>
-                        <p className="text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+                        <span className="text-sm flex-shrink-0 mt-0.5">📍</span>
+                        <p className="text-xs leading-relaxed text-gray-800 dark:text-gray-200 sm:text-sm">
                             Entregas no bairro{' '}
                             <span className="font-bold text-amber-700 dark:text-amber-400">Sapiranga-Coité</span>{' '}
                             têm taxa adicional de{' '}
