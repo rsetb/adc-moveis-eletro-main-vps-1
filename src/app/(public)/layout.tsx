@@ -77,11 +77,7 @@ export default function PublicPageLayout({ children }: { children: ReactNode }) 
                     <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5">
                         <span className="text-xs flex-shrink-0 mt-0.5">📍</span>
                         <p className="text-xs leading-relaxed text-gray-800 dark:text-gray-200">
-                            Entregas no bairro{' '}
-                            <span className="font-bold text-amber-700 dark:text-amber-400">Sapiranga-Coité</span>{' '}
-                            têm taxa adicional de{' '}
-                            <span className="font-bold text-amber-700 dark:text-amber-400">R$ 20,00</span>{' '}
-                            cobrada no ato da compra.
+                            Bairro <span className="font-bold text-amber-700 dark:text-amber-400">Sapiranga-Coité</span>: taxa adicional de <span className="font-bold text-amber-700 dark:text-amber-400">R$ 20,00</span> no ato da compra.
                         </p>
                     </div>
 
