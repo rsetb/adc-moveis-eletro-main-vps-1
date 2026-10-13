@@ -289,6 +289,14 @@ export default function CheckoutForm() {
   const sellerName = form.watch('sellerName');
   const paymentMethod = form.watch('paymentMethod');
 
+  const [deliveryFee, setDeliveryFee] = useState(0);
+
+  const checkNeighborhoodFee = (neighborhood: string) => {
+    const isSapiranga = neighborhood.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes('sapiranga');
+    setDeliveryFee(isSapiranga ? 25 : 0);
+    return isSapiranga;
+  };
+
   const handleZipBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
     const zip = e.target.value.replace(/\D/g, '');
 
@@ -317,10 +325,19 @@ export default function CheckoutForm() {
       form.setValue('city', data.localidade || '');
       form.setValue('state', data.uf || '');
 
-      toast({
-        title: "Endereço Encontrado!",
-        description: "Seu endereço foi preenchido automaticamente.",
-      });
+      const hasFee = checkNeighborhoodFee(data.bairro || '');
+
+      if (hasFee) {
+        toast({
+          title: "Taxa de entrega aplicada",
+          description: "Bairro Sapiranga-Coité: R$ 25,00 adicionados ao total.",
+        });
+      } else {
+        toast({
+          title: "Endereço Encontrado!",
+          description: "Seu endereço foi preenchido automaticamente.",
+        });
+      }
 
     } catch (error) {
       console.error("Erro ao buscar CEP:", error);
@@ -334,6 +351,7 @@ export default function CheckoutForm() {
 
 
   const total = getCartTotal();
+  const finalTotal = total + deliveryFee;
 
   const orderMaxInstallments = useMemo(() => {
     if (!lastOrder) return 1;
@@ -600,7 +618,7 @@ Confirmação de Entrega: O pedido será enviado para o endereço acima.${vencTe
 
     const installmentDetails = (() => {
       if (!isCrediario || finalInstallments <= 0) return [];
-      const totalInCents = Math.round(total * 100);
+      const totalInCents = Math.round(finalTotal * 100);
       const baseInstallmentValueInCents = Math.floor(totalInCents / finalInstallments);
       let remainderInCents = totalInCents % finalInstallments;
 
@@ -628,7 +646,7 @@ Confirmação de Entrega: O pedido será enviado para o endereço acima.${vencTe
     const order: Partial<Order> & { firstDueDate: Date } = {
       customer: customerData,
       items: cartItems.map(({ ...item }) => item),
-      total,
+      total: finalTotal,
       installments: finalInstallments,
       installmentValue: finalInstallmentValue,
       date: orderDate.toISOString(),
@@ -785,9 +803,21 @@ Confirmação de Entrega: O pedido será enviado para o endereço acima.${vencTe
             </div>
           ))}
           <Separator />
+          {deliveryFee > 0 && (
+            <>
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Subtotal</span>
+                <span>{formatCurrency(total)}</span>
+              </div>
+              <div className="flex justify-between text-sm font-medium text-amber-700 bg-amber-50 rounded-md px-2 py-1.5">
+                <span className="flex items-center gap-1">🚚 Taxa de entrega <span className="font-normal text-xs">(Sapiranga-Coité)</span></span>
+                <span>+ {formatCurrency(deliveryFee)}</span>
+              </div>
+            </>
+          )}
           <div className="flex justify-between font-bold text-lg">
             <span>Total</span>
-            <span>{formatCurrency(total)}</span>
+            <span>{formatCurrency(finalTotal)}</span>
           </div>
         </div>
       </div>
@@ -813,7 +843,7 @@ Confirmação de Entrega: O pedido será enviado para o endereço acima.${vencTe
               <span className="text-lg leading-none mt-0.5">⚠️</span>
               <p className="text-sm">
                 <strong>Atenção:</strong> Na entrega do produto, você deverá pagar a entrada no valor de{' '}
-                <strong>{formatCurrency(total / maxAllowedInstallments)}</strong>{' '}
+                <strong>{formatCurrency(finalTotal / maxAllowedInstallments)}</strong>{' '}
                 (equivalente ao valor de 1 parcela).
               </p>
             </div>
