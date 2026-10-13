@@ -291,8 +291,13 @@ export default function CheckoutForm() {
 
   const [deliveryFee, setDeliveryFee] = useState(0);
 
-  const checkNeighborhoodFee = (neighborhood: string) => {
-    const isSapiranga = neighborhood.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes('sapiranga');
+  const checkNeighborhoodFee = (neighborhood: string, cep?: string) => {
+    const norm = neighborhood.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const isSapirangaByName = norm.includes('sapiranga') || norm.includes('edson queiroz');
+    // faixa CEP 60830-000 a 60839-999 cobre Sapiranga-Coité em Fortaleza/CE
+    const digits = (cep || '').replace(/\D/g, '');
+    const isSapirangaByCep = digits.length === 8 && digits.startsWith('6083');
+    const isSapiranga = isSapirangaByName || isSapirangaByCep;
     setDeliveryFee(isSapiranga ? 20 : 0);
     return isSapiranga;
   };
@@ -325,7 +330,7 @@ export default function CheckoutForm() {
       form.setValue('city', data.localidade || '');
       form.setValue('state', data.uf || '');
 
-      const hasFee = checkNeighborhoodFee(data.bairro || '');
+      const hasFee = checkNeighborhoodFee(data.bairro || '', zip);
 
       if (hasFee) {
         toast({
