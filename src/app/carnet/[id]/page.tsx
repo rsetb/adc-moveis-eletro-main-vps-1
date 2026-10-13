@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import { Fragment, useMemo, useState, useEffect } from 'react';
 import type { Order, StoreSettings } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Printer, ShoppingCart, Phone, History } from 'lucide-react';
+import { ArrowLeft, Printer, ShoppingCart, Phone, History, CheckCircle2 } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 import { getSettingsAction } from '@/app/actions/settings';
 import { getOrderForCarnetAction } from '@/app/actions/orders-fetcher';
-import { recordOrderPrintAction } from '@/app/actions/admin/orders';
+import { recordOrderPrintAction, updateOrderDetailsAction } from '@/app/actions/admin/orders';
 import { useAuth } from '@/context/AuthContext';
 
 
@@ -39,7 +39,7 @@ const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
-const CarnetContent = ({ order, settings, pixPayload, productCodeById }: { order: Order; settings: StoreSettings, pixPayload: string | null, productCodeById: Map<string, string> }) => {
+const CarnetContent = ({ order, settings, pixPayload, productCodeById, deliveryFeePaid, onMarkDeliveryFeePaid }: { order: Order; settings: StoreSettings, pixPayload: string | null, productCodeById: Map<string, string>, deliveryFeePaid: boolean, onMarkDeliveryFeePaid: () => void }) => {
     // ... (component implementation remains exactly the same)
     const [expandedHistory, setExpandedHistory] = useState<number | null>(null);
     const subtotal = useMemo(() => order.items.reduce((acc, item) => acc + (item.price * item.quantity), 0), [order.items]);
@@ -311,6 +311,28 @@ const CarnetContent = ({ order, settings, pixPayload, productCodeById }: { order
                                     <td></td>
                                 </tr>
                             )}
+                            {(order.deliveryFee || 0) > 0 && (
+                                <tr className="border-t">
+                                    <td colSpan={2} className="p-1 text-right text-amber-700">🚚 TAXA DE FRETE:</td>
+                                    <td className="p-1 text-right font-mono text-amber-700">+ {formatCurrency(order.deliveryFee || 0)}</td>
+                                    <td className="p-1 print:hidden">
+                                        {deliveryFeePaid ? (
+                                            <span className="inline-flex items-center gap-1 text-xs text-green-600 font-semibold whitespace-nowrap">
+                                                <CheckCircle2 className="h-3.5 w-3.5" /> Pago
+                                            </span>
+                                        ) : (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-6 text-xs px-2 whitespace-nowrap"
+                                                onClick={onMarkDeliveryFeePaid}
+                                            >
+                                                Marcar Pago
+                                            </Button>
+                                        )}
+                                    </td>
+                                </tr>
+                            )}
                             <tr className="border-t text-base print:text-sm">
                                 <td colSpan={2} className="p-1 text-right">VALOR TOTAL:</td>
                                 <td className="p-1 text-right font-mono">{formatCurrency(totalPedido)}</td>
@@ -351,6 +373,7 @@ export default function CarnetPage() {
     const [order, setOrder] = useState<Order | null>(null);
     const [settings, setSettings] = useState<StoreSettings>(initialSettings);
     const [isLoading, setIsLoading] = useState(true);
+    const [deliveryFeePaid, setDeliveryFeePaid] = useState(false);
     const { products } = useData();
     const { user } = useAuth();
 
@@ -369,7 +392,9 @@ export default function CarnetPage() {
                 ]);
 
                 if (orderRes.success && orderRes.data) {
-                    setOrder(orderRes.data as Order);
+                    const loadedOrder = orderRes.data as Order;
+                    setOrder(loadedOrder);
+                    setDeliveryFeePaid(loadedOrder.deliveryFeePaid || false);
                 }
 
                 if (settingsRes.success && settingsRes.data) {
@@ -413,6 +438,12 @@ export default function CarnetPage() {
             nextPendingInstallment.amount
         );
     }, [nextPendingInstallment, order, settings]);
+
+    const handleMarkDeliveryFeePaid = async () => {
+        if (!order) return;
+        setDeliveryFeePaid(true);
+        await updateOrderDetailsAction(order.id, { deliveryFeePaid: true }, user);
+    };
 
     const handlePrint = (layout: 'default' | 'a4') => {
         document.body.classList.remove('print-layout-default', 'print-layout-a4');
@@ -489,10 +520,10 @@ export default function CarnetPage() {
 
                 <main className="w-full bg-white text-black p-4 print:p-0 print:shadow-none print-default:grid print-default:grid-cols-2 print-default:gap-x-2 print-a4:flex print-a4:flex-col">
                     <div className="print-default:border-r print-default:border-dashed print-default:border-black print-default:pr-2">
-                        <CarnetContent order={order} settings={settings} pixPayload={pixPayload} productCodeById={productCodeById} />
+                        <CarnetContent order={order} settings={settings} pixPayload={pixPayload} productCodeById={productCodeById} deliveryFeePaid={deliveryFeePaid} onMarkDeliveryFeePaid={handleMarkDeliveryFeePaid} />
                     </div>
                     <div className="hidden print-default:block print-default:pl-2">
-                        <CarnetContent order={order} settings={settings} pixPayload={pixPayload} productCodeById={productCodeById} />
+                        <CarnetContent order={order} settings={settings} pixPayload={pixPayload} productCodeById={productCodeById} deliveryFeePaid={deliveryFeePaid} onMarkDeliveryFeePaid={handleMarkDeliveryFeePaid} />
                     </div>
                 </main>
             </div>

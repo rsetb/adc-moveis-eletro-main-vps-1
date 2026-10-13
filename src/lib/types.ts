@@ -158,7 +158,8 @@ export type Order = {
   subtotal?: number; // Added
   discount?: number;
   downPayment?: number;
-  deliveryFee?: number; // Added
+  deliveryFee?: number;
+  deliveryFeePaid?: boolean;
   installments: number;
   installmentValue: number;
   date: string;
