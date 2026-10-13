@@ -293,7 +293,7 @@ export default function CheckoutForm() {
 
   const checkNeighborhoodFee = (neighborhood: string) => {
     const isSapiranga = neighborhood.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes('sapiranga');
-    setDeliveryFee(isSapiranga ? 25 : 0);
+    setDeliveryFee(isSapiranga ? 20 : 0);
     return isSapiranga;
   };
 
@@ -330,7 +330,7 @@ export default function CheckoutForm() {
       if (hasFee) {
         toast({
           title: "Taxa de entrega aplicada",
-          description: "Bairro Sapiranga-Coité: R$ 25,00 adicionados ao total.",
+          description: "Bairro Sapiranga-Coité: R$ 20,00 adicionados ao total.",
         });
       } else {
         toast({
