@@ -222,6 +222,9 @@ export default function CheckoutForm() {
             form.reset(sanitizedData);
             setIsNewCustomer(false);
 
+            // Aplica taxa de entrega se o bairro/CEP salvo for de zona especial
+            checkNeighborhoodFee(customerData.neighborhood || '', customerData.zip || '');
+
             if (result.source === 'trash') {
               toast({ title: "Cliente Encontrado na Lixeira!", description: "Seus dados foram recuperados automaticamente." });
             } else {
@@ -294,14 +297,15 @@ export default function CheckoutForm() {
   const checkNeighborhoodFee = (neighborhood: string, cep?: string) => {
     const norm = neighborhood.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
     const digits = (cep || '').replace(/\D/g, '');
-    let fee = 0;
-    if (norm.includes('edson queiroz')) {
-      fee = 30;
-    } else if (norm.includes('sapiranga') || (digits.length === 8 && digits.startsWith('6083'))) {
-      fee = 25;
+    const zones = settings?.deliveryZones ?? [];
+    let matchedFee = 0;
+    for (const zone of zones) {
+      const keyMatch = zone.keywords.some(k => norm.includes(k.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')));
+      const cepMatch = zone.cepPrefixes.some(p => digits.length === 8 && digits.startsWith(p));
+      if (keyMatch || cepMatch) { matchedFee = zone.fee; break; }
     }
-    setDeliveryFee(fee);
-    return fee;
+    setDeliveryFee(matchedFee);
+    return matchedFee;
   };
 
   const handleZipBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
@@ -335,10 +339,11 @@ export default function CheckoutForm() {
       const fee = checkNeighborhoodFee(data.bairro || '', zip);
 
       if (fee > 0) {
-        const label = fee === 30 ? 'Edson Queiroz' : 'Sapiranga-Coité';
+        const zone = (settings?.deliveryZones ?? []).find(z => z.fee === fee);
+        const label = zone?.name ?? 'Bairro especial';
         toast({
           title: "Taxa de entrega aplicada",
-          description: `Bairro ${label}: R$ ${fee},00 adicionados ao total.`,
+          description: `${label}: R$ ${fee},00 adicionados ao total.`,
         });
       } else {
         toast({
@@ -818,7 +823,7 @@ Confirmação de Entrega: O pedido será enviado para o endereço acima.${vencTe
                 <span>{formatCurrency(total)}</span>
               </div>
               <div className="flex justify-between text-sm font-medium text-amber-700 bg-amber-50 rounded-md px-2 py-1.5">
-                <span className="flex items-center gap-1">🚚 Taxa de entrega <span className="font-normal text-xs">({deliveryFee === 30 ? 'Edson Queiroz' : 'Sapiranga-Coité'})</span></span>
+                <span className="flex items-center gap-1">🚚 Taxa de entrega <span className="font-normal text-xs">({(settings?.deliveryZones ?? []).find(z => z.fee === deliveryFee)?.name ?? 'Entrega'})</span></span>
                 <span>+ {formatCurrency(deliveryFee)}</span>
               </div>
             </>

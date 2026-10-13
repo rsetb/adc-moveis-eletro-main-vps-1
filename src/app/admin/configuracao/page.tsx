@@ -13,8 +13,8 @@ import { useSettings } from '@/context/SettingsContext';
 import { useAdmin, useAdminData } from '@/context/AdminContext';
 import { useAuth } from '@/context/AuthContext';
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { Settings, Save, FileDown, Upload, AlertTriangle, RotateCcw, Trash2, Lock, History, User, Calendar, Shield, Image as ImageIcon, Clock, Package, DollarSign, Users, ShoppingCart, KeyRound } from 'lucide-react';
-import type { RolePermissions, UserRole, AppSection, StoreSettings, CustomerInfo, AsaasSettings } from '@/lib/types';
+import { Settings, Save, FileDown, Upload, AlertTriangle, RotateCcw, Trash2, Lock, History, User, Calendar, Shield, Image as ImageIcon, Clock, Package, DollarSign, Users, ShoppingCart, KeyRound, Truck, Plus, X } from 'lucide-react';
+import type { RolePermissions, UserRole, AppSection, StoreSettings, CustomerInfo, AsaasSettings, DeliveryZone } from '@/lib/types';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAudit } from '@/context/AuditContext';
@@ -166,6 +166,8 @@ export default function ConfiguracaoPage() {
   const [dialogOpenFor, setDialogOpenFor] = useState<'resetOrders' | 'resetProducts' | 'resetFinancials' | 'resetAll' | null>(null);
   const [isGeneratingCustomerCodes, setIsGeneratingCustomerCodes] = useState(false);
   const [localPermissions, setLocalPermissions] = useState<RolePermissions | null>(null);
+  const [localZones, setLocalZones] = useState<DeliveryZone[]>([]);
+  const [zonesSaved, setZonesSaved] = useState(false);
 
   const [isAsaasLoading, setIsAsaasLoading] = useState(false);
 
@@ -202,6 +204,7 @@ export default function ConfiguracaoPage() {
         commercialHourEnd: settings.commercialHourEnd || '18:00',
         solicitationsTrashRetentionDays: settings.solicitationsTrashRetentionDays || 30,
       });
+      setLocalZones(settings.deliveryZones ? JSON.parse(JSON.stringify(settings.deliveryZones)) : []);
     }
   }, [settingsLoading, settings, form]);
 
@@ -1071,6 +1074,92 @@ export default function ConfiguracaoPage() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+        </CardContent>
+      </Card>
+
+      {/* Taxas de Entrega por Bairro */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Truck className="h-6 w-6" />
+            Taxas de Entrega por Bairro
+          </CardTitle>
+          <CardDescription>
+            Configure os bairros com taxa de entrega adicional. O valor será aplicado automaticamente ao pedido pelo CEP.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {localZones.map((zone, i) => (
+            <div key={i} className="flex items-start gap-3 p-3 border rounded-lg bg-muted/30">
+              <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Nome do Bairro</label>
+                  <Input
+                    value={zone.name}
+                    onChange={e => setLocalZones(prev => prev.map((z, idx) => idx === i ? { ...z, name: e.target.value } : z))}
+                    placeholder="Ex: Sapiranga-Coité"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Taxa (R$)</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={zone.fee}
+                    onChange={e => setLocalZones(prev => prev.map((z, idx) => idx === i ? { ...z, fee: parseFloat(e.target.value) || 0 } : z))}
+                    placeholder="25.00"
+                  />
+                </div>
+                <div className="sm:col-span-2 flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id={`notice-${i}`}
+                    checked={zone.showInNotice ?? true}
+                    onCheckedChange={(checked) =>
+                      setLocalZones(prev => prev.map((z, idx) => idx === i ? { ...z, showInNotice: !!checked } : z))
+                    }
+                  />
+                  <label htmlFor={`notice-${i}`} className="text-sm text-muted-foreground cursor-pointer select-none">
+                    Mostrar no aviso ao abrir o catálogo
+                  </label>
+                </div>
+              </div>
+              <button
+                onClick={() => setLocalZones(prev => prev.filter((_, idx) => idx !== i))}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                title="Remover bairro"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+
+          <div className="flex flex-col sm:flex-row gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setLocalZones(prev => [...prev, { name: '', fee: 0, keywords: [], cepPrefixes: [] }])}
+            >
+              <Plus className="h-4 w-4 mr-1" /> Adicionar Bairro
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={async () => {
+                const zonesWithKeywords = localZones.map(z => ({
+                  ...z,
+                  keywords: z.keywords.length ? z.keywords : [z.name.toLowerCase()],
+                }));
+                await updateSettings({ deliveryZones: zonesWithKeywords });
+                setZonesSaved(true);
+                setTimeout(() => setZonesSaved(false), 2000);
+                toast({ title: 'Taxas salvas!', description: 'As taxas de entrega foram atualizadas.' });
+              }}
+            >
+              <Save className="h-4 w-4 mr-1" /> {zonesSaved ? 'Salvo!' : 'Salvar Taxas'}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

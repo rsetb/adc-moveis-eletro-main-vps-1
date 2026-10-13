@@ -6,26 +6,34 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ScrollButtons from "@/components/ScrollButtons";
 import { X } from "lucide-react";
+import { useSettings } from "@/context/SettingsContext";
 
-const NOTICE_KEY = 'sapiranga_notice_v4';
+const NOTICE_KEY = 'sapiranga_notice_v5';
 
 export default function PublicPageLayout({ children }: { children: ReactNode }) {
     const [open, setOpen] = useState(false);
+    const { settings } = useSettings();
+
+    const zones = (settings?.deliveryZones ?? []).filter(z => z.fee > 0 && (z.showInNotice ?? true));
 
     useEffect(() => {
         try {
-            if (!sessionStorage.getItem(NOTICE_KEY)) {
+            if (zones.length > 0 && !sessionStorage.getItem(NOTICE_KEY)) {
                 setOpen(true);
             }
         } catch {
             // sessionStorage indisponível
         }
-    }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [zones.length]);
 
     const handleClose = () => {
         try { sessionStorage.setItem(NOTICE_KEY, '1'); } catch { /* ignore */ }
         setOpen(false);
     };
+
+    const formatFee = (fee: number) =>
+        fee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
     if (!open) return (
         <div className="flex flex-col min-h-screen">
@@ -64,7 +72,7 @@ export default function PublicPageLayout({ children }: { children: ReactNode }) 
                     </button>
 
                     {/* Icon */}
-                    <div className="flex items-center justify-center w-10 h-10 sm:w-13 sm:h-13 rounded-full bg-amber-100 mx-auto text-xl sm:text-2xl select-none">
+                    <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-amber-100 mx-auto text-xl sm:text-2xl select-none">
                         🚚
                     </div>
 
@@ -73,20 +81,18 @@ export default function PublicPageLayout({ children }: { children: ReactNode }) 
                         Aviso de Taxa de Entrega
                     </h2>
 
-                    {/* Body */}
+                    {/* Zones list */}
                     <div className="flex flex-col gap-1.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5 sm:p-3.5">
-                        <div className="flex items-start gap-2">
-                            <span className="text-xs flex-shrink-0 mt-0.5">📍</span>
-                            <p className="text-xs sm:text-sm text-gray-800 dark:text-gray-200">
-                                <span className="font-bold text-amber-700 dark:text-amber-400">Sapiranga-Coité</span>: taxa de <span className="font-bold text-amber-700 dark:text-amber-400">R$ 25,00</span>
-                            </p>
-                        </div>
-                        <div className="flex items-start gap-2">
-                            <span className="text-xs flex-shrink-0 mt-0.5">📍</span>
-                            <p className="text-xs sm:text-sm text-gray-800 dark:text-gray-200">
-                                <span className="font-bold text-amber-700 dark:text-amber-400">Edson Queiroz</span>: taxa de <span className="font-bold text-amber-700 dark:text-amber-400">R$ 30,00</span>
-                            </p>
-                        </div>
+                        {zones.map((zone) => (
+                            <div key={zone.name} className="flex items-start gap-2">
+                                <span className="text-xs flex-shrink-0 mt-0.5">📍</span>
+                                <p className="text-xs sm:text-sm text-gray-800 dark:text-gray-200">
+                                    <span className="font-bold text-amber-700 dark:text-amber-400">{zone.name}</span>
+                                    {': taxa de '}
+                                    <span className="font-bold text-amber-700 dark:text-amber-400">{formatFee(zone.fee)}</span>
+                                </p>
+                            </div>
+                        ))}
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Cobrada no ato da compra.</p>
                     </div>
 

@@ -21,6 +21,10 @@ const initialSettings: StoreSettings = {
     commercialHourStart: '08:00',
     commercialHourEnd: '18:00',
     solicitationsTrashRetentionDays: 30,
+    deliveryZones: [
+        { name: 'Sapiranga-Coité', fee: 25, keywords: ['sapiranga'], cepPrefixes: ['6083'], showInNotice: true },
+        { name: 'Edson Queiroz', fee: 30, keywords: ['edson queiroz'], cepPrefixes: [], showInNotice: true },
+    ],
 };
 
 interface SettingsContextType {

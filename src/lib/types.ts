@@ -1,5 +1,13 @@
 
 
+export type DeliveryZone = {
+  name: string;
+  fee: number;
+  keywords: string[];
+  cepPrefixes: string[];
+  showInNotice?: boolean;
+};
+
 export type StoreSettings = {
   storeName: string;
   storeCity: string;
@@ -13,6 +21,7 @@ export type StoreSettings = {
   solicitationsTrashRetentionDays?: number;
   wapiInstance?: string;
   wapiToken?: string;
+  deliveryZones?: DeliveryZone[];
 };
 
 export type AsaasSettings = {
