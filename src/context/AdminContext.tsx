@@ -692,7 +692,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
     const projectedOrder = { ...currentOrder, ...updatePayload };
 
-    const shouldRecalcTotals = orderDetails.items !== undefined || orderDetails.discount !== undefined;
+    const shouldRecalcTotals = orderDetails.items !== undefined || orderDetails.discount !== undefined || orderDetails.deliveryFee !== undefined;
     const projectedItems = Array.isArray(projectedOrder.items) ? projectedOrder.items : [];
 
     const computedSubtotal = projectedItems.reduce((acc: number, item: any) => {
@@ -708,10 +708,10 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
         : computedSubtotal);
 
     const totalBase = shouldRecalcTotals
-      ? (subtotal - (Number(projectedOrder.discount || 0)))
+      ? (subtotal - (Number(projectedOrder.discount || 0)) + (Number(projectedOrder.deliveryFee || 0)))
       : (typeof projectedOrder.total === 'number'
         ? projectedOrder.total
-        : (subtotal - (Number(projectedOrder.discount || 0))));
+        : (subtotal - (Number(projectedOrder.discount || 0)) + (Number(projectedOrder.deliveryFee || 0))));
 
     const downPaymentValue = Number(projectedOrder.downPayment || 0);
     const totalFinanced = totalBase - downPaymentValue;
@@ -737,6 +737,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       orderDetails.installments !== undefined ||
       orderDetails.discount !== undefined ||
       orderDetails.downPayment !== undefined ||
+      orderDetails.deliveryFee !== undefined ||
       resetDownPayment ||
       (orderDetails.paymentMethod === 'Crediário' && currentOrder.paymentMethod !== 'Crediário');
 

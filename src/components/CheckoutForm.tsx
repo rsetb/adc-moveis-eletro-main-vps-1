@@ -664,6 +664,8 @@ Confirmação de Entrega: O pedido será enviado para o endereço acima.${vencTe
       customer: customerData,
       items: cartItems.map(({ ...item }) => item),
       total: finalTotal,
+      subtotal: total,
+      deliveryFee: deliveryFee > 0 ? deliveryFee : undefined,
       installments: finalInstallments,
       installmentValue: finalInstallmentValue,
       date: orderDate.toISOString(),

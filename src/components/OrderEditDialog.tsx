@@ -119,8 +119,10 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
     const [observationsInput, setObservationsInput] = useState('');
     const [discountInput, setDiscountInput] = useState(0);
     const [downPaymentInput, setDownPaymentInput] = useState(0);
+    const [deliveryFeeInput, setDeliveryFeeInput] = useState(0);
     const [isDiscountUpdating, setIsDiscountUpdating] = useState(false);
     const [isDownPaymentUpdating, setIsDownPaymentUpdating] = useState(false);
+    const [isDeliveryFeeUpdating, setIsDeliveryFeeUpdating] = useState(false);
     const [isObservationsUpdating, setIsObservationsUpdating] = useState(false);
     const [editingInstallment, setEditingInstallment] = useState<{ number: number, value: string } | null>(null);
     const [datePopoverOpen, setDatePopoverOpen] = useState<number | null>(null);
@@ -298,6 +300,31 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
             setDiscountInput(0);
         } finally {
             setIsDiscountUpdating(false);
+        }
+    };
+
+    const handleUpdateDeliveryFee = async () => {
+        if (!order || !user || isDeliveryFeeUpdating) return;
+        if (isNaN(deliveryFeeInput) || deliveryFeeInput < 0) {
+            toast({ title: 'Valor inválido', description: 'A taxa de frete não pode ser negativa.', variant: 'destructive' });
+            return;
+        }
+        setIsDeliveryFeeUpdating(true);
+        try {
+            await updateOrderDetails(order.id, { deliveryFee: deliveryFeeInput }, auditLogAction, user);
+            setDeliveryFeeInput(0);
+        } finally {
+            setIsDeliveryFeeUpdating(false);
+        }
+    };
+
+    const handleResetDeliveryFee = async () => {
+        if (!order || !user || isDeliveryFeeUpdating) return;
+        setIsDeliveryFeeUpdating(true);
+        try {
+            await updateOrderDetails(order.id, { deliveryFee: 0 }, auditLogAction, user);
+        } finally {
+            setIsDeliveryFeeUpdating(false);
         }
     };
 
@@ -542,6 +569,12 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
                                             <span>- {formatCurrency(order.discount || 0)}</span>
                                         </div>
                                     )}
+                                    {(order.deliveryFee || 0) > 0 && (
+                                        <div className="flex justify-between items-center text-amber-700">
+                                            <span>🚚 Taxa de Frete</span>
+                                            <span>+ {formatCurrency(order.deliveryFee || 0)}</span>
+                                        </div>
+                                    )}
                                 </div>
                                 <Separator className="my-3" />
                                 <div className="flex justify-between font-bold text-base">
@@ -662,6 +695,46 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
                                                 disabled={isDownPaymentUpdating || !canEditDiscountAndDownPayment}
                                             />
                                             <Button size="sm" variant="outline" onClick={handleAddDownPayment} disabled={isDownPaymentUpdating || !canEditDiscountAndDownPayment}>
+                                                <Save className="mr-2 h-4 w-4" /> Aplicar
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium">Taxa de Frete (R$)</label>
+                                    {(order.deliveryFee || 0) > 0 ? (
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-muted px-3 py-2 text-sm">
+                                                <span>{formatCurrency(order.deliveryFee || 0)}</span>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-6 w-6 text-destructive"
+                                                    onClick={handleResetDeliveryFee}
+                                                    disabled={isDeliveryFeeUpdating || !canEditDiscountAndDownPayment}
+                                                >
+                                                    <Undo2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex gap-2">
+                                            <Input
+                                                inputMode="decimal"
+                                                value={formatBRL(deliveryFeeInput)}
+                                                onChange={(e) => {
+                                                    const rawValue = e.target.value.replace(/\D/g, '');
+                                                    setDeliveryFeeInput(Number(rawValue) / 100);
+                                                }}
+                                                className="h-9"
+                                                disabled={isDeliveryFeeUpdating || !canEditDiscountAndDownPayment}
+                                            />
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={handleUpdateDeliveryFee}
+                                                disabled={isDeliveryFeeUpdating || !canEditDiscountAndDownPayment}
+                                            >
                                                 <Save className="mr-2 h-4 w-4" /> Aplicar
                                             </Button>
                                         </div>
