@@ -293,13 +293,15 @@ export default function CheckoutForm() {
 
   const checkNeighborhoodFee = (neighborhood: string, cep?: string) => {
     const norm = neighborhood.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-    const isSapirangaByName = norm.includes('sapiranga') || norm.includes('edson queiroz');
-    // faixa CEP 60830-000 a 60839-999 cobre Sapiranga-Coité em Fortaleza/CE
     const digits = (cep || '').replace(/\D/g, '');
-    const isSapirangaByCep = digits.length === 8 && digits.startsWith('6083');
-    const isSapiranga = isSapirangaByName || isSapirangaByCep;
-    setDeliveryFee(isSapiranga ? 20 : 0);
-    return isSapiranga;
+    let fee = 0;
+    if (norm.includes('edson queiroz')) {
+      fee = 30;
+    } else if (norm.includes('sapiranga') || (digits.length === 8 && digits.startsWith('6083'))) {
+      fee = 25;
+    }
+    setDeliveryFee(fee);
+    return fee;
   };
 
   const handleZipBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
@@ -330,12 +332,13 @@ export default function CheckoutForm() {
       form.setValue('city', data.localidade || '');
       form.setValue('state', data.uf || '');
 
-      const hasFee = checkNeighborhoodFee(data.bairro || '', zip);
+      const fee = checkNeighborhoodFee(data.bairro || '', zip);
 
-      if (hasFee) {
+      if (fee > 0) {
+        const label = fee === 30 ? 'Edson Queiroz' : 'Sapiranga-Coité';
         toast({
           title: "Taxa de entrega aplicada",
-          description: "Bairro Sapiranga-Coité: R$ 20,00 adicionados ao total.",
+          description: `Bairro ${label}: R$ ${fee},00 adicionados ao total.`,
         });
       } else {
         toast({
@@ -815,7 +818,7 @@ Confirmação de Entrega: O pedido será enviado para o endereço acima.${vencTe
                 <span>{formatCurrency(total)}</span>
               </div>
               <div className="flex justify-between text-sm font-medium text-amber-700 bg-amber-50 rounded-md px-2 py-1.5">
-                <span className="flex items-center gap-1">🚚 Taxa de entrega <span className="font-normal text-xs">(Sapiranga-Coité)</span></span>
+                <span className="flex items-center gap-1">🚚 Taxa de entrega <span className="font-normal text-xs">({deliveryFee === 30 ? 'Edson Queiroz' : 'Sapiranga-Coité'})</span></span>
                 <span>+ {formatCurrency(deliveryFee)}</span>
               </div>
             </>

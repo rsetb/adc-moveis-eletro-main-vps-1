@@ -7,7 +7,7 @@ import Footer from "@/components/Footer";
 import ScrollButtons from "@/components/ScrollButtons";
 import { X } from "lucide-react";
 
-const NOTICE_KEY = 'sapiranga_notice_v3';
+const NOTICE_KEY = 'sapiranga_notice_v4';
 
 export default function PublicPageLayout({ children }: { children: ReactNode }) {
     const [open, setOpen] = useState(false);
@@ -74,11 +74,20 @@ export default function PublicPageLayout({ children }: { children: ReactNode }) 
                     </h2>
 
                     {/* Body */}
-                    <div className="flex items-start gap-2 sm:gap-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5 sm:p-3.5">
-                        <span className="text-xs sm:text-base flex-shrink-0 mt-0.5">📍</span>
-                        <p className="text-xs sm:text-sm leading-relaxed text-gray-800 dark:text-gray-200">
-                            Bairro <span className="font-bold text-amber-700 dark:text-amber-400">Sapiranga-Coité</span>: taxa adicional de <span className="font-bold text-amber-700 dark:text-amber-400">R$ 20,00</span> no ato da compra.
-                        </p>
+                    <div className="flex flex-col gap-1.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5 sm:p-3.5">
+                        <div className="flex items-start gap-2">
+                            <span className="text-xs flex-shrink-0 mt-0.5">📍</span>
+                            <p className="text-xs sm:text-sm text-gray-800 dark:text-gray-200">
+                                <span className="font-bold text-amber-700 dark:text-amber-400">Sapiranga-Coité</span>: taxa de <span className="font-bold text-amber-700 dark:text-amber-400">R$ 25,00</span>
+                            </p>
+                        </div>
+                        <div className="flex items-start gap-2">
+                            <span className="text-xs flex-shrink-0 mt-0.5">📍</span>
+                            <p className="text-xs sm:text-sm text-gray-800 dark:text-gray-200">
+                                <span className="font-bold text-amber-700 dark:text-amber-400">Edson Queiroz</span>: taxa de <span className="font-bold text-amber-700 dark:text-amber-400">R$ 30,00</span>
+                            </p>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Cobrada no ato da compra.</p>
                     </div>
 
                     {/* Button */}
