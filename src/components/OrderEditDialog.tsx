@@ -39,7 +39,8 @@ import {
     Loader2,
     ExternalLink,
     RefreshCw,
-    Zap
+    Zap,
+    CheckCircle2
 } from 'lucide-react';
 import { generateAsaasChargesAction, syncAsaasStatusesAction, cancelAsaasChargeAction, isAsaasConfiguredAction } from '@/app/actions/admin/asaas';
 import type { AsaasInstallmentCharge } from '@/lib/types';
@@ -322,7 +323,17 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
         if (!order || !user || isDeliveryFeeUpdating) return;
         setIsDeliveryFeeUpdating(true);
         try {
-            await updateOrderDetails(order.id, { deliveryFee: 0 }, auditLogAction, user);
+            await updateOrderDetails(order.id, { deliveryFee: 0, deliveryFeePaid: false }, auditLogAction, user);
+        } finally {
+            setIsDeliveryFeeUpdating(false);
+        }
+    };
+
+    const handleMarkDeliveryFeePaid = async () => {
+        if (!order || !user || isDeliveryFeeUpdating) return;
+        setIsDeliveryFeeUpdating(true);
+        try {
+            await updateOrderDetails(order.id, { deliveryFeePaid: true }, auditLogAction, user);
         } finally {
             setIsDeliveryFeeUpdating(false);
         }
@@ -703,19 +714,36 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
                                 <div>
                                     <label className="text-sm font-medium">Taxa de Frete (R$)</label>
                                     {(order.deliveryFee || 0) > 0 ? (
-                                        <div className="flex items-center gap-2">
-                                            <div className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-muted px-3 py-2 text-sm">
-                                                <span>{formatCurrency(order.deliveryFee || 0)}</span>
+                                        <div className="flex flex-col gap-1.5">
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-muted px-3 py-2 text-sm">
+                                                    <span>{formatCurrency(order.deliveryFee || 0)}</span>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6 text-destructive"
+                                                        onClick={handleResetDeliveryFee}
+                                                        disabled={isDeliveryFeeUpdating || !canEditDiscountAndDownPayment}
+                                                    >
+                                                        <Undo2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                            {order.deliveryFeePaid ? (
+                                                <span className="inline-flex items-center gap-1 text-xs text-green-600 font-semibold">
+                                                    <CheckCircle2 className="h-3.5 w-3.5" /> Frete pago
+                                                </span>
+                                            ) : (
                                                 <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-6 w-6 text-destructive"
-                                                    onClick={handleResetDeliveryFee}
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-7 text-xs w-fit"
+                                                    onClick={handleMarkDeliveryFeePaid}
                                                     disabled={isDeliveryFeeUpdating || !canEditDiscountAndDownPayment}
                                                 >
-                                                    <Undo2 className="h-4 w-4" />
+                                                    <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Marcar como Pago
                                                 </Button>
-                                            </div>
+                                            )}
                                         </div>
                                     ) : (
                                         <div className="flex gap-2">

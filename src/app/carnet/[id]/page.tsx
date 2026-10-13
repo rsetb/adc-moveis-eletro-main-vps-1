@@ -315,20 +315,11 @@ const CarnetContent = ({ order, settings, pixPayload, productCodeById, deliveryF
                                 <tr className="border-t">
                                     <td colSpan={2} className="p-1 text-right text-amber-700">🚚 TAXA DE FRETE:</td>
                                     <td className="p-1 text-right font-mono text-amber-700">+ {formatCurrency(order.deliveryFee || 0)}</td>
-                                    <td className="p-1 print:hidden">
-                                        {deliveryFeePaid ? (
-                                            <span className="inline-flex items-center gap-1 text-xs text-green-600 font-semibold whitespace-nowrap">
+                                    <td className="p-1">
+                                        {deliveryFeePaid && (
+                                            <span className="inline-flex items-center gap-1 text-xs text-green-600 font-semibold whitespace-nowrap print:inline-flex">
                                                 <CheckCircle2 className="h-3.5 w-3.5" /> Pago
                                             </span>
-                                        ) : (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="h-6 text-xs px-2 whitespace-nowrap"
-                                                onClick={onMarkDeliveryFeePaid}
-                                            >
-                                                Marcar Pago
-                                            </Button>
                                         )}
                                     </td>
                                 </tr>
