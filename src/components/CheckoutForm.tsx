@@ -342,8 +342,8 @@ export default function CheckoutForm() {
         const zone = (settings?.deliveryZones ?? []).find(z => z.fee === fee);
         const label = zone?.name ?? 'Bairro especial';
         toast({
-          title: "Taxa de entrega aplicada",
-          description: `${label}: R$ ${fee},00 adicionados ao total.`,
+          title: "Aviso de Taxa de Entrega",
+          description: `${label}: taxa de R$ ${fee},00 será cobrada pelo vendedor.`,
         });
       } else {
         toast({
@@ -364,7 +364,7 @@ export default function CheckoutForm() {
 
 
   const total = getCartTotal();
-  const finalTotal = total + deliveryFee;
+  const finalTotal = total;
 
   const orderMaxInstallments = useMemo(() => {
     if (!lastOrder) return 1;
@@ -405,10 +405,6 @@ Parcelamento: Até ${maxInstallments}x de ${formatCurrency(installmentValue)}`;
       (lastOrder as any)?.firstDueDate;
     const vencText = dueDateSource ? ` Venc ${format(new Date(dueDateSource), 'dd/MM')}` : '';
 
-    const deliveryZoneName = deliveryFee > 0
-      ? ((settings?.deliveryZones ?? []).find(z => z.fee === deliveryFee)?.name ?? 'Entrega')
-      : null;
-
     const message = `NOVO PEDIDO ONLINE
 Cód. Pedido (Temporário): ${tempOrderId}
 Vendedor: ${lastOrder.sellerName || 'Não atribuído'}
@@ -417,7 +413,6 @@ PRODUTOS:
 ${productsText}
 
 ---------------------------
- ${deliveryFee > 0 ? `\nSubtotal Produtos: ${formatCurrency(lastOrder.total - deliveryFee)}\nTaxa de Entrega (${deliveryZoneName}): ${formatCurrency(deliveryFee)}` : ''}
 TOTAL DA COMPRA: ${formatCurrency(lastOrder.total)}
 FORMA DE PAGAMENTO: ${lastOrder.paymentMethod}
 CONDIÇÃO SUGERIDA: ${lastOrder.paymentMethod === 'Crediário' ? `Até ${finalMaxInstallments}x` : '-'}
@@ -664,8 +659,6 @@ Confirmação de Entrega: O pedido será enviado para o endereço acima.${vencTe
       customer: customerData,
       items: cartItems.map(({ ...item }) => item),
       total: finalTotal,
-      subtotal: total,
-      deliveryFee: deliveryFee > 0 ? deliveryFee : undefined,
       installments: finalInstallments,
       installmentValue: finalInstallmentValue,
       date: orderDate.toISOString(),
@@ -823,16 +816,12 @@ Confirmação de Entrega: O pedido será enviado para o endereço acima.${vencTe
           ))}
           <Separator />
           {deliveryFee > 0 && (
-            <>
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Subtotal</span>
-                <span>{formatCurrency(total)}</span>
-              </div>
-              <div className="flex justify-between text-sm font-medium text-amber-700 bg-amber-50 rounded-md px-2 py-1.5">
-                <span className="flex items-center gap-1">🚚 Taxa de entrega <span className="font-normal text-xs">({(settings?.deliveryZones ?? []).find(z => z.fee === deliveryFee)?.name ?? 'Entrega'})</span></span>
-                <span>+ {formatCurrency(deliveryFee)}</span>
-              </div>
-            </>
+            <div className="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
+              <span className="mt-0.5">🚚</span>
+              <span>
+                <strong>Aviso:</strong> taxa de entrega ({(settings?.deliveryZones ?? []).find(z => z.fee === deliveryFee)?.name ?? 'Entrega'}) de <strong>{formatCurrency(deliveryFee)}</strong> será cobrada pelo vendedor.
+              </span>
+            </div>
           )}
           <div className="flex justify-between font-bold text-lg">
             <span>Total</span>
