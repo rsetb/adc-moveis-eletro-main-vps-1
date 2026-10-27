@@ -2,19 +2,35 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
+import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
+import { useSettings } from '@/context/SettingsContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ShieldCheck, Eye, EyeOff, User, Lock, ArrowLeft, Loader2 } from 'lucide-react';
+import {
+  Eye,
+  EyeOff,
+  User,
+  Lock,
+  ArrowRight,
+  Loader2,
+  ShieldCheck,
+} from 'lucide-react';
 import Link from 'next/link';
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const { settings } = useSettings();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const storeName =
+    settings?.storeName && settings.storeName !== 'Minha Loja'
+      ? settings.storeName.trim()
+      : 'ADC Móveis e Eletro';
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -27,156 +43,199 @@ export default function LoginPage() {
     }
   };
 
-  return (
-    <div className="relative min-h-screen flex items-center justify-center p-4 bg-slate-950 text-slate-100 overflow-hidden select-none">
-      {/* ── Luz ambiente e gradientes volumétricos ── */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[650px] h-[650px] bg-gradient-to-br from-blue-600/20 via-cyan-500/10 to-transparent rounded-full blur-3xl opacity-75"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -bottom-32 right-1/4 w-[500px] h-[500px] bg-gradient-to-tl from-indigo-600/15 via-blue-500/10 to-transparent rounded-full blur-3xl opacity-60"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:32px_32px] opacity-40"
-      />
+  const featurePills = ['PDV', 'Caixa', 'Estoque', 'Crediário', 'Pedidos', 'Catálogo'];
 
-      {/* ── Card Glassmorphism ── */}
-      <div className="relative w-full max-w-[420px] rounded-2xl border border-slate-700/50 bg-slate-900/65 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.7)] p-6 sm:p-8">
-        {/* Borda superior iluminada */}
+  return (
+    <div className="min-h-screen w-full flex flex-col lg:flex-row bg-[#0b171e]">
+      {/* ── COLUNA ESQUERDA: Identidade Oficial ADC (Azul Petróleo Profundo & Laranja) ── */}
+      <div className="relative flex-1 bg-[#0b171e] text-white p-8 sm:p-12 lg:p-16 flex flex-col justify-between overflow-hidden border-b lg:border-b-0 lg:border-r border-[#142d3a]">
+        {/* Iluminação ambiente com as cores da ADC */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -top-px left-1/2 -translate-x-1/2 w-3/4 h-[2px] bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent"
+          className="pointer-events-none absolute -top-40 -left-40 w-[500px] h-[500px] bg-[#1B6A8B]/20 rounded-full blur-3xl"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-36 -left-36 w-[540px] h-[540px] rounded-full border border-[#1B6A8B]/20"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-48 -left-48 w-[660px] h-[660px] rounded-full border border-[#1B6A8B]/10"
         />
 
-        {/* ── Cabeçalho & Marca ── */}
-        <div className="flex flex-col items-center text-center mb-7">
-          <div className="relative mb-3.5 flex items-center justify-center">
-            <div
-              aria-hidden="true"
-              className="absolute inset-0 rounded-2xl bg-blue-500/25 blur-md"
+        {/* Forma geométrica 3D flutuante com o Laranja oficial da ADC (#F26522) */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute top-16 right-10 lg:right-20 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-[#F26522] to-[#ff7d42] rotate-12 shadow-2xl shadow-[#F26522]/30 opacity-95 hidden sm:block"
+        />
+
+        {/* Topo: Logotipo Oficial da ADC */}
+        <div className="relative z-10 flex items-center gap-4 mb-10 lg:mb-0">
+          <div className="bg-white/95 p-2 rounded-2xl shadow-xl border border-white/20 backdrop-blur-sm flex items-center justify-center">
+            <Image
+              src="/logo-adc.png"
+              alt="ADC Móveis e Eletro"
+              width={130}
+              height={56}
+              className="h-10 sm:h-12 w-auto object-contain"
+              priority
             />
-            <div className="relative flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-b from-slate-800 to-slate-900 border border-slate-700/80 shadow-inner">
-              <ShieldCheck className="w-7 h-7 text-cyan-400 drop-shadow-[0_2px_8px_rgba(34,211,238,0.4)]" />
-            </div>
           </div>
-
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-blue-500/10 text-cyan-300 border border-blue-500/20 mb-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-            ADC Móveis e Eletro
+          <div>
+            <h2 className="text-lg font-bold tracking-tight text-white leading-tight">
+              {storeName}
+            </h2>
+            <p className="text-xs text-[#6bb0cc]">Painel da loja</p>
           </div>
+        </div>
 
-          <h1 className="text-2xl font-bold tracking-tight text-white">
-            Portal Administrativo
+        {/* Centro: Slogan & Chamada Comercial com as cores da marca */}
+        <div className="relative z-10 my-auto py-8 lg:py-16">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.08] text-white">
+            Móveis e eletro, <br />
+            <span className="text-[#F26522]">do seu jeito.</span>
           </h1>
-          <p className="text-xs text-slate-400 mt-1 max-w-xs">
-            Acesso seguro restrito para equipe de vendas, gerência e administração.
+          <p className="text-base sm:text-lg text-slate-300 mt-5 max-w-md font-normal leading-relaxed">
+            Vendas, caixa, estoque e crediário da loja num lugar só.
           </p>
         </div>
 
-        {/* ── Formulário ── */}
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label
-              htmlFor="username"
-              className="text-xs font-medium text-slate-300 uppercase tracking-wider"
+        {/* Rodapé da Coluna Esquerda: Tags dos Módulos */}
+        <div className="relative z-10 pt-4 hidden sm:flex flex-wrap items-center gap-2">
+          {featurePills.map((pill) => (
+            <span
+              key={pill}
+              className="px-3 py-1 rounded-lg text-xs font-semibold bg-[#11242e]/90 text-slate-200 border border-[#1b3a4a] shadow-sm"
             >
-              Usuário
-            </Label>
-            <div className="relative">
-              <User
-                aria-hidden="true"
-                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"
-              />
-              <Input
-                id="username"
-                type="text"
-                autoComplete="username"
-                placeholder="Ex: admin, gerente ou vendedor"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                disabled={isSubmitting}
-                required
-                className="pl-10 h-11 bg-slate-950/70 border-slate-800 text-slate-100 placeholder:text-slate-500 rounded-xl focus-visible:ring-2 focus-visible:ring-cyan-500/30 focus-visible:border-cyan-500/70 transition-all duration-150"
-              />
-            </div>
+              {pill}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* ── COLUNA DIREITA: Formulário Clean e Moderno (Light) ── */}
+      <div className="flex-1 bg-[#fbfcfd] flex flex-col justify-center items-center p-6 sm:p-12 lg:p-20 text-slate-900">
+        <div className="w-full max-w-[400px]">
+          {/* Cabeçalho do Formulário */}
+          <div className="mb-8">
+            <span className="text-xs font-bold tracking-wider uppercase text-[#F26522] block mb-2">
+              ACESSO AO PAINEL
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0b171e] tracking-tight">
+              Entrar
+            </h2>
+            <p className="text-sm text-slate-500 mt-1.5 font-normal">
+              Use seu usuário e senha da loja.
+            </p>
           </div>
 
-          <div className="space-y-1.5">
-            <Label
-              htmlFor="password"
-              className="text-xs font-medium text-slate-300 uppercase tracking-wider"
-            >
-              Senha
-            </Label>
-            <div className="relative">
-              <Lock
-                aria-hidden="true"
-                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"
-              />
-              <Input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="current-password"
-                placeholder="Digite sua senha"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isSubmitting}
-                required
-                className="pl-10 pr-10 h-11 bg-slate-950/70 border-slate-800 text-slate-100 placeholder:text-slate-500 rounded-xl focus-visible:ring-2 focus-visible:ring-cyan-500/30 focus-visible:border-cyan-500/70 transition-all duration-150"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                aria-label={showPassword ? 'Ocultar senha' : 'Exibir senha'}
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-lg transition-colors"
-                onClick={() => setShowPassword(!showPassword)}
-                tabIndex={-1}
+          {/* Formulário de Login */}
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div className="space-y-2">
+              <Label
+                htmlFor="username"
+                className="text-xs font-medium text-slate-700"
               >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </Button>
+                Usuário
+              </Label>
+              <div className="relative">
+                <User
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"
+                />
+                <Input
+                  id="username"
+                  type="text"
+                  autoComplete="username"
+                  placeholder="Seu usuário"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  disabled={isSubmitting}
+                  required
+                  className="pl-10 h-12 bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl shadow-sm focus-visible:ring-2 focus-visible:ring-[#F26522]/25 focus-visible:border-[#F26522] transition-all text-sm"
+                />
+              </div>
             </div>
-          </div>
 
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full h-11 mt-2 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 active:scale-[0.99] transition-all duration-150 border-0"
-          >
-            {isSubmitting ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Autenticando...
-              </span>
-            ) : (
-              'Acessar Painel'
-            )}
-          </Button>
+            <div className="space-y-2">
+              <Label
+                htmlFor="password"
+                className="text-xs font-medium text-slate-700"
+              >
+                Senha
+              </Label>
+              <div className="relative">
+                <Lock
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"
+                />
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  placeholder="Sua senha"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isSubmitting}
+                  required
+                  className="pl-10 pr-10 h-12 bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl shadow-sm focus-visible:ring-2 focus-visible:ring-[#F26522]/25 focus-visible:border-[#F26522] transition-all text-sm"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={showPassword ? 'Ocultar senha' : 'Exibir senha'}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9 p-0 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
 
-          {/* ── Link de Retorno ── */}
-          <div className="pt-2 text-center">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-cyan-300 transition-colors py-1 focus:outline-none focus:underline"
+            {/* Botão Oficial em Laranja ADC (#F26522) */}
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full h-12 mt-2 bg-[#F26522] hover:bg-[#d95316] text-white font-bold rounded-xl shadow-lg shadow-[#F26522]/25 active:scale-[0.99] transition-all duration-150 flex items-center justify-center gap-2 text-sm border-0 cursor-pointer"
             >
-              <ArrowLeft className="h-3 w-3" />
-              Voltar ao Catálogo da Loja
-            </Link>
-          </div>
-        </form>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-white" />
+                  <span>Entrando...</span>
+                </>
+              ) : (
+                <>
+                  <span>Entrar no painel</span>
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </Button>
 
-        {/* ── Selo de Segurança no Rodapé do Card ── */}
-        <div className="mt-6 pt-4 border-t border-slate-800/70 flex items-center justify-center">
-          <div className="inline-flex items-center gap-1.5 text-[11px] text-slate-400">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>Sessão Protegida por Criptografia de Ponta a Ponta</span>
+            {/* Link para o Catálogo em Azul Petróleo ADC (#1B6A8B) */}
+            <div className="pt-2 text-center">
+              <Link
+                href="/"
+                className="text-xs font-semibold text-[#1B6A8B] hover:text-[#0f4459] underline underline-offset-4 transition-colors"
+              >
+                Ver o catálogo da loja
+              </Link>
+            </div>
+          </form>
+
+          {/* Micro rodapé */}
+          <div className="mt-12 text-center flex flex-col items-center gap-1">
+            <span className="text-[11px] text-slate-400">
+              {storeName} · Painel Administrativo
+            </span>
+            <span className="text-[10px] text-emerald-600 inline-flex items-center gap-1 font-medium">
+              <ShieldCheck className="w-3 h-3" /> Conexão Criptografada e Segura
+            </span>
           </div>
         </div>
       </div>
