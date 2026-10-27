@@ -3,6 +3,7 @@
 import { db } from '@/lib/db';
 import type { User, CashRegister, CashMovement, CashMovementType, CashPaymentMethod } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
+import { requireStaff } from '@/lib/auth-guard';
 
 export async function getActiveCashRegisterAction(): Promise<{ success: boolean; data?: CashRegister | null; error?: string }> {
     try {
@@ -32,17 +33,18 @@ export async function getCashRegisterHistoryAction(limit = 30): Promise<{ succes
 
 export async function openCashRegisterAction(
     openingAmount: number,
-    user: User,
+    _user?: User,
 ): Promise<{ success: boolean; data?: CashRegister; error?: string }> {
     try {
+        const session = await requireStaff();
         const existing = await db.cashRegister.findFirst({ where: { status: 'ABERTO' } });
         if (existing) return { success: false, error: 'Já existe um caixa aberto.' };
 
         const register = await db.$transaction(async (tx: any) => {
             const cr = await tx.cashRegister.create({
                 data: {
-                    openedById: user.id,
-                    openedByName: user.name,
+                    openedById: session.userId,
+                    openedByName: session.name,
                     openingAmount,
                     status: 'ABERTO',
                 },
@@ -54,8 +56,8 @@ export async function openCashRegisterAction(
                     paymentMethod: 'DINHEIRO',
                     amount: openingAmount,
                     reason: 'Abertura de caixa',
-                    createdById: user.id,
-                    createdByName: user.name,
+                    createdById: session.userId,
+                    createdByName: session.name,
                 },
             });
             return cr;
@@ -71,9 +73,10 @@ export async function openCashRegisterAction(
 export async function closeCashRegisterAction(
     cashRegisterId: string,
     closingAmount: number,
-    user: User,
+    _user?: User,
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        await requireStaff();
         const register = await (db.cashRegister as any).findUnique({
             where: { id: cashRegisterId },
             include: { movements: true },
@@ -118,10 +121,11 @@ export async function addCashMovementAction(
     type: CashMovementType,
     paymentMethod: CashPaymentMethod,
     amount: number,
-    user: User,
+    _user?: User,
     options?: { reason?: string; referenceType?: string; referenceId?: string },
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        const session = await requireStaff();
         const register = await db.cashRegister.findUnique({ where: { id: cashRegisterId } });
         if (!register) return { success: false, error: 'Caixa não encontrado.' };
         if (register.status !== 'ABERTO') return { success: false, error: 'Caixa fechado.' };
@@ -135,8 +139,8 @@ export async function addCashMovementAction(
                 reason: options?.reason ?? null,
                 referenceType: options?.referenceType ?? null,
                 referenceId: options?.referenceId ?? null,
-                createdById: user.id,
-                createdByName: user.name,
+                createdById: session.userId,
+                createdByName: session.name,
             },
         });
 

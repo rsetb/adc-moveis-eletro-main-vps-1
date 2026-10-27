@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 
 export async function GET() {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Rota desabilitada em ambiente de produção. Utilize scripts/seed-admin.ts via terminal seguro.' }, { status: 403 });
+  }
+
   const count = await db.user.count();
   if (count > 0) {
     return NextResponse.json({ error: 'Já existem usuários cadastrados. Rota desabilitada.' }, { status: 403 });

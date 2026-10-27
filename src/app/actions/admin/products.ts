@@ -4,9 +4,11 @@ import { db } from '@/lib/db';
 import type { Product, User } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 import { notifyChange } from '@/lib/change-notifier';
+import { requireStaff } from '@/lib/auth-guard';
 
-export async function addProductAction(productData: any, user: User | null) {
+export async function addProductAction(productData: any, _user?: User | null) {
     try {
+        const session = await requireStaff();
         const newProductId = `PROD-${Date.now().toString().slice(-6)}`;
         const newProductCode = Date.now().toString().slice(-6);
 
@@ -67,8 +69,9 @@ export async function addProductAction(productData: any, user: User | null) {
     }
 }
 
-export async function updateProductAction(product: Product, user: User | null) {
+export async function updateProductAction(product: Product, _user?: User | null) {
     try {
+        const session = await requireStaff();
         const id = product.id;
         const dataAiHint = (product as any)['data-ai-hint'] ?? (product as any).dataAiHint;
         const imageUrls = (product as any).imageUrls;
@@ -115,8 +118,8 @@ export async function updateProductAction(product: Product, user: User | null) {
                     productName: existingProduct.name,
                     oldPrice: existingProduct.price,
                     newPrice: product.price,
-                    userId: user?.id,
-                    userName: user?.name,
+                    userId: session.userId,
+                    userName: session.name,
                 }
             });
         }
@@ -134,8 +137,9 @@ export async function updateProductAction(product: Product, user: User | null) {
     }
 }
 
-export async function deleteProductAction(productId: string, user: User | null) {
+export async function deleteProductAction(productId: string, _user?: User | null) {
     try {
+        await requireStaff();
         await db.product.update({
             where: { id: productId },
             data: { deletedAt: new Date().toISOString() } as any

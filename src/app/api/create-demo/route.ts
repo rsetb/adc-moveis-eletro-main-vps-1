@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 
 export async function GET() {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Rota desabilitada em ambiente de produção.' }, { status: 403 });
+  }
   try {
     const existing = await db.user.findFirst({ where: { username: 'demo' } });
     if (existing) {

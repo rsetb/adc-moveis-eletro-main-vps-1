@@ -43,6 +43,10 @@ const products = [
 ];
 
 export async function GET() {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Rota de demonstração desabilitada em ambiente de produção.' }, { status: 403 });
+  }
+
   try {
     const catCount = await db.category.count();
     const prodCount = await db.product.count();

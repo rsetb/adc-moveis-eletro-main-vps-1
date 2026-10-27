@@ -6,12 +6,10 @@ import type { AsaasConfig } from '@/lib/asaas';
 import { format, parseISO } from 'date-fns';
 import type { User } from '@/lib/types';
 import { logActionAction } from '@/app/actions/audit';
+import { requireStaff } from '@/lib/auth-guard';
 
-function assertPermission(user: User | null) {
-    if (!user) throw new Error('Permissão negada.');
-    if (!['admin', 'gerente'].includes(user.role)) {
-        throw new Error('Apenas Admin e Gerente podem gerenciar cobranças Asaas.');
-    }
+async function assertPermission(_user?: User | null) {
+    return await requireStaff();
 }
 
 async function resolveAsaasConfig(): Promise<AsaasConfig> {
@@ -38,9 +36,9 @@ export async function isAsaasConfiguredAction(): Promise<boolean> {
     }
 }
 
-export async function generateAsaasChargesAction(orderId: string, user: User | null) {
+export async function generateAsaasChargesAction(orderId: string, _user?: User | null) {
     try {
-        assertPermission(user);
+        const session = await assertPermission(_user);
         const config = await resolveAsaasConfig();
 
         const order = await db.order.findUnique({ where: { id: orderId } });
@@ -101,7 +99,7 @@ export async function generateAsaasChargesAction(orderId: string, user: User | n
         await logActionAction(
             'Cobranças Asaas Geradas',
             `${generated} cobranças geradas no Asaas para o pedido ${orderId}.`,
-            user
+            { id: session.userId, username: session.username, name: session.name, role: session.role }
         );
 
         return { success: true, data: asaasData };
@@ -110,9 +108,9 @@ export async function generateAsaasChargesAction(orderId: string, user: User | n
     }
 }
 
-export async function syncAsaasStatusesAction(orderId: string, user: User | null) {
+export async function syncAsaasStatusesAction(orderId: string, _user?: User | null) {
     try {
-        assertPermission(user);
+        await assertPermission(_user);
         const config = await resolveAsaasConfig();
 
         const order = await db.order.findUnique({ where: { id: orderId } });
@@ -142,9 +140,9 @@ export async function syncAsaasStatusesAction(orderId: string, user: User | null
     }
 }
 
-export async function cancelAsaasChargeAction(orderId: string, installmentNumber: number, user: User | null) {
+export async function cancelAsaasChargeAction(orderId: string, installmentNumber: number, _user?: User | null) {
     try {
-        assertPermission(user);
+        const session = await assertPermission(_user);
         const config = await resolveAsaasConfig();
 
         const order = await db.order.findUnique({ where: { id: orderId } });
@@ -166,7 +164,7 @@ export async function cancelAsaasChargeAction(orderId: string, installmentNumber
         await logActionAction(
             'Cobrança Asaas Cancelada',
             `Parcela ${installmentNumber} do pedido ${orderId} cancelada no Asaas.`,
-            user
+            { id: session.userId, username: session.username, name: session.name, role: session.role }
         );
 
         return { success: true, data: asaasData };

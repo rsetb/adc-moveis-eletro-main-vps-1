@@ -1,22 +1,33 @@
-'use server';
-
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-
-// Itaú envia o webhook com um header de autenticação
-// Configure ITAU_WEBHOOK_SECRET no .env com o token que você definiu no portal do Itaú
-const WEBHOOK_SECRET = process.env.ITAU_WEBHOOK_SECRET;
+import crypto from 'crypto';
 
 export async function POST(req: NextRequest) {
   try {
-    // Valida o token de autenticação do webhook
-    if (WEBHOOK_SECRET) {
-      const authHeader = req.headers.get('x-webhook-secret')
-        || req.headers.get('authorization')?.replace('Bearer ', '');
+    const webhookSecret = process.env.ITAU_WEBHOOK_SECRET?.trim();
 
-      if (authHeader !== WEBHOOK_SECRET) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
+    // Sem configuração do segredo, o serviço deve indicar indisponibilidade e NÃO registrar pagamentos
+    if (!webhookSecret) {
+      console.warn('[PIX Webhook Itaú] Requisição rejeitada: ITAU_WEBHOOK_SECRET não configurado.');
+      return NextResponse.json(
+        { error: 'Serviço indisponível. Segredo do webhook não configurado no servidor.' },
+        { status: 503 }
+      );
+    }
+
+    const authHeader = req.headers.get('x-webhook-secret')
+      || req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Não autorizado. Token de autenticação ausente.' }, { status: 401 });
+    }
+
+    // Comparação em tempo constante contra timing attacks
+    const secretBuffer = Buffer.from(webhookSecret);
+    const headerBuffer = Buffer.from(authHeader);
+
+    if (secretBuffer.length !== headerBuffer.length || !crypto.timingSafeEqual(secretBuffer, headerBuffer)) {
+      return NextResponse.json({ error: 'Não autorizado. Token de autenticação inválido.' }, { status: 401 });
     }
 
     const body = await req.json();
@@ -71,5 +82,9 @@ export async function POST(req: NextRequest) {
 
 // GET para verificar se o webhook está ativo (Itaú faz uma requisição de verificação)
 export async function GET() {
+  const webhookSecret = process.env.ITAU_WEBHOOK_SECRET?.trim();
+  if (!webhookSecret) {
+    return NextResponse.json({ error: 'Serviço indisponível. Segredo do webhook não configurado.' }, { status: 503 });
+  }
   return NextResponse.json({ status: 'ok', service: 'pix-webhook' });
 }

@@ -4,6 +4,7 @@
 import { db } from '@/lib/db';
 import type { User, CommissionPayment, FinancialFilters, FinancialReport, OverdueInstallment, FinancialReportOrder } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
+import { requireStaff } from '@/lib/auth-guard';
 import {
     isValid, parse, parseISO, format,
     startOfDay, endOfDay, startOfMonth, endOfMonth,
@@ -62,9 +63,10 @@ function getDateRange(filters: FinancialFilters): { start: Date; end: Date } {
 
 export async function payCommissionAction(
     sellerId: string, sellerName: string, amount: number,
-    orderIds: string[], period: string, user: User | null,
+    orderIds: string[], period: string, _user?: User | null,
 ) {
     try {
+        await requireStaff();
         const payment = await db.$transaction(async (tx: any) => {
             if (orderIds.length > 0) {
                 // Atualização condicional: só "reivindica" pedidos ainda não pagos.
@@ -92,9 +94,9 @@ export async function payCommissionAction(
     }
 }
 
-export async function reverseCommissionPaymentAction(paymentId: string, user: User | null) {
+export async function reverseCommissionPaymentAction(paymentId: string, _user?: User | null) {
     try {
-        if (user?.role === 'vendedor_cobranca') throw new Error('Permissão negada.');
+        await requireStaff();
         await db.$transaction(async (tx: any) => {
             const payment = await tx.commissionPayment.findUnique({ where: { id: paymentId } });
             if (!payment) throw new Error('Payment not found');

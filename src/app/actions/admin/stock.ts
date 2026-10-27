@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { notifyChange } from '@/lib/change-notifier';
 import type { StockMovement, User } from '@/lib/types';
+import { requireStaff } from '@/lib/auth-guard';
 
 function mapMovement(m: any): StockMovement {
     return {
@@ -26,6 +27,7 @@ function mapMovement(m: any): StockMovement {
 
 export async function getStockMovementsAction(productId?: string, limit = 100) {
     try {
+        await requireStaff();
         const movements = await db.stockMovement.findMany({
             where: productId ? { productId } : undefined,
             orderBy: { createdAt: 'desc' },
@@ -39,6 +41,7 @@ export async function getStockMovementsAction(productId?: string, limit = 100) {
 
 export async function getStockSummaryAction() {
     try {
+        await requireStaff();
         const products = await db.product.findMany({
             where: { deletedAt: null },
             select: { id: true, name: true, stock: true, minStock: true, cost: true, price: true, unit: true, category: true },
@@ -77,9 +80,10 @@ export async function getStockSummaryAction() {
 
 export async function addStockEntryAction(
     data: { productId: string; quantity: number; unitCost: number; reason?: string },
-    user: User | null
+    _user?: User | null
 ) {
     try {
+        const session = await requireStaff();
         const product = await db.product.findUnique({ where: { id: data.productId } });
         if (!product) return { success: false, error: 'Produto não encontrado.' };
 
@@ -105,8 +109,8 @@ export async function addStockEntryAction(
                     unitCost,
                     totalCost,
                     reason: data.reason || null,
-                    createdById: user?.id || null,
-                    createdByName: user?.name || null,
+                    createdById: session.userId,
+                    createdByName: session.name,
                 },
             });
         });
@@ -123,9 +127,10 @@ export async function addStockEntryAction(
 
 export async function adjustStockAction(
     data: { productId: string; newStock: number; reason: string },
-    user: User | null
+    _user?: User | null
 ) {
     try {
+        const session = await requireStaff();
         const product = await db.product.findUnique({ where: { id: data.productId } });
         if (!product) return { success: false, error: 'Produto não encontrado.' };
 
@@ -149,8 +154,8 @@ export async function adjustStockAction(
                     type: 'AJUSTE',
                     quantity: Math.abs(delta),
                     reason: `${data.reason} (${delta > 0 ? '+' : ''}${delta} un. | ${currentStock} → ${newStock})`,
-                    createdById: user?.id || null,
-                    createdByName: user?.name || null,
+                    createdById: session.userId,
+                    createdByName: session.name,
                 },
             });
         });

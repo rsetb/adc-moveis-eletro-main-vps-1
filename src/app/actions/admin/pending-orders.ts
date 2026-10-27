@@ -5,7 +5,7 @@ import { db } from '@/lib/db';
 import { findCustomerByCpfAction } from '@/app/actions/checkout';
 import type { User } from '@/lib/types';
 import { logActionAction } from '@/app/actions/audit';
-import { getSession } from '@/lib/session';
+import { requireSession, requireStaff } from '@/lib/auth-guard';
 
 async function getTrashRetentionDays(): Promise<number> {
     const result = await db.config.findUnique({ where: { key: 'storeSettings' } });
@@ -15,15 +15,13 @@ async function getTrashRetentionDays(): Promise<number> {
     return Math.min(Math.max(Math.trunc(safe), 1), 365);
 }
 
-function assertTrashPermission(user: User | null) {
-    if (!user) throw new Error('Permissão negada: usuário não autenticado.');
-    if (user.role !== 'admin' && user.role !== 'gerente') {
-        throw new Error('Permissão negada: apenas Admin e Gerente podem acessar a lixeira.');
-    }
+async function assertTrashPermission(_user?: User | null) {
+    return await requireStaff();
 }
 
 export async function getPendingOrdersCountAction(): Promise<number> {
     try {
+        await requireSession(['admin', 'gerente', 'vendedor_cobranca', 'vendedor']);
         return await db.temporaryOrder.count({ where: { deletedAt: null } });
     } catch {
         return 0;
@@ -32,6 +30,8 @@ export async function getPendingOrdersCountAction(): Promise<number> {
 
 export async function getPendingOrdersAction() {
     try {
+        const session = await requireSession(['admin', 'gerente', 'vendedor_cobranca', 'vendedor']);
+
         // Clean up expired non-trashed orders after 7 days
         const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
         await db.temporaryOrder.deleteMany({
@@ -74,9 +74,8 @@ export async function getPendingOrdersAction() {
             };
         }));
 
-        const session = await getSession();
         // Vendedor Cobrança só vê solicitações de clientes atribuídos a ele.
-        const visibleOrders = session?.role === 'vendedor_cobranca'
+        const visibleOrders = session.role === 'vendedor_cobranca'
             ? enrichedOrders.filter(o => o.sellerId === session.userId)
             : enrichedOrders;
 
@@ -90,9 +89,9 @@ export async function getPendingOrdersAction() {
     }
 }
 
-export async function getTrashedPendingOrdersAction(user: User | null) {
+export async function getTrashedPendingOrdersAction(_user?: User | null) {
     try {
-        assertTrashPermission(user);
+        await assertTrashPermission(_user);
 
         const retentionDays = await getTrashRetentionDays();
         const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
@@ -148,9 +147,9 @@ export async function getTrashedPendingOrdersAction(user: User | null) {
     }
 }
 
-export async function rejectTemporaryOrderToTrashAction(tempId: string, reason: string, user: User | null) {
+export async function rejectTemporaryOrderToTrashAction(tempId: string, reason: string, _user?: User | null) {
     try {
-        assertTrashPermission(user);
+        const session = await assertTrashPermission(_user);
         const cleanedReason = String(reason || '').trim();
         if (cleanedReason.length < 3) throw new Error('Informe um motivo (mínimo 3 caracteres).');
 
@@ -163,9 +162,9 @@ export async function rejectTemporaryOrderToTrashAction(tempId: string, reason: 
             data: {
                 deletedAt: new Date(),
                 rejectedAt: new Date(),
-                rejectedById: user!.id,
-                rejectedByName: user!.name,
-                rejectedByRole: user!.role,
+                rejectedById: session.userId,
+                rejectedByName: session.name,
+                rejectedByRole: session.role,
                 rejectReason: cleanedReason,
             }
         });
@@ -173,7 +172,7 @@ export async function rejectTemporaryOrderToTrashAction(tempId: string, reason: 
         await logActionAction(
             'Solicitação Rejeitada',
             `Solicitação ${tempId} enviada para a lixeira. Motivo: ${cleanedReason}`,
-            user
+            { id: session.userId, username: session.username, name: session.name, role: session.role }
         );
 
         return { success: true };
@@ -182,9 +181,9 @@ export async function rejectTemporaryOrderToTrashAction(tempId: string, reason: 
     }
 }
 
-export async function restoreTemporaryOrderFromTrashAction(tempId: string, user: User | null) {
+export async function restoreTemporaryOrderFromTrashAction(tempId: string, _user?: User | null) {
     try {
-        assertTrashPermission(user);
+        const session = await assertTrashPermission(_user);
 
         const retentionDays = await getTrashRetentionDays();
         const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
@@ -210,7 +209,7 @@ export async function restoreTemporaryOrderFromTrashAction(tempId: string, user:
         await logActionAction(
             'Solicitação Restaurada',
             `Solicitação ${tempId} restaurada da lixeira.`,
-            user
+            { id: session.userId, username: session.username, name: session.name, role: session.role }
         );
 
         return { success: true };
@@ -219,9 +218,9 @@ export async function restoreTemporaryOrderFromTrashAction(tempId: string, user:
     }
 }
 
-export async function permanentlyDeleteTemporaryOrderFromTrashAction(tempId: string, user: User | null) {
+export async function permanentlyDeleteTemporaryOrderFromTrashAction(tempId: string, _user?: User | null) {
     try {
-        assertTrashPermission(user);
+        const session = await assertTrashPermission(_user);
 
         const existing = await db.temporaryOrder.findUnique({ where: { id: tempId } });
         if (!existing) throw new Error('Solicitação não encontrada.');
@@ -233,7 +232,7 @@ export async function permanentlyDeleteTemporaryOrderFromTrashAction(tempId: str
         await logActionAction(
             'Solicitação Excluída Permanentemente',
             `Solicitação ${tempId} removida permanentemente do sistema.`,
-            user
+            { id: session.userId, username: session.username, name: session.name, role: session.role }
         );
 
         return { success: true };

@@ -6,21 +6,12 @@ import type { User, Product, CustomerInfo } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 import { normalizeCustomerCodeInput, reserveCustomerCodes, formatCustomerCode } from '@/lib/customer-code';
 import { normalizeDigits } from '@/lib/customer-search';
-import { getSession } from '@/lib/session';
+import { requireAdmin, requireStaff } from '@/lib/auth-guard';
 
 // --- Resets ---
-//
-// These wipe real business data (orders, products, customers...). They used
-// to accept a client-supplied `user` object and never check it — anyone able
-// to invoke the server action directly (not just click a button) could wipe
-// the database with one call. Every reset now re-derives the caller's role
-// from the signed session cookie and requires admin.
 
 async function requireAdminSession(): Promise<void> {
-    const session = await getSession();
-    if (!session || session.role !== 'admin') {
-        throw new Error('Permissão negada: apenas administradores podem executar esta ação.');
-    }
+    await requireAdmin();
 }
 
 export async function resetOrdersAction(user: User | null) {
@@ -90,8 +81,9 @@ export async function resetAllAdminDataAction(user: User | null) {
 
 // --- Imports ---
 
-export async function importProductsAction(products: Product[], user: User | null) {
+export async function importProductsAction(products: Product[], _user?: User | null) {
     try {
+        await requireStaff();
         // Produtos sem id (lista "solta", sem vir de um backup exportado) recebiam um id
         // aleatorio novo a cada importacao, entao reimportar o mesmo arquivo duas vezes
         // criava produtos duplicados (skipDuplicates so olha id, que nunca repetia).
@@ -157,8 +149,9 @@ export async function importProductsAction(products: Product[], user: User | nul
     }
 }
 
-export async function importCustomersAction(customers: CustomerInfo[], user: User | null) {
+export async function importCustomersAction(customers: CustomerInfo[], _user?: User | null) {
     try {
+        await requireStaff();
         const normalized = customers.map((c) => ({
             ...c,
             code: normalizeCustomerCodeInput((c as any)?.code),
@@ -265,8 +258,9 @@ export async function emptyTrashAction(user: User | null) {
     }
 }
 
-export async function restoreProductAction(id: string, user: User | null) {
+export async function restoreProductAction(id: string, _user?: User | null) {
     try {
+        await requireStaff();
         await db.product.update({
             where: { id },
             data: { deletedAt: null }
@@ -278,7 +272,7 @@ export async function restoreProductAction(id: string, user: User | null) {
     }
 }
 
-export async function permanentlyDeleteProductWithIdAction(id: string, user: User | null) {
+export async function permanentlyDeleteProductWithIdAction(id: string, _user?: User | null) {
     try {
         // Exclusão permanente é restrita a admin (a UI já só mostra o botão pra admin;
         // isso garante que a regra vale mesmo chamando a action diretamente).
@@ -295,6 +289,7 @@ export async function permanentlyDeleteProductWithIdAction(id: string, user: Use
 
 export async function fetchDeletedProductsAction() {
     try {
+        await requireStaff();
         const products = await db.product.findMany({
             where: { deletedAt: { not: null } }
         });

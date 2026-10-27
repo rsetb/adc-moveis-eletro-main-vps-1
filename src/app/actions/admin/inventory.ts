@@ -1,22 +1,23 @@
-
 'use server';
 
 import { db } from '@/lib/db';
 import type { User, StockAudit, Avaria } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
+import { requireSession, requireStaff } from '@/lib/auth-guard';
 
 // --- Stock Audit ---
 
-export async function saveStockAuditAction(audit: StockAudit, user: User | null) {
+export async function saveStockAuditAction(audit: StockAudit, _user?: User | null) {
     try {
+        const session = await requireStaff();
         await db.stockAudit.create({
             data: {
                 id: audit.id, // e.g., "audit-2023-12"
                 month: audit.month,
                 year: audit.year,
                 createdAt: new Date().toISOString(),
-                auditedBy: user?.id || 'system',
-                auditedByName: user?.name || 'Sistema',
+                auditedBy: session.userId,
+                auditedByName: session.name,
                 products: audit.products as any
             }
         });
@@ -41,14 +42,15 @@ export async function getStockAuditsAction() {
 
 // --- Avarias ---
 
-export async function addAvariaAction(avaria: any, user: User | null) {
+export async function addAvariaAction(avaria: any, _user?: User | null) {
     try {
+        const session = await requireSession();
         await db.avaria.create({
             data: {
                 ...avaria,
                 createdAt: new Date().toISOString(),
-                createdBy: user?.id || 'unknown',
-                createdByName: user?.name || 'Desconhecido'
+                createdBy: session.userId,
+                createdByName: session.name
             }
         });
         revalidatePath('/admin/avarias');
@@ -58,8 +60,9 @@ export async function addAvariaAction(avaria: any, user: User | null) {
     }
 }
 
-export async function updateAvariaAction(id: string, data: any, user: User | null) {
+export async function updateAvariaAction(id: string, data: any, _user?: User | null) {
     try {
+        await requireStaff();
         await db.avaria.update({
             where: { id },
             data: data
@@ -71,8 +74,9 @@ export async function updateAvariaAction(id: string, data: any, user: User | nul
     }
 }
 
-export async function deleteAvariaAction(id: string, user: User | null) {
+export async function deleteAvariaAction(id: string, _user?: User | null) {
     try {
+        await requireStaff();
         await db.avaria.delete({
             where: { id }
         });

@@ -6,9 +6,11 @@ import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
 import { allocateNextCustomerCode, normalizeCustomerCodeInput, reserveCustomerCodes } from '@/lib/customer-code';
 import { matchesAllTokens, normalizeDigits, normalizeSearchText, splitTokens, type CustomerSearchFilters } from '@/lib/customer-search';
 import { getSession } from '@/lib/session';
+import { requireSession, requireStaff, requireAdmin } from '@/lib/auth-guard';
 
-export async function addCustomerAction(customerData: CustomerInfo, user: User | null) {
+export async function addCustomerAction(customerData: CustomerInfo, _user?: User | null) {
     try {
+        const session = await requireSession();
         const normalizedCode = normalizeCustomerCodeInput((customerData as any)?.code);
         // CPF sempre normalizado (só dígitos) antes de checar duplicidade e salvar,
         // senão "625.349.603-42" e "62534960342" são tratados como CPFs diferentes.
@@ -41,7 +43,9 @@ export async function addCustomerAction(customerData: CustomerInfo, user: User |
             ...customerFields,
             cpf: cpfToSave,
             code: normalizedCode,
-            id: idToUse
+            id: idToUse,
+            sellerId: customerFields.sellerId || (session.role.startsWith('vendedor') ? session.userId : null),
+            sellerName: customerFields.sellerName || (session.role.startsWith('vendedor') ? session.name : null),
         };
 
         let createdCustomer: any = null;
@@ -338,8 +342,9 @@ export async function searchCustomersAction(query: string, tab: 'active' | 'bloc
     return searchCustomersAdvancedAction({ q: query }, tab, user);
 }
 
-export async function updateCustomerAction(customerData: CustomerInfo, user: User | null) {
+export async function updateCustomerAction(customerData: CustomerInfo, _user?: User | null) {
     try {
+        await requireSession();
         const normalizedCode = normalizeCustomerCodeInput((customerData as any)?.code);
         if (normalizedCode) {
             const existingByCode = await db.customer.findFirst({
@@ -384,11 +389,11 @@ export async function updateCustomerAction(customerData: CustomerInfo, user: Use
     }
 }
 
-export async function deleteCustomerAction(id: string, user: User | null) {
+export async function deleteCustomerAction(id: string, _user?: User | null) {
     try {
-        if (!user) return { success: false, error: 'Usuário não autenticado.' };
-        if (user.role === 'vendedor_cobranca') {
-            throw new Error('Permissão negada: Vendedor Cobrança não pode excluir clientes.');
+        const session = await requireSession();
+        if (session.role === 'vendedor_cobranca' || session.role === 'vendedor_externo') {
+            throw new Error('Permissão negada: Perfil não autorizado a mover clientes para a lixeira.');
         }
 
         const customer = await db.customer.findUnique({ where: { id } });
@@ -407,9 +412,9 @@ export async function deleteCustomerAction(id: string, user: User | null) {
             ...customerJson,
             cpf: cpfDigits,
             deletedAt: new Date().toISOString(),
-            deletedById: user.id,
-            deletedByName: user.name,
-            deletedByRole: user.role,
+            deletedById: session.userId,
+            deletedByName: session.name,
+            deletedByRole: session.role,
         };
 
         await db.$transaction(async (tx) => {
@@ -454,9 +459,9 @@ export async function getDeletedCustomersAction() {
     }
 }
 
-export async function restoreCustomerFromTrashAction(customer: CustomerInfo, user: User | null) {
+export async function restoreCustomerFromTrashAction(customer: CustomerInfo, _user?: User | null) {
     try {
-        if (!user) return { success: false, error: 'Usuário não autenticado.' };
+        await requireStaff();
 
         const cpfDigits = String(customer.cpf || '').replace(/\D/g, '');
         if (cpfDigits.length !== 11) {
@@ -525,14 +530,9 @@ export async function restoreCustomerFromTrashAction(customer: CustomerInfo, use
     }
 }
 
-export async function permanentlyDeleteCustomerFromTrashAction(customer: CustomerInfo, user: User | null) {
+export async function permanentlyDeleteCustomerFromTrashAction(customer: CustomerInfo, _user?: User | null) {
     try {
-        // Exclusão permanente é restrita a admin (a UI já só mostra o botão pra admin;
-        // isso garante que a regra vale mesmo chamando a action diretamente).
-        const session = await getSession();
-        if (!session || session.role !== 'admin') {
-            throw new Error('Permissão negada: apenas administradores podem excluir clientes permanentemente.');
-        }
+        await requireAdmin();
 
         const cpfDigits = String(customer.cpf || '').replace(/\D/g, '');
         if (cpfDigits.length !== 11) {
@@ -548,14 +548,9 @@ export async function permanentlyDeleteCustomerFromTrashAction(customer: Custome
     }
 }
 
-export async function permanentlyDeleteCustomerAction(id: string, user: User | null) {
+export async function permanentlyDeleteCustomerAction(id: string, _user?: User | null) {
     try {
-        // Exclusão permanente é restrita a admin (a UI já só mostra o botão pra admin;
-        // isso garante que a regra vale mesmo chamando a action diretamente).
-        const session = await getSession();
-        if (!session || session.role !== 'admin') {
-            throw new Error('Permissão negada: apenas administradores podem excluir clientes permanentemente.');
-        }
+        await requireAdmin();
 
         const existing = await db.customer.findUnique({ where: { id } });
         if (!existing) {
@@ -574,8 +569,9 @@ export async function permanentlyDeleteCustomerAction(id: string, user: User | n
 }
 
 
-export async function generateCustomerCodesAction(user: User | null) {
+export async function generateCustomerCodesAction(_user?: User | null) {
     try {
+        await requireStaff();
         const customersWithoutCode = await db.customer.findMany({
             where: { OR: [{ code: null }, { code: '' }] },
             orderBy: { createdAt: 'asc' }

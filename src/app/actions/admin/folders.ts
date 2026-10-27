@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db';
 import type { PersonFolder, FolderFile } from '@/lib/types';
+import { requireSession } from '@/lib/auth-guard';
 
 function mapFolder(f: any, files: any[] = []): PersonFolder {
   return {
@@ -31,26 +32,32 @@ function mapFile(f: any): FolderFile {
 }
 
 export async function getFoldersAction(): Promise<PersonFolder[]> {
-  const folders = await db.personFolder.findMany({
-    orderBy: { name: 'asc' },
-    include: { files: { orderBy: { createdAt: 'asc' } } },
-  });
-  return folders.map(f => mapFolder(f, f.files));
+  try {
+    await requireSession();
+    const folders = await db.personFolder.findMany({
+      orderBy: { name: 'asc' },
+      include: { files: { orderBy: { createdAt: 'asc' } } },
+    });
+    return folders.map(f => mapFolder(f, f.files));
+  } catch {
+    return [];
+  }
 }
 
 export async function createFolderAction(
   name: string,
-  userId?: string,
-  userName?: string,
+  _userId?: string,
+  _userName?: string,
 ): Promise<{ success: boolean; folder?: PersonFolder; error?: string }> {
   try {
+    const session = await requireSession();
     const folder = await db.personFolder.create({
-      data: { name: name.trim(), createdById: userId, createdByName: userName },
+      data: { name: name.trim(), createdById: session.userId, createdByName: session.name },
       include: { files: true },
     });
     return { success: true, folder: mapFolder(folder, folder.files) };
-  } catch {
-    return { success: false, error: 'Erro ao criar pasta.' };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erro ao criar pasta.' };
   }
 }
 
@@ -59,6 +66,7 @@ export async function updateFolderAction(
   data: { name?: string; observations?: string },
 ): Promise<{ success: boolean; folder?: PersonFolder; error?: string }> {
   try {
+    await requireSession();
     const folder = await db.personFolder.update({
       where: { id },
       data: {
@@ -68,17 +76,18 @@ export async function updateFolderAction(
       include: { files: { orderBy: { createdAt: 'asc' } } },
     });
     return { success: true, folder: mapFolder(folder, folder.files) };
-  } catch {
-    return { success: false, error: 'Erro ao atualizar pasta.' };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erro ao atualizar pasta.' };
   }
 }
 
 export async function deleteFolderAction(id: string): Promise<{ success: boolean; error?: string }> {
   try {
+    await requireSession();
     await db.personFolder.delete({ where: { id } });
     return { success: true };
-  } catch {
-    return { success: false, error: 'Erro ao excluir pasta.' };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erro ao excluir pasta.' };
   }
 }
 
@@ -87,6 +96,7 @@ export async function addFileToFolderAction(
   file: { name: string; fileType: 'image' | 'document'; mimeType: string; size: number; dataUrl: string },
 ): Promise<{ success: boolean; file?: FolderFile; error?: string }> {
   try {
+    await requireSession();
     const created = await db.folderFile.create({
       data: {
         folderId,
@@ -98,8 +108,8 @@ export async function addFileToFolderAction(
       },
     });
     return { success: true, file: mapFile(created) };
-  } catch {
-    return { success: false, error: 'Erro ao salvar arquivo.' };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erro ao salvar arquivo.' };
   }
 }
 
@@ -108,21 +118,23 @@ export async function updateFileObservationsAction(
   observations: string,
 ): Promise<{ success: boolean; file?: FolderFile; error?: string }> {
   try {
+    await requireSession();
     const updated = await db.folderFile.update({
       where: { id: fileId },
       data: { observations },
     });
     return { success: true, file: mapFile(updated) };
-  } catch {
-    return { success: false, error: 'Erro ao salvar observação.' };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erro ao salvar observação.' };
   }
 }
 
 export async function deleteFileAction(fileId: string): Promise<{ success: boolean; error?: string }> {
   try {
+    await requireSession();
     await db.folderFile.delete({ where: { id: fileId } });
     return { success: true };
-  } catch {
-    return { success: false, error: 'Erro ao excluir arquivo.' };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erro ao excluir arquivo.' };
   }
 }

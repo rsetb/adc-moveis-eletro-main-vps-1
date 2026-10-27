@@ -10,6 +10,7 @@ import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
 import { computeStockDeltas, getBillingPriority } from '@/lib/utils';
 import { notifyChange } from '@/lib/change-notifier';
 import { getSession } from '@/lib/session';
+import { requireSession, requireStaff, requireAdmin } from '@/lib/auth-guard';
 
 // Helper to adjust stock in a transaction
 async function adjustStock(
@@ -178,15 +179,16 @@ export async function getAdminOrdersAction(limit: number = 1000) {
 
 const MAX_PRINT_LOG_ENTRIES = 50;
 
-export async function recordOrderPrintAction(orderId: string, user: User | null) {
+export async function recordOrderPrintAction(orderId: string, _user?: User | null) {
     try {
+        const session = await requireSession();
         const order = await db.order.findUnique({ where: { id: orderId }, select: { printLogs: true } });
         if (!order) return { success: false, error: 'Pedido não encontrado.' };
 
         const existing = Array.isArray(order.printLogs) ? order.printLogs as any[] : [];
         const entry = {
-            userId: user?.id ?? null,
-            userName: user?.name ?? 'Desconhecido',
+            userId: session.userId,
+            userName: session.name,
             printedAt: new Date().toISOString(),
         };
         const nextLogs = [...existing, entry].slice(-MAX_PRINT_LOG_ENTRIES);
@@ -233,12 +235,10 @@ export type BillingDashboardSummary = {
     delinquencyRate: number;
 };
 
-export async function getBillingDashboardAction(filters: BillingDashboardFilters, user: User | null) {
+export async function getBillingDashboardAction(filters: BillingDashboardFilters, _user?: User | null) {
     noStore();
     try {
-        if (!user) throw new Error('Não autenticado.');
-        const allowed = user.role === 'admin' || user.role === 'gerente' || user.role === 'vendedor_cobranca';
-        if (!allowed) throw new Error('Permissão negada.');
+        const session = await requireSession(['admin', 'gerente', 'vendedor_cobranca']);
 
         const dueFrom = String(filters?.dueFrom || '').trim();
         const dueTo = String(filters?.dueTo || '').trim();
@@ -262,7 +262,7 @@ export async function getBillingDashboardAction(filters: BillingDashboardFilters
         const orders = await db.order.findMany({
             where: {
                 status: { notIn: ['Cancelado', 'Excluído'] },
-                ...(user.role === 'vendedor_cobranca' ? { sellerId: user.id } : {}),
+                ...(session.role === 'vendedor_cobranca' ? { sellerId: session.userId } : {}),
             },
             take: 20000,
             orderBy: [
@@ -378,12 +378,13 @@ export async function getBillingDashboardAction(filters: BillingDashboardFilters
 }
 
 // Update Order Status
-export async function updateOrderStatusAction(orderId: string, status: Order['status'], user: User | null) {
+export async function updateOrderStatusAction(orderId: string, status: Order['status'], _user?: User | null) {
     try {
-        if (user?.role === 'vendedor_cobranca') {
-            throw new Error('Permissão negada: Vendedor Cobrança não pode alterar status de pedidos.');
+        const session = await requireSession();
+        if (session.role === 'vendedor_cobranca' || session.role === 'vendedor_externo') {
+            throw new Error('Permissão negada: Perfil não autorizado a alterar status de pedidos.');
         }
-        console.log('[updateOrderStatusAction] Start', { orderId, status, userId: user?.id });
+        console.log('[updateOrderStatusAction] Start', { orderId, status, userId: session.userId });
 
         return await db.$transaction(async (tx) => {
             const order = await tx.order.findUnique({ where: { id: orderId } });
@@ -403,12 +404,13 @@ export async function updateOrderStatusAction(orderId: string, status: Order['st
 
             // Handle Stock Adjustment
             const items = (order.items as any[]) || [];
+            const userContext = { id: session.userId, name: session.name, role: session.role } as any;
             if (wasActive && isNowInactive) {
                 // Moving from Active to Inactive -> RESTORE stock
-                await adjustStock(tx, items, 'restore', { orderId, user });
+                await adjustStock(tx, items, 'restore', { orderId, user: userContext });
             } else if (wasInactive && isNowActive) {
                 // Moving from Inactive to Active -> DEDUCT stock
-                await adjustStock(tx, items, 'deduct', { orderId, user });
+                await adjustStock(tx, items, 'deduct', { orderId, user: userContext });
             }
 
             const updateData: any = { status: newStatus };
@@ -440,26 +442,24 @@ export async function updateOrderStatusAction(orderId: string, status: Order['st
     }
 }
 
-export async function moveOrderToTrashAction(orderId: string, user: User | null) {
+export async function moveOrderToTrashAction(orderId: string, _user?: User | null) {
     try {
-        if (user?.role === 'vendedor_cobranca') {
-            throw new Error('Permissão negada: Vendedor Cobrança não pode excluir pedidos.');
+        const session = await requireSession();
+        if (session.role === 'vendedor_cobranca' || session.role === 'vendedor_externo') {
+            throw new Error('Permissão negada: Perfil não autorizado a excluir pedidos.');
         }
         // Reuse status update logic to handle stock restoration correctly
-        return await updateOrderStatusAction(orderId, 'Excluído', user);
+        return await updateOrderStatusAction(orderId, 'Excluído');
     } catch (error: any) {
         return { success: false, error: error.message };
     }
 }
 
-export async function permanentlyDeleteOrderAction(orderId: string, user: User | null) {
+export async function permanentlyDeleteOrderAction(orderId: string, _user?: User | null) {
     try {
         // Exclusão permanente é restrita a admin (a UI já só mostra o botão pra admin;
         // isso garante que a regra vale mesmo chamando a action diretamente).
-        const session = await getSession();
-        if (!session || session.role !== 'admin') {
-            throw new Error('Permissão negada: apenas administradores podem excluir pedidos permanentemente.');
-        }
+        await requireAdmin();
         // 1. Check if exists first to avoid Prisma error
         const exists = await db.order.findUnique({ where: { id: orderId } });
         if (!exists) {
@@ -490,111 +490,113 @@ function mapPaymentMethod(method: string): string {
 }
 
 // Installment Payments
-export async function recordInstallmentPaymentAction(orderId: string, installmentNumber: number, payment: any, user: User | null) {
-    if (user?.role === 'vendedor_externo') {
-        return { success: false, error: 'Vendedor Externo não pode dar baixa em parcela. Apenas admin, vendedor e gerente.' };
-    }
+export async function recordInstallmentPaymentAction(orderId: string, installmentNumber: number, payment: any, _user?: User | null) {
+    try {
+        const session = await requireSession(['admin', 'gerente', 'vendedor', 'vendedor_cobranca']);
 
-    // Concurrency note: two payments hitting the same order at nearly the same
-    // moment (e.g. two clicks, or two staff members) used to race — both would
-    // read the order before either wrote back, so whichever transaction
-    // committed last silently overwrote the other's change and the earlier
-    // payment vanished with no error shown. Serializable isolation makes the
-    // DB detect that conflict and fail one of the transactions instead of
-    // losing data; we retry that one automatically.
-    const MAX_ATTEMPTS = 3;
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-        try {
-            // Check for open cash register
-            const activeCash = await (db as any).cashRegister.findFirst({ where: { status: 'ABERTO' } });
-            if (!activeCash) {
-                return { success: false, error: 'Nenhum caixa aberto. Abra o caixa antes de registrar pagamentos.', code: 'CASH_CLOSED' };
-            }
-
-            const result = await db.$transaction(async (tx: any) => {
-                const order = await tx.order.findUnique({ where: { id: orderId } });
-                if (!order) throw new Error('Order not found');
-
-                const installments = (order.installmentDetails as any) || [];
-
-                let isDuplicatePayment = false;
-
-                const updatedInstallments = installments.map((inst: any) => {
-                    if (inst.installmentNumber === installmentNumber) {
-                        const isDuplicate = (inst.payments || []).some((p: any) => {
-                            if (p.id === payment.id) return true;
-                            const timeDiff = Math.abs(new Date(p.date).getTime() - new Date(payment.date).getTime());
-                            return p.amount === payment.amount && timeDiff < 5000;
-                        });
-
-                        if (isDuplicate) {
-                            isDuplicatePayment = true;
-                            return inst;
-                        }
-
-                        const currentPaid = inst.paidAmount || 0;
-                        const newPaid = currentPaid + payment.amount;
-                        const newStatus = newPaid >= (inst.amount - 0.01) ? 'Pago' : 'Parcial';
-
-                        return {
-                            ...inst,
-                            paidAmount: newPaid,
-                            status: newStatus,
-                            payments: [...(inst.payments || []), payment],
-                        };
-                    }
-                    return inst;
-                });
-
-                if (isDuplicatePayment) {
-                    return { skipped: true };
+        // Concurrency note: two payments hitting the same order at nearly the same
+        // moment (e.g. two clicks, or two staff members) used to race — both would
+        // read the order before either wrote back, so whichever transaction
+        // committed last silently overwrote the other's change and the earlier
+        // payment vanished with no error shown. Serializable isolation makes the
+        // DB detect that conflict and fail one of the transactions instead of
+        // losing data; we retry that one automatically.
+        const MAX_ATTEMPTS = 3;
+        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                // Check for open cash register
+                const activeCash = await (db as any).cashRegister.findFirst({ where: { status: 'ABERTO' } });
+                if (!activeCash) {
+                    return { success: false, error: 'Nenhum caixa aberto. Abra o caixa antes de registrar pagamentos.', code: 'CASH_CLOSED' };
                 }
 
-                // Check if all installments will be paid after this update (quitação)
-                const isQuitacao = updatedInstallments.every((inst: any) =>
-                    inst.status === 'Pago' || (inst.installmentNumber === installmentNumber && (inst.paidAmount + payment.amount) >= (inst.amount - 0.01))
-                );
+                const result = await db.$transaction(async (tx: any) => {
+                    const order = await tx.order.findUnique({ where: { id: orderId } });
+                    if (!order) throw new Error('Order not found');
 
-                const cashMovementType = isQuitacao ? 'QUITACAO' : 'RECEBIMENTO';
-                const pmMethod = mapPaymentMethod(payment.method ?? '');
+                    const installments = (order.installmentDetails as any) || [];
 
-                await tx.order.update({
-                    where: { id: orderId },
-                    data: { installmentDetails: updatedInstallments },
-                });
+                    let isDuplicatePayment = false;
 
-                await tx.cashMovement.create({
-                    data: {
-                        cashRegisterId: activeCash.id,
-                        type: cashMovementType,
-                        paymentMethod: pmMethod,
-                        amount: payment.amount,
-                        referenceType: 'order',
-                        referenceId: orderId,
-                        reason: `Parcela ${installmentNumber} — Pedido ${orderId.slice(-6).toUpperCase()}`,
-                        createdById: user?.id ?? null,
-                        createdByName: user?.name ?? null,
-                    },
-                });
+                    const updatedInstallments = installments.map((inst: any) => {
+                        if (inst.installmentNumber === installmentNumber) {
+                            const isDuplicate = (inst.payments || []).some((p: any) => {
+                                if (p.id === payment.id) return true;
+                                const timeDiff = Math.abs(new Date(p.date).getTime() - new Date(payment.date).getTime());
+                                return p.amount === payment.amount && timeDiff < 5000;
+                            });
 
-                return { skipped: false };
-            }, { isolationLevel: 'Serializable', maxWait: 10000, timeout: 15000 });
+                            if (isDuplicate) {
+                                isDuplicatePayment = true;
+                                return inst;
+                            }
 
-            revalidatePath('/admin/pedidos');
-            revalidatePath('/admin/caixa');
-            notifyChange('orders');
-            return { success: true, skipped: result.skipped };
-        } catch (error: any) {
-            const isSerializationConflict =
-                error?.code === 'P2034' ||
-                /could not serialize|deadlock|Transaction failed due to a write conflict/i.test(String(error?.message || ''));
-            if (isSerializationConflict && attempt < MAX_ATTEMPTS) {
-                continue;
+                            const currentPaid = inst.paidAmount || 0;
+                            const newPaid = currentPaid + payment.amount;
+                            const newStatus = newPaid >= (inst.amount - 0.01) ? 'Pago' : 'Parcial';
+
+                            return {
+                                ...inst,
+                                paidAmount: newPaid,
+                                status: newStatus,
+                                payments: [...(inst.payments || []), payment],
+                            };
+                        }
+                        return inst;
+                    });
+
+                    if (isDuplicatePayment) {
+                        return { skipped: true };
+                    }
+
+                    // Check if all installments will be paid after this update (quitação)
+                    const isQuitacao = updatedInstallments.every((inst: any) =>
+                        inst.status === 'Pago' || (inst.installmentNumber === installmentNumber && (inst.paidAmount + payment.amount) >= (inst.amount - 0.01))
+                    );
+
+                    const cashMovementType = isQuitacao ? 'QUITACAO' : 'RECEBIMENTO';
+                    const pmMethod = mapPaymentMethod(payment.method ?? '');
+
+                    await tx.order.update({
+                        where: { id: orderId },
+                        data: { installmentDetails: updatedInstallments },
+                    });
+
+                    await tx.cashMovement.create({
+                        data: {
+                            cashRegisterId: activeCash.id,
+                            type: cashMovementType,
+                            paymentMethod: pmMethod,
+                            amount: payment.amount,
+                            referenceType: 'order',
+                            referenceId: orderId,
+                            reason: `Parcela ${installmentNumber} — Pedido ${orderId.slice(-6).toUpperCase()}`,
+                            createdById: session.userId,
+                            createdByName: session.name,
+                        },
+                    });
+
+                    return { skipped: false };
+                }, { isolationLevel: 'Serializable', maxWait: 10000, timeout: 15000 });
+
+                revalidatePath('/admin/pedidos');
+                revalidatePath('/admin/caixa');
+                notifyChange('orders');
+                return { success: true, skipped: result.skipped };
+            } catch (error: any) {
+                const isSerializationConflict =
+                    error?.code === 'P2034' ||
+                    /could not serialize|deadlock|Transaction failed due to a write conflict/i.test(String(error?.message || ''));
+                if (isSerializationConflict && attempt < MAX_ATTEMPTS) {
+                    continue;
+                }
+                return { success: false, error: error.message };
             }
-            return { success: false, error: error.message };
         }
+        return { success: false, error: 'Falha ao registrar pagamento após múltiplas tentativas. Tente novamente.' };
+    } catch (error: any) {
+        return { success: false, error: error.message };
     }
-    return { success: false, error: 'Falha ao registrar pagamento após múltiplas tentativas. Tente novamente.' };
 }
 
 // Whitelist of updatable Order columns (matches schema.prisma exactly)
@@ -611,10 +613,11 @@ const UPDATABLE_ORDER_FIELDS = [
 ];
 
 // Update Order Details (General) - Only sends valid, updatable fields to Prisma
-export async function updateOrderDetailsAction(orderId: string, data: Record<string, any>, user: User | null) {
+export async function updateOrderDetailsAction(orderId: string, data: Record<string, any>, _user?: User | null) {
     try {
-        if (user?.role === 'vendedor_cobranca') {
-            // Block sensitive fields for Vendedor Cobrança
+        const session = await requireSession();
+        if (session.role === 'vendedor_cobranca' || session.role === 'vendedor_externo') {
+            // Block sensitive fields for Vendedor Cobrança / Externo
             const restrictedFields = ['discount', 'downPayment', 'installments', 'installmentDetails', 'installmentValue', 'total', 'subtotal', 'items', 'status', 'paymentMethod', 'date', 'createdAt', 'firstDueDate'];
             const attemptedFields = Object.keys(data);
 
@@ -623,7 +626,7 @@ export async function updateOrderDetailsAction(orderId: string, data: Record<str
             if (hasRestricted) {
                 const illegalFields = attemptedFields.filter(f => restrictedFields.includes(f));
                 if (illegalFields.length > 0) {
-                    throw new Error(`Permissão negada: Vendedor Cobrança não pode alterar: ${illegalFields.join(', ')}`);
+                    throw new Error(`Permissão negada: Perfil '${session.role}' não pode alterar: ${illegalFields.join(', ')}`);
                 }
             }
         }
@@ -668,10 +671,12 @@ export async function updateOrderDetailsAction(orderId: string, data: Record<str
             const previousItems = (existing.items as any[]) || [];
             const nextItems = (updateData.items as any[]) ?? previousItems;
 
+            const userContext = { id: session.userId, name: session.name, role: session.role } as any;
+
             if (wasActive && isNowInactive) {
-                await adjustStock(tx, previousItems, 'restore', { orderId, user });
+                await adjustStock(tx, previousItems, 'restore', { orderId, user: userContext });
             } else if (wasInactive && isNowActive) {
-                await adjustStock(tx, nextItems, 'deduct', { orderId, user });
+                await adjustStock(tx, nextItems, 'deduct', { orderId, user: userContext });
             } else if (wasActive && isNowActive && updateData.items !== undefined) {
                 const deltas = computeStockDeltas(previousItems, nextItems);
                 for (const d of deltas) {
@@ -721,8 +726,9 @@ export async function updateOrderDetailsAction(orderId: string, data: Record<str
 }
 
 // Update Installment Due Date
-export async function updateInstallmentDueDateAction(orderId: string, installmentNumber: number, newDate: string, user: User | null) {
+export async function updateInstallmentDueDateAction(orderId: string, installmentNumber: number, newDate: string, _user?: User | null) {
     try {
+        await requireSession(['admin', 'gerente', 'vendedor_cobranca']);
         const order = await db.order.findUnique({ where: { id: orderId } });
         if (!order) throw new Error('Order not found');
 
@@ -748,8 +754,9 @@ export async function updateInstallmentDueDateAction(orderId: string, installmen
 }
 
 // Update Installment Amount
-export async function updateInstallmentAmountAction(orderId: string, installmentNumber: number, newAmount: number, user: User | null) {
+export async function updateInstallmentAmountAction(orderId: string, installmentNumber: number, newAmount: number, _user?: User | null) {
     try {
+        await requireStaff();
         const order = await db.order.findUnique({ where: { id: orderId } });
         if (!order) throw new Error('Order not found');
 
@@ -774,11 +781,9 @@ export async function updateInstallmentAmountAction(orderId: string, installment
     }
 }
 // Reverse Installment Payment
-export async function reverseInstallmentPaymentAction(orderId: string, installmentNumber: number, paymentId: string, user: User | null) {
+export async function reverseInstallmentPaymentAction(orderId: string, installmentNumber: number, paymentId: string, _user?: User | null) {
     try {
-        if (user?.role === 'vendedor_cobranca') {
-            throw new Error('Permissão negada: Vendedor Cobrança não pode realizar estornos.');
-        }
+        const session = await requireStaff();
 
         // Check for open cash register
         const activeCash = await (db as any).cashRegister.findFirst({ where: { status: 'ABERTO' } });
@@ -838,8 +843,8 @@ export async function reverseInstallmentPaymentAction(orderId: string, installme
                     referenceType: 'order',
                     referenceId: orderId,
                     reason: `Estorno parcela ${installmentNumber} — Pedido ${orderId.slice(-6).toUpperCase()}`,
-                    createdById: user?.id ?? null,
-                    createdByName: user?.name ?? null,
+                    createdById: session.userId,
+                    createdByName: session.name,
                 },
             });
         });
