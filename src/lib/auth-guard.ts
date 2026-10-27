@@ -49,7 +49,7 @@ export async function requireSession(allowedRoles?: UserRole[]): Promise<Validat
  * (Admin, Gerente, Vendedor e Vendedor Cobrança).
  */
 export async function requireStaff(): Promise<ValidatedSession> {
-  return requireSession(['admin', 'gerente', 'vendedor', 'vendedor_cobranca']);
+  return requireSession(['admin', 'gerente', 'vendedor', 'vendedor_externo', 'vendedor_cobranca']);
 }
 
 /**

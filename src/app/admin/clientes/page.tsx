@@ -23,7 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { cn, maskCpf, maskPhone, maskZip, onlyDigits } from '@/lib/utils';
+import { cn, maskCpf, maskPhone, maskZip, onlyDigits, toIsoNoon } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/context/AuthContext';
 import PaymentDialog from '@/components/PaymentDialog';
@@ -660,13 +660,14 @@ function CustomersAdminPageInner() {
     const handleUpdateInstallmentDueDate = async (orderId: string, installmentNumber: number, date: Date | undefined) => {
         if (date && user) {
             try {
+                const dateIso = toIsoNoon(date);
                 // Atualização local imediata (Optimistic Update)
                 if (selectedCustomer) {
                     const customerKey = getCustomerKey(selectedCustomer);
                     const updateCustomerOrders = (prevOrders: Order[]) => prevOrders.map(o => {
                         if (o.id === orderId) {
                             const updatedInstallments = o.installmentDetails?.map(inst =>
-                                inst.installmentNumber === installmentNumber ? { ...inst, dueDate: date.toISOString() } : inst
+                                inst.installmentNumber === installmentNumber ? { ...inst, dueDate: dateIso } : inst
                             );
                             return { ...o, installmentDetails: updatedInstallments };
                         }
@@ -681,12 +682,21 @@ function CustomersAdminPageInner() {
 
                 setIsProcessing(true);
                 const res = await updateInstallmentDueDate(orderId, installmentNumber, date, logAction, user);
+                if (res && res.success === false) {
+                    if (selectedCustomer) {
+                        const customerKey = getCustomerKey(selectedCustomer);
+                        getCustomerOrdersAction({ cpf: selectedCustomer.cpf, id: selectedCustomer.id, code: selectedCustomer.code, name: selectedCustomer.name, phone: selectedCustomer.phone }, user || null).then(r => {
+                            if (r.success && r.data) {
+                                setServerCustomerOrders(prev => ({ ...prev, [customerKey]: r.data as Order[] }));
+                            }
+                        });
+                    }
+                    return;
+                }
                 
                 toast({ title: "Sucesso", description: "Vencimento atualizado com sucesso." });
             } catch (error: any) {
-                toast({ title: "Erro", description: error.message || "Erro ao atualizar vencimento.", variant: "destructive" });
-                // Em caso de erro, o AdminContext.tsx (que chama updateInstallmentDueDate) 
-                // já tem lógica para dar fetch no server ou podemos forçar um refresh aqui se necessário
+                toast({ title: "Erro ao atualizar", description: error.message || "Erro ao atualizar vencimento.", variant: "destructive" });
             } finally {
                 setIsProcessing(false);
             }

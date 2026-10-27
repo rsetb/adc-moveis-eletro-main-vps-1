@@ -33,7 +33,7 @@ interface AdminContextType {
   updateOrderStatus: (orderId: string, status: Order['status'], logAction: LogAction, user: User | null) => Promise<void>;
   recordInstallmentPayment: (orderId: string, installmentNumber: number, payment: Omit<Payment, 'receivedBy'>, logAction: LogAction, user: User | null) => Promise<void>;
   reversePayment: (orderId: string, installmentNumber: number, paymentId: string, logAction: LogAction, user: User | null) => Promise<void>;
-  updateInstallmentDueDate: (orderId: string, installmentNumber: number, newDueDate: Date, logAction: LogAction, user: User | null) => Promise<void>;
+  updateInstallmentDueDate: (orderId: string, installmentNumber: number, newDueDate: Date, logAction: LogAction, user: User | null) => Promise<{ success: boolean; error?: string }>;
   updateInstallmentAmount: (orderId: string, installmentNumber: number, newAmount: number, logAction: LogAction, user: User | null) => Promise<void>;
   updateCustomer: (oldCustomer: CustomerInfo, updatedCustomerData: CustomerInfo, logAction: LogAction, user: User | null) => Promise<void>;
   deleteCustomer: (customer: CustomerInfo, logAction: LogAction, user: User | null) => Promise<void>;
@@ -502,12 +502,13 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
   };
   const updateInstallmentDueDate = async (orderId: string, installmentNumber: number, newDueDate: Date, logAction: LogAction, user: User | null) => {
     lastUpdateRef.current = Date.now(); // Update timestamp to pause polling
+    const dateStr = toIsoNoon(newDueDate);
 
     // Local update to reflect change immediately (Optimistic Update)
     const updateOrderList = (prev: Order[]) => prev.map(o => {
       if (o.id === orderId) {
         const updatedInstallments = o.installmentDetails?.map(inst =>
-          inst.installmentNumber === installmentNumber ? { ...inst, dueDate: toIsoNoon(newDueDate) } : inst
+          inst.installmentNumber === installmentNumber ? { ...inst, dueDate: dateStr } : inst
         );
         return { ...o, installmentDetails: updatedInstallments };
       }
@@ -516,13 +517,15 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
     setOrders(updateOrderList);
 
-    const res = await updateInstallmentDueDateAction(orderId, installmentNumber, newDueDate.toISOString(), user);
+    const res = await updateInstallmentDueDateAction(orderId, installmentNumber, dateStr, user);
     if (res.success) {
       logAction('Vencimento de Parcela Atualizado', `Vencimento da parcela ${installmentNumber} do pedido ${orderId} alterado.`, user);
+      return { success: true };
     } else {
-      toast({ title: "Erro", description: (res as any).error || 'Erro desconhecido', variant: 'destructive' });
+      toast({ title: "Permissão Negada", description: (res as any).error || 'Erro desconhecido', variant: 'destructive' });
       // Refresh to revert state correctly from server
       fetchData();
+      return { success: false, error: (res as any).error };
     }
   };
 

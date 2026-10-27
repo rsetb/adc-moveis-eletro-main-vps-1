@@ -492,7 +492,7 @@ function mapPaymentMethod(method: string): string {
 // Installment Payments
 export async function recordInstallmentPaymentAction(orderId: string, installmentNumber: number, payment: any, _user?: User | null) {
     try {
-        const session = await requireSession(['admin', 'gerente', 'vendedor', 'vendedor_cobranca']);
+        const session = await requireStaff();
 
         // Concurrency note: two payments hitting the same order at nearly the same
         // moment (e.g. two clicks, or two staff members) used to race — both would
@@ -581,6 +581,7 @@ export async function recordInstallmentPaymentAction(orderId: string, installmen
 
                 revalidatePath('/admin/pedidos');
                 revalidatePath('/admin/caixa');
+                revalidatePath('/admin/clientes');
                 notifyChange('orders');
                 return { success: true, skipped: result.skipped };
             } catch (error: any) {
@@ -716,6 +717,8 @@ export async function updateOrderDetailsAction(orderId: string, data: Record<str
         console.log('[updateOrderDetailsAction] Success! Updated fields:', Object.keys(updateData));
 
         revalidatePath('/admin/pedidos');
+        revalidatePath('/admin/clientes');
+        notifyChange('orders');
         return { success: true, data: updated as unknown as Order };
     } catch (error: any) {
         console.error('[updateOrderDetailsAction] FAILED for order:', orderId);
@@ -746,6 +749,8 @@ export async function updateInstallmentDueDateAction(orderId: string, installmen
         });
 
         revalidatePath('/admin/pedidos');
+        revalidatePath('/admin/clientes');
+        notifyChange('orders');
         return { success: true };
     } catch (error: any) {
         console.error('Error updating installment date:', error);
@@ -774,6 +779,8 @@ export async function updateInstallmentAmountAction(orderId: string, installment
         });
 
         revalidatePath('/admin/pedidos');
+        revalidatePath('/admin/clientes');
+        notifyChange('orders');
         return { success: true };
     } catch (error: any) {
         console.error('Error updating installment amount:', error);
@@ -851,6 +858,8 @@ export async function reverseInstallmentPaymentAction(orderId: string, installme
 
         revalidatePath('/admin/pedidos');
         revalidatePath('/admin/caixa');
+        revalidatePath('/admin/clientes');
+        notifyChange('orders');
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message };
