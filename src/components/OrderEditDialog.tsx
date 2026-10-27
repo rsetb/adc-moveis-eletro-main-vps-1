@@ -61,13 +61,14 @@ import { format, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { cn } from '@/lib/utils';
+import { cn, toIsoNoon } from '@/lib/utils';
 import Link from 'next/link';
 
 interface OrderEditDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     order: Order | null;
+    onOrderUpdated?: (order: Order) => void;
 }
 
 const formatCurrency = (value: number) => {
@@ -107,7 +108,7 @@ const safeParseDate = (date: any) => {
     return new Date(date);
 };
 
-export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogProps) {
+export function OrderEditDialog({ open, onOpenChange, order, onOrderUpdated }: OrderEditDialogProps) {
     const { updateOrderStatus, updateOrderDetails, updateInstallmentDueDate, updateInstallmentAmount, recordInstallmentPayment, reversePayment } = useAdmin();
     const { user } = useAuth();
     const { toast } = useToast();
@@ -402,6 +403,14 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
 
     const handleDateSelect = async (installmentNumber: number, date: Date | undefined) => {
         if (!order || !date || !user) return;
+        const dateIso = toIsoNoon(date);
+        const updatedInstallments = order.installmentDetails?.map(inst =>
+            Number(inst.installmentNumber) === Number(installmentNumber) ? { ...inst, dueDate: dateIso } : inst
+        );
+        const updatedOrder = { ...order, installmentDetails: updatedInstallments };
+        if (onOrderUpdated) {
+            onOrderUpdated(updatedOrder);
+        }
         await updateInstallmentDueDate(order.id, installmentNumber, date, auditLogAction, user);
         setDatePopoverOpen(null);
     };

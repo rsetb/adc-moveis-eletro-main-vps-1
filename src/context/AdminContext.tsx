@@ -508,7 +508,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     const updateOrderList = (prev: Order[]) => prev.map(o => {
       if (o.id === orderId) {
         const updatedInstallments = o.installmentDetails?.map(inst =>
-          inst.installmentNumber === installmentNumber ? { ...inst, dueDate: dateStr } : inst
+          Number(inst.installmentNumber) === Number(installmentNumber) ? { ...inst, dueDate: dateStr } : inst
         );
         return { ...o, installmentDetails: updatedInstallments };
       }
@@ -537,7 +537,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       setOrders(prev => prev.map(o => {
         if (o.id === orderId) {
           const updatedInstallments = o.installmentDetails?.map(inst =>
-            inst.installmentNumber === installmentNumber ? { ...inst, amount: newAmount } : inst
+            Number(inst.installmentNumber) === Number(installmentNumber) ? { ...inst, amount: newAmount } : inst
           );
           return { ...o, installmentDetails: updatedInstallments };
         }

@@ -620,7 +620,7 @@ function CustomersAdminPageInner() {
         const localOrders = customerOrders[customerKey] || [];
         const extraOrders = serverCustomerOrders[customerKey] || [];
         const byId = new Map<string, Order>();
-        for (const o of [...localOrders, ...extraOrders]) {
+        for (const o of [...extraOrders, ...localOrders]) {
             if (o?.id) byId.set(o.id, o);
         }
         const allOrders = Array.from(byId.values());
@@ -667,17 +667,32 @@ function CustomersAdminPageInner() {
                     const updateCustomerOrders = (prevOrders: Order[]) => prevOrders.map(o => {
                         if (o.id === orderId) {
                             const updatedInstallments = o.installmentDetails?.map(inst =>
-                                inst.installmentNumber === installmentNumber ? { ...inst, dueDate: dateIso } : inst
+                                Number(inst.installmentNumber) === Number(installmentNumber) ? { ...inst, dueDate: dateIso } : inst
                             );
                             return { ...o, installmentDetails: updatedInstallments };
                         }
                         return o;
                     });
 
-                    setServerCustomerOrders(prev => ({
-                        ...prev,
-                        [customerKey]: updateCustomerOrders(prev[customerKey] || [])
-                    }));
+                    setServerCustomerOrders(prev => {
+                        const current = prev[customerKey] || [];
+                        const exists = current.some(o => o.id === orderId);
+                        const baseList = exists ? current : [...current, ...(ordersForSelectedCustomer.filter(o => o.id === orderId))];
+                        return {
+                            ...prev,
+                            [customerKey]: updateCustomerOrders(baseList)
+                        };
+                    });
+
+                    setOrderToEdit(prev => {
+                        if (prev && prev.id === orderId) {
+                            const updatedInstallments = prev.installmentDetails?.map(inst =>
+                                Number(inst.installmentNumber) === Number(installmentNumber) ? { ...inst, dueDate: dateIso } : inst
+                            );
+                            return { ...prev, installmentDetails: updatedInstallments };
+                        }
+                        return prev;
+                    });
                 }
 
                 setIsProcessing(true);
@@ -752,16 +767,31 @@ function CustomersAdminPageInner() {
         setOrderForPayment(null);
     };
 
+    const orderToEditId = orderToEdit?.id;
     useEffect(() => {
-        if (orderToEdit && selectedCustomer) {
-            const customerKey = getCustomerKey(selectedCustomer);
-            const currentOrders = serverCustomerOrders[customerKey] || [];
-            const updated = currentOrders.find(o => o.id === orderToEdit.id);
-            if (updated && JSON.stringify(updated) !== JSON.stringify(orderToEdit)) {
-                setOrderToEdit(updated);
-            }
+        if (!orderToEditId) return;
+        const updated = ordersForSelectedCustomer.find(o => o.id === orderToEditId);
+        if (updated && JSON.stringify(updated) !== JSON.stringify(orderToEdit)) {
+            setOrderToEdit(updated);
         }
-    }, [serverCustomerOrders, selectedCustomer, orderToEdit]);
+    }, [ordersForSelectedCustomer, orderToEditId]);
+
+    const handleOrderUpdated = (updatedOrder: Order) => {
+        setOrderToEdit(updatedOrder);
+        if (selectedCustomer) {
+            const customerKey = getCustomerKey(selectedCustomer);
+            setServerCustomerOrders(prev => {
+                const current = prev[customerKey] || [];
+                const idx = current.findIndex(o => o.id === updatedOrder.id);
+                if (idx >= 0) {
+                    const next = [...current];
+                    next[idx] = updatedOrder;
+                    return { ...prev, [customerKey]: next };
+                }
+                return { ...prev, [customerKey]: [...current, updatedOrder] };
+            });
+        }
+    };
 
     const addAttachments = useCallback(async (order: Order, newAttachments: Omit<Attachment, 'addedAt' | 'addedBy'>[]) => {
         if (!user) return;
@@ -2316,6 +2346,7 @@ Não esqueça de enviar o comprovante!`;
                 open={isOrderEditDialogOpen}
                 onOpenChange={setIsOrderEditDialogOpen}
                 order={orderToEdit}
+                onOrderUpdated={handleOrderUpdated}
             />
         </>
     );
