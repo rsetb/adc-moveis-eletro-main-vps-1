@@ -238,7 +238,7 @@ export type BillingDashboardSummary = {
 export async function getBillingDashboardAction(filters: BillingDashboardFilters, _user?: User | null) {
     noStore();
     try {
-        const session = await requireSession(['admin', 'gerente', 'vendedor_cobranca']);
+        const session = await requireStaff();
 
         const dueFrom = String(filters?.dueFrom || '').trim();
         const dueTo = String(filters?.dueTo || '').trim();
@@ -728,7 +728,7 @@ export async function updateOrderDetailsAction(orderId: string, data: Record<str
 // Update Installment Due Date
 export async function updateInstallmentDueDateAction(orderId: string, installmentNumber: number, newDate: string, _user?: User | null) {
     try {
-        await requireSession(['admin', 'gerente', 'vendedor_cobranca']);
+        await requireStaff();
         const order = await db.order.findUnique({ where: { id: orderId } });
         if (!order) throw new Error('Order not found');
 

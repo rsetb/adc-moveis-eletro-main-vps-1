@@ -45,9 +45,17 @@ export async function requireSession(allowedRoles?: UserRole[]): Promise<Validat
 }
 
 /**
- * Atalho para ações que exigem perfil Admin ou Gerente.
+ * Atalho para ações executadas pela equipe da loja
+ * (Admin, Gerente, Vendedor e Vendedor Cobrança).
  */
 export async function requireStaff(): Promise<ValidatedSession> {
+  return requireSession(['admin', 'gerente', 'vendedor', 'vendedor_cobranca']);
+}
+
+/**
+ * Atalho para ações que exigem perfil de gestão (Admin ou Gerente).
+ */
+export async function requireManagement(): Promise<ValidatedSession> {
   return requireSession(['admin', 'gerente']);
 }
 
