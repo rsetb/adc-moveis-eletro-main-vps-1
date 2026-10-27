@@ -34,7 +34,7 @@ export async function requireSession(allowedRoles?: UserRole[]): Promise<Validat
   if (allowedRoles && allowedRoles.length > 0) {
     if (!allowedRoles.includes(role)) {
       throw new AuthError(
-        `Permissão negada. Perfil '${role}' não tem autorização para executar esta ação.`,
+        `Permissão negada. Seu perfil '${role}' não possui autorização para executar esta ação. Solicite liberação a um administrador se necessário.`,
         'FORBIDDEN',
         403
       );

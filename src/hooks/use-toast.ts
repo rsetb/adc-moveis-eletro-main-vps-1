@@ -145,6 +145,30 @@ type Toast = Omit<ToasterToast, "id">
 function toast({ ...props }: Toast) {
   const id = genId()
 
+  let finalTitle = props.title
+  let finalDescription = props.description
+
+  const descStr = typeof finalDescription === 'string' ? finalDescription : ''
+  const titleStr = typeof finalTitle === 'string' ? finalTitle : ''
+
+  const isPermissionDenied =
+    /permiss[ãa]o\s+negada|n[ãa]o\s+(tem|possui)\s+autoriza[çc][ãa]o|n[ãa]o\s+autorizado|acesso\s+restrito|acesso\s+negado|n[ãa]o\s+pode\s+alterar|perfil.*n[ãa]o\s+pode/i.test(descStr) ||
+    /permiss[ãa]o\s+negada|acesso\s+restrito/i.test(titleStr)
+
+  if (isPermissionDenied) {
+    if (!finalTitle || /^erro(\s+ao|\s+de)?/i.test(titleStr.trim())) {
+      finalTitle = 'Permissão Negada'
+    }
+    if (typeof finalDescription === 'string') {
+      const cleaned = finalDescription.replace(/^permiss[ãa]o\s+negada[:.\s-]*/i, '').trim()
+      if (cleaned.length > 0) {
+        finalDescription = cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
+      } else {
+        finalDescription = 'Você não possui autorização para realizar esta ação. Solicite liberação a um administrador.'
+      }
+    }
+  }
+
   const update = (props: ToasterToast) =>
     dispatch({
       type: "UPDATE_TOAST",
@@ -156,6 +180,8 @@ function toast({ ...props }: Toast) {
     type: "ADD_TOAST",
     toast: {
       ...props,
+      title: finalTitle,
+      description: finalDescription,
       id,
       open: true,
       onOpenChange: (open) => {
