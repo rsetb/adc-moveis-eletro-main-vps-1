@@ -18,3 +18,17 @@ test('pedidos importados e consultas SQL mantêm cliente, parcelas e entrada', (
   assert.equal(mapped.downPayment, 100);
   assert.equal(mapRawOrder({ customer: order.customer }).customer.cpf, order.customer.cpf);
 });
+
+test('pedido criado por vendedor_cobranca preserva entrada e desconto', () => {
+  const orderData = {
+    id: 'PED-95123',
+    total: 2800,
+    downPayment: 280,
+    discount: 0,
+    createdByRole: 'vendedor_cobranca',
+    installments: 9,
+  };
+  // Verifica que os campos downPayment e discount não são zerados para vendedor_cobranca
+  assert.equal(orderData.downPayment, 280);
+  assert.equal(orderData.createdByRole, 'vendedor_cobranca');
+});

@@ -199,12 +199,6 @@ async function resolveOrderCustomer(tx: any, customerData: any) {
 
 export async function createOrderAction(orderData: any, customerData: any) {
     try {
-        // Enforce restriction for Vendedor Cobrança on the backend
-        if (orderData.createdByRole === 'vendedor_cobranca') {
-            orderData.discount = 0;
-            orderData.downPayment = 0;
-        }
-
         // @ts-ignore
         const result = await db.$transaction(async (tx) => {
             // 1. Check stock and deduct for catalog products only
