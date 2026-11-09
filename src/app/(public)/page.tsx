@@ -277,10 +277,6 @@ export default function Home() {
     [topCategories, visibleProducts, categoryOf]
   );
 
-  const maxInstallments = useMemo(
-    () => visibleProducts.reduce((m, p) => Math.max(m, p.maxInstallments ?? 1), 1),
-    [visibleProducts]
-  );
 
   // Banner alterna entre as maiores ofertas (ou novidades, se não houver ofertas)
   const heroProducts = useMemo(() => (deals.length > 0 ? deals : newest).slice(0, 5), [deals, newest]);
@@ -437,7 +433,7 @@ export default function Home() {
                   CREDIÁRIO PRÓPRIO
                 </span>
                 <h1 className="text-2xl md:text-5xl font-extrabold leading-tight">
-                  {maxInstallments > 1 ? <>Sua casa nova em até {maxInstallments}x no crediário</> : <>Sua casa nova com as melhores condições</>}
+                  Sua casa nova no crediário próprio
                 </h1>
                 <p className="text-blue-100 md:text-lg">
                   Móveis e eletros {settings.storeCity ? <>com entrega em {displayText(settings.storeCity)}</> : 'com entrega própria'}.
