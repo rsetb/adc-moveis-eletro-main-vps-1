@@ -1111,6 +1111,15 @@ export default function ConfiguracaoPage() {
                     placeholder="25.00"
                   />
                 </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-medium text-muted-foreground">Observação no aviso (opcional)</label>
+                  <Input
+                    value={zone.notice ?? ''}
+                    onChange={e => setLocalZones(prev => prev.map((z, idx) => idx === i ? { ...z, notice: e.target.value } : z))}
+                    placeholder="Ex: A partir de 01/11/2026"
+                    maxLength={80}
+                  />
+                </div>
                 <div className="sm:col-span-2 flex items-center gap-2 pt-1">
                   <Checkbox
                     id={`notice-${i}`}

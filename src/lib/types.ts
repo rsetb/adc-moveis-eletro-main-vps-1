@@ -6,6 +6,8 @@ export type DeliveryZone = {
   keywords: string[];
   cepPrefixes: string[];
   showInNotice?: boolean;
+  /** Texto curto exibido abaixo do nome no aviso (ex.: "A partir de 01/11/2026") */
+  notice?: string;
 };
 
 export type StoreSettings = {
