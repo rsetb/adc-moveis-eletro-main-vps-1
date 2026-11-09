@@ -569,14 +569,6 @@ export default function Home() {
 
                 {slides.length > 1 && (
                   <>
-                    <button type="button" aria-label="Banner anterior" onClick={() => goSlide(slideIdx - 1)}
-                      className="hidden md:flex absolute z-20 left-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-white/95 text-gray-800 shadow-md items-center justify-center hover:bg-white">
-                      <ChevronLeft className="h-5 w-5" />
-                    </button>
-                    <button type="button" aria-label="Próximo banner" onClick={() => goSlide(slideIdx + 1)}
-                      className="hidden md:flex absolute z-20 right-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-white/95 text-gray-800 shadow-md items-center justify-center hover:bg-white">
-                      <ChevronRight className="h-5 w-5" />
-                    </button>
                     <div className="flex md:absolute md:z-20 md:bottom-3 md:left-1/2 md:-translate-x-1/2 justify-center gap-1.5 pt-2.5 md:pt-0 md:bg-slate-900/35 md:px-2.5 md:py-1.5 md:rounded-full">
                       {slides.map((s, i) => (
                         <button key={s.id} type="button" aria-label={`Mostrar banner ${i + 1}`} aria-current={i === slideIdx}
