@@ -192,7 +192,7 @@ export default function Home() {
 
   const applyFromSearch = useCallback((cat?: string, sub?: string) => {
     setFilters(prev => {
-      if (cat === 'ofertas') return { ...prev, category: 'all', subcategory: 'all', onlySale: true };
+      if (cat === 'ofertas') return { ...prev, category: 'all', subcategory: 'all', onlySale: true, sort: 'discount' };
       if (cat || sub) {
         return {
           ...prev,
@@ -434,7 +434,7 @@ export default function Home() {
                   Móveis e eletros {settings.storeCity ? <>com entrega em {settings.storeCity}</> : 'com entrega própria'}.
                 </p>
                 <div className="flex flex-wrap gap-2 mt-1">
-                  <button type="button" onClick={() => goToCatalog({ onlySale: deals.length > 0 })}
+                  <button type="button" onClick={() => goToCatalog(deals.length > 0 ? { onlySale: true, sort: 'discount' } : {})}
                     className="bg-yellow-300 text-yellow-950 font-extrabold px-5 md:px-6 h-11 md:h-12 rounded-lg hover:bg-yellow-200">
                     {deals.length > 0 ? 'Ver ofertas' : 'Ver produtos'}
                   </button>
@@ -496,9 +496,9 @@ export default function Home() {
               </section>
             )}
 
-            {/* Ofertas do dia */}
+            {/* Ofertas (mesma lista do link "Ofertas" do menu) */}
             <Shelf
-              title="Ofertas do dia"
+              title="Ofertas"
               icon={<Flame className="h-6 w-6 text-red-600" />}
               products={deals}
               extra={<CountdownBadge endDate={dealsEnd} />}
