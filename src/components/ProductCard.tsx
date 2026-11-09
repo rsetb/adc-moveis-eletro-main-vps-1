@@ -2,37 +2,27 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { Button } from './ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from './ui/card';
-import { Badge } from './ui/badge';
 import { useCart } from '@/context/CartContext';
 import type { Product } from '@/lib/types';
 import { ShoppingCart } from 'lucide-react';
-import CountdownTimer from './CountdownTimer';
+import { cn } from '@/lib/utils';
 
 interface ProductCardProps {
   product: Product;
+  /** compact: usado nas vitrines horizontais (sem botão) */
+  variant?: 'default' | 'compact';
+  className?: string;
 }
 
-export default function ProductCard({ product }: ProductCardProps) {
-  const { addToCart, setIsCartOpen } = useCart();
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(value);
-  };
+export default function ProductCard({ product, variant = 'default', className }: ProductCardProps) {
+  const { addToCart, setIsCartOpen } = useCart();
 
   const handleAddToCart = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
+    e.stopPropagation();
     addToCart(product);
     setIsCartOpen(true);
   };
@@ -42,110 +32,85 @@ export default function ProductCard({ product }: ProductCardProps) {
     : 'https://placehold.co/600x600.png';
 
   const maxInstallments = product.maxInstallments ?? 1;
-  const isOnSale = product.onSale && typeof product.originalPrice === 'number' && product.originalPrice > 0;
-  // price = preço atual (menor); originalPrice = preço "De" riscado (maior)
-  const displayPrice = product.price;
-  const installmentValue = maxInstallments > 1 ? displayPrice / maxInstallments : 0;
-  const showCountdown = product.onSale && product.promotionEndDate && new Date(product.promotionEndDate) > new Date();
+  const isOnSale = !!product.onSale && typeof product.originalPrice === 'number' && product.originalPrice > product.price;
+  const installmentValue = maxInstallments > 1 ? product.price / maxInstallments : 0;
+  const discountPct = isOnSale ? Math.round((1 - product.price / product.originalPrice!) * 100) : 0;
 
-  const discountPct = isOnSale
-    ? Math.round((1 - product.price / product.originalPrice!) * 100)
-    : 0;
-
-  const isLowStock = product.stock > 0 && product.stock <= 3;
   const isOutOfStock = product.stock <= 0;
+  const isLowStock = !isOutOfStock && product.stock <= 3;
+  const compact = variant === 'compact';
 
   return (
-    <Link href={`/produtos/${product.id}`} className="block h-full" aria-label={`Ver detalhes de ${product.name}`}>
-      <Card className="flex flex-col overflow-hidden h-full transition-all duration-300 hover:shadow-xl hover:-translate-y-1 group">
-        <CardHeader className="p-0 relative">
-          {/* Badges de status */}
-          <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
-            {isOutOfStock ? (
-              <Badge className="bg-gray-500 text-white text-xs font-bold px-2 py-0.5 shadow">
-                Esgotado
-              </Badge>
-            ) : (
-              <>
-                {isOnSale && discountPct > 0 && (
-                  <Badge className="bg-destructive text-destructive-foreground text-xs font-bold px-2 py-0.5 shadow">
-                    -{discountPct}%
-                  </Badge>
-                )}
-                {isLowStock && (
-                  <Badge className="bg-amber-500 text-white text-xs px-2 py-0.5 shadow">
-                    Últimas unidades
-                  </Badge>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Imagem com zoom no hover */}
-          <div className="relative aspect-square w-full overflow-hidden bg-muted/30">
-            <Image
-              src={imageUrl}
-              alt={product.name}
-              fill
-              className={`object-contain p-3 transition-transform duration-500 group-hover:scale-105 ${isOutOfStock ? 'grayscale opacity-60' : ''}`}
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              data-ai-hint={product['data-ai-hint']}
-              unoptimized={imageUrl.startsWith('data:')}
-            />
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-4 flex flex-col flex-grow">
-          <div className="flex items-center gap-1 mb-2 flex-wrap">
-            <Badge variant="secondary" className="capitalize text-xs">{product.category}</Badge>
-            {product.subcategory && (
-              <Badge variant="outline" className="capitalize text-xs">{product.subcategory}</Badge>
-            )}
-          </div>
-
-          <CardTitle className="text-sm md:text-base font-semibold leading-snug min-h-[40px] line-clamp-2">
-            {product.name}
-          </CardTitle>
-
-          {showCountdown && <CountdownTimer endDate={product.promotionEndDate!} />}
-
-          <CardDescription className="text-xs text-muted-foreground mt-1 min-h-[32px] line-clamp-2">
-            {product.description}
-          </CardDescription>
-
-          <div className="mt-3 pt-3 border-t border-border/50">
-            {isOnSale && (
-              <p className="text-xs text-muted-foreground line-through">
-                De {formatCurrency(product.originalPrice!)}
-              </p>
-            )}
-            <p className="text-xl font-bold text-primary leading-tight">
-              {formatCurrency(displayPrice)}
-            </p>
-            {installmentValue > 0 && (
-              <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
-                {maxInstallments}x de {formatCurrency(installmentValue)}
-              </p>
-            )}
-          </div>
-        </CardContent>
-
-        <CardFooter className="p-4 pt-0 mt-auto">
-          {product.stock > 0 ? (
-            <Button
-              onClick={handleAddToCart}
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground transition-all duration-200 active:scale-95"
-            >
-              <ShoppingCart className="mr-2 h-4 w-4" />
-              Adicionar ao Carrinho
-            </Button>
-          ) : (
-            <Button disabled onClick={(e) => e.preventDefault()} className="w-full" variant="secondary">
-              Indisponível
-            </Button>
+    <Link
+      href={`/produtos/${product.id}`}
+      aria-label={`Ver detalhes de ${product.name}`}
+      className={cn(
+        'group flex flex-col h-full bg-card rounded-xl border border-border/70 transition-shadow hover:shadow-lg',
+        compact ? 'p-2.5 gap-1' : 'p-3 gap-1.5',
+        className
+      )}
+    >
+      <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-muted/40">
+        <Image
+          src={imageUrl}
+          alt={product.name}
+          fill
+          className={cn(
+            'object-contain p-2 transition-transform duration-500 group-hover:scale-105',
+            isOutOfStock && 'grayscale opacity-60'
           )}
-        </CardFooter>
-      </Card>
+          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+          unoptimized={imageUrl.startsWith('data:')}
+        />
+        <div className="absolute top-1.5 left-1.5 flex flex-col gap-1">
+          {isOutOfStock ? (
+            <span className="bg-gray-600 text-white text-[11px] font-bold px-1.5 py-0.5 rounded">Esgotado</span>
+          ) : discountPct > 0 ? (
+            <span className="bg-red-700 text-white text-[11px] font-extrabold px-1.5 py-0.5 rounded">-{discountPct}%</span>
+          ) : null}
+        </div>
+      </div>
+
+      <h3 className={cn('text-foreground/80 leading-snug line-clamp-2 mt-1', compact ? 'text-xs min-h-[32px]' : 'text-[13px] min-h-[36px]')}>
+        {product.name}
+      </h3>
+
+      <div className="flex flex-col gap-0.5 mt-auto">
+        {isOnSale && (
+          <span className="text-[11px] text-muted-foreground line-through">{formatCurrency(product.originalPrice!)}</span>
+        )}
+        <span className={cn('font-extrabold text-foreground leading-none', compact ? 'text-base' : 'text-lg md:text-xl')}>
+          {formatCurrency(product.price)}{' '}
+          <span className="text-[11px] font-semibold text-foreground/70">à vista</span>
+        </span>
+        {installmentValue > 0 && (
+          <span className="text-[11px] md:text-xs font-bold text-emerald-700 dark:text-emerald-400">
+            ou {maxInstallments}x de {formatCurrency(installmentValue)} no crediário
+          </span>
+        )}
+        {!compact && isLowStock && (
+          <span className="self-start mt-1 text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">
+            Últimas unidades
+          </span>
+        )}
+      </div>
+
+      {!compact && (
+        isOutOfStock ? (
+          <span className="mt-2 h-10 rounded-lg bg-muted text-muted-foreground text-sm font-semibold flex items-center justify-center">
+            Indisponível
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            className="mt-2 h-10 rounded-lg bg-primary text-primary-foreground text-sm font-bold flex items-center justify-center gap-1.5 hover:bg-primary/90 active:scale-95 transition"
+          >
+            <ShoppingCart className="h-4 w-4" />
+            Comprar
+          </button>
+        )
+      )}
     </Link>
   );
 }

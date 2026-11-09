@@ -36,7 +36,7 @@ export default function ScrollButtons() {
   };
 
   return (
-    <div className="fixed bottom-24 right-6 z-50 flex flex-col gap-2 print-hidden">
+    <div className="fixed bottom-40 md:bottom-24 right-5 z-40 flex flex-col gap-2 print-hidden">
         <Button
             onClick={scrollToBottom}
             className={cn(

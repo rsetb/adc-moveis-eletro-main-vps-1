@@ -227,7 +227,7 @@ export default function ProductDetailPage() {
         {similarProducts.length > 0 && (
           <div className="mt-12">
             <h2 className="text-xl font-bold mb-4">Produtos similares</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
               {similarProducts.map(sp => (
                 <ProductCard key={sp.id} product={sp} />
               ))}

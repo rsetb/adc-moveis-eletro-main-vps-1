@@ -5,6 +5,7 @@ import { ReactNode, useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ScrollButtons from "@/components/ScrollButtons";
+import StoreFloatingNav from "@/components/StoreFloatingNav";
 import { X } from "lucide-react";
 import { useSettings } from "@/context/SettingsContext";
 
@@ -35,21 +36,25 @@ export default function PublicPageLayout({ children }: { children: ReactNode }) 
     const formatFee = (fee: number) =>
         fee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-    if (!open) return (
-        <div className="flex flex-col min-h-screen">
+    const shell = (
+        <>
             <Header />
-            <main className="flex-grow">{children}</main>
+            <main className="flex-grow bg-muted/40">{children}</main>
             <Footer />
             <ScrollButtons />
+            <StoreFloatingNav />
+        </>
+    );
+
+    if (!open) return (
+        <div className="flex flex-col min-h-screen">
+            {shell}
         </div>
     );
 
     return (
         <div className="flex flex-col min-h-screen">
-            <Header />
-            <main className="flex-grow">{children}</main>
-            <Footer />
-            <ScrollButtons />
+            {shell}
 
             {/* Overlay */}
             <div
