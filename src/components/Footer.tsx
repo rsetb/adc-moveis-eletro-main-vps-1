@@ -7,6 +7,7 @@ import { useData } from '@/context/DataContext';
 import Logo from './Logo';
 import { WhatsAppIcon } from './WhatsAppIcon';
 import { buildWhatsAppLink } from '@/lib/whatsapp-link';
+import { displayText } from '@/lib/display-text';
 
 export default function Footer() {
   const { settings } = useSettings();
@@ -14,7 +15,7 @@ export default function Footer() {
 
   const year = new Date().getFullYear();
   const waLink = buildWhatsAppLink(settings.storePhone);
-  const fullAddress = [settings.storeAddress, settings.storeCity].filter(Boolean).join(', ');
+  const fullAddress = [settings.storeAddress, settings.storeCity].filter(Boolean).map(s => displayText(s)).join(', ');
   const mapsLink = fullAddress
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`
     : null;

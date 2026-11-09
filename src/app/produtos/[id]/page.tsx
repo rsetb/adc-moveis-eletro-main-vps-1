@@ -14,6 +14,7 @@ import PublicPageLayout from '@/app/(public)/layout';
 import ProductCard from '@/components/ProductCard';
 import { WhatsAppIcon } from '@/components/WhatsAppIcon';
 import { buildWhatsAppLink } from '@/lib/whatsapp-link';
+import { displayText, displayZoneName } from '@/lib/display-text';
 import { cn } from '@/lib/utils';
 
 const formatCurrency = (value: number) =>
@@ -90,12 +91,21 @@ export default function ProductDetailPage() {
   const code = product.code?.replace(/^ITEM-/i, '');
 
   const zonesWithFee = (settings.deliveryZones ?? []).filter(z => z.fee > 0);
-  const deliverySub = [
-    settings.storeCity,
-    zonesWithFee.length > 0
-      ? zonesWithFee.map(z => `${z.name}: taxa de ${formatCurrency(z.fee)}`).join(' · ')
-      : null,
-  ].filter(Boolean).join(' · ') || 'Consulte sua região';
+  const deliverySub = (
+    <span className="flex flex-col gap-1 mt-0.5">
+      {settings.storeCity && <span>Entregamos em {displayText(settings.storeCity)}</span>}
+      {zonesWithFee.map(z => (
+        <span key={z.name} className="flex items-baseline gap-2">
+          <span className="min-w-0">
+            Taxa {displayZoneName(z.name)}
+            {z.notice && <span className="block text-[11px]">{z.notice}</span>}
+          </span>
+          <strong className="ml-auto text-foreground whitespace-nowrap">{formatCurrency(z.fee)}</strong>
+        </span>
+      ))}
+      {!settings.storeCity && zonesWithFee.length === 0 && <span>Consulte sua região</span>}
+    </span>
+  );
 
   const productUrl = typeof window !== 'undefined' ? window.location.href : '';
   const waLink = buildWhatsAppLink(
@@ -172,7 +182,7 @@ export default function ProductDetailPage() {
       {[
         { icon: Truck, title: 'Entrega própria', sub: deliverySub },
         { icon: CreditCard, title: 'Crediário próprio', sub: 'Compre sem cartão de crédito' },
-        { icon: Store, title: 'Loja física', sub: settings.storeAddress || 'Veja o produto pessoalmente' },
+        { icon: Store, title: 'Loja física', sub: displayText(settings.storeAddress) || 'Veja o produto pessoalmente' },
       ].map(({ icon: Icon, title, sub }) => (
         <div key={title} className="flex items-center gap-3 px-3.5 py-3">
           <span className="h-9 w-9 flex-shrink-0 rounded-lg bg-primary/10 text-primary flex items-center justify-center">

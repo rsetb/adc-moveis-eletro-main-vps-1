@@ -11,6 +11,7 @@ import { CartSheet } from './CartSheet';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import TopCategoriesNav from './TopCategoriesNav';
+import { displayText } from '@/lib/display-text';
 
 export default function Header() {
   const { cartCount, headerSearch, setHeaderSearch, setIsFilterSheetOpen } = useCart();
@@ -113,7 +114,7 @@ export default function Header() {
           {settings.storeCity && (
             <span className="hidden lg:flex items-center gap-2 text-xs leading-tight">
               <MapPin className="h-5 w-5" />
-              <span>Entregamos em<br /><strong className="text-sm">{settings.storeCity}</strong></span>
+              <span>Entregamos em<br /><strong className="text-sm">{displayText(settings.storeCity)}</strong></span>
             </span>
           )}
 
@@ -149,7 +150,7 @@ export default function Header() {
       {settings.storeCity && (
         <div className="md:hidden bg-blue-900 text-blue-100 text-xs px-4 py-2 flex items-center gap-1.5">
           <MapPin className="h-4 w-4" />
-          Entregamos em <strong className="text-white">{settings.storeCity}</strong>
+          Entregamos em <strong className="text-white">{displayText(settings.storeCity)}</strong>
         </div>
       )}
     </div>

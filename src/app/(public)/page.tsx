@@ -17,6 +17,7 @@ import {
   Smartphone, Package, Microwave, Fan, Lamp, Baby, Bike, Tag, Truck, CreditCard, Store,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { displayText } from '@/lib/display-text';
 import type { LucideIcon } from 'lucide-react';
 
 const PAGE_SIZE = 20;
@@ -281,7 +282,15 @@ export default function Home() {
     [visibleProducts]
   );
 
-  const heroProduct = deals[0] ?? newest[0];
+  // Banner alterna entre as maiores ofertas (ou novidades, se não houver ofertas)
+  const heroProducts = useMemo(() => (deals.length > 0 ? deals : newest).slice(0, 5), [deals, newest]);
+  const [heroIdx, setHeroIdx] = useState(0);
+  useEffect(() => {
+    if (heroProducts.length < 2) return;
+    const t = setInterval(() => setHeroIdx(i => (i + 1) % heroProducts.length), 5000);
+    return () => clearInterval(t);
+  }, [heroProducts.length]);
+  const heroProduct = heroProducts[heroIdx % Math.max(heroProducts.length, 1)];
 
   /* ---------- Catálogo filtrado ---------- */
   const filteredAndSortedProducts = useMemo(() => {
@@ -431,7 +440,7 @@ export default function Home() {
                   {maxInstallments > 1 ? <>Sua casa nova em até {maxInstallments}x no crediário</> : <>Sua casa nova com as melhores condições</>}
                 </h1>
                 <p className="text-blue-100 md:text-lg">
-                  Móveis e eletros {settings.storeCity ? <>com entrega em {settings.storeCity}</> : 'com entrega própria'}.
+                  Móveis e eletros {settings.storeCity ? <>com entrega em {displayText(settings.storeCity)}</> : 'com entrega própria'}.
                 </p>
                 <div className="flex flex-wrap gap-2 mt-1">
                   <button type="button" onClick={() => goToCatalog(deals.length > 0 ? { onlySale: true, sort: 'discount' } : {})}
@@ -440,31 +449,71 @@ export default function Home() {
                   </button>
                 </div>
               </div>
-              {heroProduct && (
-                <Link href={`/produtos/${heroProduct.id}`} className="hidden md:block relative h-full min-h-[300px] bg-white/5">
-                  <Image
-                    src={heroProduct.imageUrls?.[0] || 'https://placehold.co/600x600.png'}
-                    alt={heroProduct.name}
-                    fill
-                    className="object-contain p-8"
-                    sizes="40vw"
-                    priority
-                    unoptimized={(heroProduct.imageUrls?.[0] || '').startsWith('data:')}
-                  />
-                  <span className="absolute bottom-4 left-4 right-4 bg-white text-gray-900 rounded-xl px-4 py-3 shadow-lg flex items-center justify-between gap-3">
-                    <span className="text-sm font-semibold line-clamp-1">{heroProduct.name}</span>
-                    <span className="font-extrabold whitespace-nowrap">{formatCurrency(heroProduct.price)}</span>
-                  </span>
-                </Link>
-              )}
+              {heroProduct && (() => {
+                const img = heroProduct.imageUrls?.[0] || 'https://placehold.co/600x600.png';
+                const inst = (heroProduct.maxInstallments ?? 1) > 1 ? heroProduct.maxInstallments! : 0;
+                const off = Math.round(discountOf(heroProduct) * 100);
+                return (
+                  <div className="hidden md:flex flex-col items-center justify-center gap-3 p-8 lg:p-10">
+                    <Link
+                      key={heroProduct.id}
+                      href={`/produtos/${heroProduct.id}`}
+                      className="group w-full max-w-[400px] bg-white text-gray-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in duration-500"
+                    >
+                      <span className="relative block aspect-[4/3] w-full bg-white">
+                        <Image
+                          src={img}
+                          alt={heroProduct.name}
+                          fill
+                          className="object-contain p-5 transition-transform duration-500 group-hover:scale-105"
+                          sizes="400px"
+                          priority
+                          unoptimized={img.startsWith('data:')}
+                        />
+                        {off > 0 && (
+                          <span className="absolute top-3 left-3 bg-red-700 text-white text-sm font-extrabold px-2 py-0.5 rounded-md">-{off}%</span>
+                        )}
+                      </span>
+                      <span className="border-t px-4 py-3 flex flex-col gap-0.5">
+                        <span className="text-sm font-semibold line-clamp-1">{heroProduct.name}</span>
+                        <span className="flex items-baseline gap-2">
+                          {isSale(heroProduct) && (
+                            <span className="text-xs text-gray-500 line-through">{formatCurrency(heroProduct.originalPrice!)}</span>
+                          )}
+                          <span className="text-xl font-extrabold">{formatCurrency(heroProduct.price)}</span>
+                          <span className="text-xs font-semibold text-gray-600">à vista</span>
+                        </span>
+                        {inst > 0 && (
+                          <span className="text-xs font-bold text-emerald-700">
+                            ou {inst}x de {formatCurrency(heroProduct.price / inst)} no crediário
+                          </span>
+                        )}
+                      </span>
+                    </Link>
+                    {heroProducts.length > 1 && (
+                      <div className="flex gap-1.5">
+                        {heroProducts.map((p, i) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            aria-label={`Mostrar oferta ${i + 1}`}
+                            onClick={() => setHeroIdx(i)}
+                            className={cn('h-2 rounded-full transition-all', i === heroIdx % heroProducts.length ? 'w-6 bg-white' : 'w-2 bg-white/40 hover:bg-white/70')}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </section>
 
             {/* Vantagens */}
             <section aria-label="Vantagens" className="mx-3 md:mx-0 flex md:grid md:grid-cols-3 gap-2 md:gap-3 overflow-x-auto [scrollbar-width:none]">
               {[
                 { icon: CreditCard, title: 'Crediário próprio', sub: 'Compre sem cartão' },
-                { icon: Truck, title: 'Entrega própria', sub: settings.storeCity || 'Consulte sua região' },
-                { icon: Store, title: 'Loja física', sub: settings.storeAddress || 'Venha nos visitar' },
+                { icon: Truck, title: 'Entrega própria', sub: displayText(settings.storeCity) || 'Consulte sua região' },
+                { icon: Store, title: 'Loja física', sub: displayText(settings.storeAddress) || 'Venha nos visitar' },
               ].map(({ icon: Icon, title, sub }) => (
                 <div key={title} className="flex-shrink-0 flex items-center gap-3 bg-card rounded-xl px-4 py-3">
                   <span className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center"><Icon className="h-5 w-5" /></span>

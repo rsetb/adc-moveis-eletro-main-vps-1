@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { X, Truck, MapPin, Info } from 'lucide-react';
 import type { DeliveryZone } from '@/lib/types';
 import { WhatsAppIcon } from './WhatsAppIcon';
+import { displayZoneName } from '@/lib/display-text';
 
 interface Props {
   zones: DeliveryZone[];
@@ -92,7 +93,7 @@ export default function DeliveryNoticeDialog({ zones, whatsappLink, onClose }: P
                 </span>
                 <span className="flex-1 min-w-0 flex flex-col gap-0.5">
                   <span className="text-[15px] sm:text-base font-extrabold text-gray-900 dark:text-white leading-snug break-words">
-                    {zone.name}
+                    {displayZoneName(zone.name)}
                   </span>
                   {zone.notice && (
                     <span className="text-xs sm:text-[13px] text-gray-600 dark:text-gray-400">{zone.notice}</span>
