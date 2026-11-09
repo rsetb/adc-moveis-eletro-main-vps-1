@@ -222,10 +222,10 @@ export default function ProductDetailPage() {
           <span className="text-foreground line-clamp-1">{product.name}</span>
         </nav>
 
-        <section className="bg-card md:rounded-2xl md:p-7 flex flex-col md:flex-row md:justify-between gap-0 md:gap-10 md:items-start">
+        <section className="bg-card md:rounded-2xl md:p-7 flex flex-col md:flex-row gap-0 md:gap-8 lg:gap-10 md:items-start">
 
           {/* Galeria */}
-          <div className="w-full md:max-w-[640px] md:flex-1 min-w-0">
+          <div className="w-full md:flex-1 min-w-0">
             {/* Celular: título acima da foto */}
             <div className="md:hidden px-4 pt-3 pb-2 flex flex-col gap-1">
               <span className="text-xs text-muted-foreground capitalize">
@@ -239,7 +239,7 @@ export default function ProductDetailPage() {
               <div className="relative">
                 <div
                   ref={mobileGalleryRef}
-                  className="flex overflow-x-auto snap-x snap-mandatory rounded-xl bg-muted/40 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  className="flex overflow-x-auto snap-x snap-mandatory rounded-xl bg-white border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                   onScroll={(e) => {
                     const el = e.currentTarget;
                     const i = Math.round(el.scrollLeft / el.clientWidth);
@@ -283,7 +283,7 @@ export default function ProductDetailPage() {
             </div>
 
             {/* Computador: miniaturas + foto principal */}
-            <div className="hidden md:flex gap-3.5 items-start">
+            <div className="hidden md:flex gap-3.5 items-start justify-center">
               {images.length > 1 && (
                 <div className="flex flex-col gap-2.5 max-h-[540px] overflow-y-auto">
                   {images.map((url, i) => (
@@ -294,7 +294,7 @@ export default function ProductDetailPage() {
                       onClick={() => setImageIndex(i)}
                       onMouseEnter={() => setImageIndex(i)}
                       className={cn(
-                        'relative h-[76px] w-[76px] flex-shrink-0 rounded-lg overflow-hidden bg-muted/40',
+                        'relative h-[76px] w-[76px] flex-shrink-0 rounded-lg overflow-hidden bg-white',
                         i === imageIndex ? 'border-2 border-primary' : 'border border-border hover:border-primary/60'
                       )}
                     >
@@ -303,13 +303,13 @@ export default function ProductDetailPage() {
                   ))}
                 </div>
               )}
-              <div className="relative flex-1 min-w-0 max-w-[540px] aspect-square rounded-xl bg-muted/40 overflow-hidden">
+              <div className="relative flex-1 min-w-0 max-w-[600px] aspect-square rounded-xl bg-white border overflow-hidden">
                 <Image
                   src={currentImage}
                   alt={product.name}
                   fill
                   className={cn('object-contain p-4', isOutOfStock && 'grayscale opacity-60')}
-                  sizes="540px"
+                  sizes="600px"
                   priority
                   unoptimized={currentImage.startsWith('data:')}
                 />
@@ -338,7 +338,7 @@ export default function ProductDetailPage() {
           </div>
 
           {/* Caixa de compra */}
-          <div className="w-full md:max-w-[520px] md:flex-1 min-w-0 flex flex-col gap-4 px-4 pb-4 md:p-0">
+          <div className="w-full md:w-[400px] lg:w-[460px] md:flex-shrink-0 min-w-0 flex flex-col gap-4 px-4 pb-4 md:p-0">
             <div className="hidden md:flex flex-col gap-1.5">
               <h1 className="text-2xl font-bold leading-tight">{product.name}</h1>
               <span className="text-[13px] text-muted-foreground capitalize">

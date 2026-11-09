@@ -50,7 +50,7 @@ export default function ProductCard({ product, variant = 'default', className }:
         className
       )}
     >
-      <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-muted/40">
+      <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-white">
         <Image
           src={imageUrl}
           alt={product.name}
