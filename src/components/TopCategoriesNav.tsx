@@ -45,7 +45,7 @@ export default function TopCategoriesNav({ categories, onSelect }: Props) {
         })}
         <button
           type="button"
-          className="ml-auto flex items-center gap-1.5 h-11 px-3 text-sm font-bold text-yellow-300 whitespace-nowrap"
+          className="flex items-center gap-1.5 h-11 px-3 ml-1 text-sm font-bold text-yellow-300 whitespace-nowrap border-l border-white/20 hover:text-yellow-200"
           onClick={() => onSelect('ofertas', 'all')}
         >
           <Tag className="h-4 w-4" />
