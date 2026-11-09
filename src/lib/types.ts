@@ -26,6 +26,22 @@ export type StoreSettings = {
   deliveryZones?: DeliveryZone[];
 };
 
+export type BannerLinkType = 'none' | 'category' | 'product' | 'offers' | 'whatsapp' | 'url';
+
+export type StoreBanner = {
+  id: string;
+  /** 'image' = banner com imagem; 'offers' = banner automático de ofertas */
+  kind: 'image' | 'offers';
+  title: string;
+  desktopImage?: string; // 1600 x 400
+  mobileImage?: string;  // 1200 x 800 (opcional)
+  linkType: BannerLinkType;
+  linkValue?: string;    // nome da categoria, id do produto ou URL
+  startDate?: string;    // yyyy-mm-dd
+  endDate?: string;      // yyyy-mm-dd
+  active: boolean;
+};
+
 export type AsaasSettings = {
   env?: 'sandbox' | 'production';
   accessToken?: string;

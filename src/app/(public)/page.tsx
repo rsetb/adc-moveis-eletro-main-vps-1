@@ -18,6 +18,9 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { displayText } from '@/lib/display-text';
+import { getBannersAction } from '@/app/actions/banners';
+import { bannerHref, isBannerVisible } from '@/lib/banners';
+import type { StoreBanner } from '@/lib/types';
 import type { LucideIcon } from 'lucide-react';
 
 const PAGE_SIZE = 20;
@@ -288,6 +291,36 @@ export default function Home() {
   }, [heroProducts.length]);
   const heroProduct = heroProducts[heroIdx % Math.max(heroProducts.length, 1)];
 
+  /* ---------- Banners cadastrados no admin ---------- */
+  const [banners, setBanners] = useState<StoreBanner[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getBannersAction()
+      .then(res => { if (alive) setBanners(res.data); })
+      .catch(() => { if (alive) setBanners([]); });
+    return () => { alive = false; };
+  }, []);
+
+  const slides = useMemo(
+    () => (banners ?? []).filter(b => isBannerVisible(b) && (b.kind === 'image' || heroProducts.length > 0)),
+    [banners, heroProducts.length]
+  );
+  const [slideIdx, setSlideIdx] = useState(0);
+  const [heroPaused, setHeroPaused] = useState(false);
+  const touchX = useRef<number | null>(null);
+  const goSlide = useCallback(
+    (i: number) => setSlideIdx(slides.length ? (i + slides.length) % slides.length : 0),
+    [slides.length]
+  );
+  useEffect(() => {
+    if (slideIdx >= slides.length) setSlideIdx(0);
+  }, [slides.length, slideIdx]);
+  useEffect(() => {
+    if (slides.length < 2 || heroPaused) return;
+    const t = setTimeout(() => setSlideIdx(i => (i + 1) % slides.length), 6000);
+    return () => clearTimeout(t);
+  }, [slides.length, heroPaused, slideIdx]);
+
   /* ---------- Catálogo filtrado ---------- */
   const filteredAndSortedProducts = useMemo(() => {
     let filtered = [...visibleProducts];
@@ -426,83 +459,136 @@ export default function Home() {
       <div className="container mx-auto px-0 md:px-4 py-3 md:py-5 flex flex-col gap-4 md:gap-6">
         {!isBrowsing && !isLoading && (
           <>
-            {/* Hero */}
-            <section className="mx-3 md:mx-0 rounded-2xl bg-blue-900 text-white overflow-hidden grid md:grid-cols-[1.2fr_1fr] items-center">
-              <div className="p-6 md:p-12 flex flex-col gap-3 md:gap-4">
-                <span className="self-start bg-yellow-300 text-yellow-950 text-[11px] md:text-xs font-extrabold px-2.5 py-1 rounded">
-                  CREDIÁRIO PRÓPRIO
-                </span>
-                <h1 className="text-2xl md:text-5xl font-extrabold leading-tight">
-                  Sua casa nova no crediário próprio
-                </h1>
-                <p className="text-blue-100 md:text-lg">
-                  Móveis e eletros {settings.storeCity ? <>com entrega em {displayText(settings.storeCity)}</> : 'com entrega própria'}.
-                </p>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  <button type="button" onClick={() => goToCatalog(deals.length > 0 ? { onlySale: true, sort: 'discount' } : {})}
-                    className="bg-yellow-300 text-yellow-950 font-extrabold px-5 md:px-6 h-11 md:h-12 rounded-lg hover:bg-yellow-200">
-                    {deals.length > 0 ? 'Ver ofertas' : 'Ver produtos'}
-                  </button>
-                </div>
-              </div>
-              {heroProduct && (() => {
-                const img = heroProduct.imageUrls?.[0] || 'https://placehold.co/600x600.png';
-                const inst = (heroProduct.maxInstallments ?? 1) > 1 ? heroProduct.maxInstallments! : 0;
-                const off = Math.round(discountOf(heroProduct) * 100);
-                return (
-                  <div className="hidden md:flex flex-col items-center justify-center gap-3 p-8 lg:p-10">
-                    <Link
-                      key={heroProduct.id}
-                      href={`/produtos/${heroProduct.id}`}
-                      className="group w-full max-w-[400px] bg-white text-gray-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in duration-500"
-                    >
-                      <span className="relative block aspect-[4/3] w-full bg-white">
-                        <Image
-                          src={img}
-                          alt={heroProduct.name}
-                          fill
-                          className="object-contain p-5 transition-transform duration-500 group-hover:scale-105"
-                          sizes="400px"
-                          priority
-                          unoptimized={img.startsWith('data:')}
-                        />
-                        {off > 0 && (
-                          <span className="absolute top-3 left-3 bg-red-700 text-white text-sm font-extrabold px-2 py-0.5 rounded-md">-{off}%</span>
-                        )}
-                      </span>
-                      <span className="border-t px-4 py-3 flex flex-col gap-0.5">
-                        <span className="text-sm font-semibold line-clamp-1">{heroProduct.name}</span>
-                        <span className="flex items-baseline gap-2">
-                          {isSale(heroProduct) && (
-                            <span className="text-xs text-gray-500 line-through">{formatCurrency(heroProduct.originalPrice!)}</span>
-                          )}
-                          <span className="text-xl font-extrabold">{formatCurrency(heroProduct.price)}</span>
-                          <span className="text-xs font-semibold text-gray-600">à vista</span>
-                        </span>
-                        {inst > 0 && (
-                          <span className="text-xs font-bold text-emerald-700">
-                            ou {inst}x de {formatCurrency(heroProduct.price / inst)} no crediário
+            {/* Banners */}
+            {banners === null ? (
+              <div className="mx-3 md:mx-0 rounded-2xl bg-muted animate-pulse aspect-[3/2] md:aspect-[4/1]" />
+            ) : slides.length > 0 && (
+              <section
+                aria-roledescription="carrossel"
+                aria-label="Banners"
+                className="relative mx-3 md:mx-0"
+                onMouseEnter={() => setHeroPaused(true)}
+                onMouseLeave={() => setHeroPaused(false)}
+                onTouchStart={(e) => { touchX.current = e.touches[0].clientX; }}
+                onTouchEnd={(e) => {
+                  if (touchX.current === null) return;
+                  const dx = e.changedTouches[0].clientX - touchX.current;
+                  touchX.current = null;
+                  if (Math.abs(dx) > 40) goSlide(slideIdx + (dx < 0 ? 1 : -1));
+                }}
+              >
+                {/* Todos os slides no mesmo lugar: a altura não muda ao trocar */}
+                <div className="grid">
+                  {slides.map((slide, i) => {
+                    const active = i === slideIdx;
+                    const layer = cn(
+                      '[grid-area:1/1] rounded-2xl overflow-hidden transition-opacity duration-700',
+                      active ? 'opacity-100 z-10' : 'opacity-0 invisible pointer-events-none'
+                    );
+
+                    if (slide.kind === 'image') {
+                      const link = bannerHref(slide, settings.storePhone);
+                      const ratio = slide.mobileImage ? 'aspect-[3/2] md:aspect-[4/1]' : 'aspect-[4/1]';
+                      const pic = (
+                        <picture className="block w-full h-full">
+                          {slide.mobileImage && <source media="(max-width: 767px)" srcSet={slide.mobileImage} />}
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={slide.desktopImage} alt={slide.title} className="block w-full h-full object-cover" />
+                        </picture>
+                      );
+                      const cls = cn(layer, ratio, 'block bg-muted');
+                      if (!link) return <div key={slide.id} className={cls} aria-hidden={!active}>{pic}</div>;
+                      return link.external ? (
+                        <a key={slide.id} href={link.href} target="_blank" rel="noopener noreferrer" className={cls} tabIndex={active ? 0 : -1} aria-hidden={!active}>{pic}</a>
+                      ) : (
+                        <Link key={slide.id} href={link.href} className={cls} tabIndex={active ? 0 : -1} aria-hidden={!active}>{pic}</Link>
+                      );
+                    }
+
+                    // Slide automático de ofertas
+                    return (
+                      <div key={slide.id} aria-hidden={!active}
+                        className={cn(layer, 'bg-blue-900 text-white grid md:grid-cols-[1.25fr_1fr] items-center lg:aspect-[4/1] min-h-0')}>
+                        <div className="p-6 md:px-10 md:py-5 lg:px-12 flex flex-col gap-2.5 md:gap-3">
+                          <span className="self-start bg-yellow-300 text-yellow-950 text-[11px] md:text-xs font-extrabold px-2.5 py-1 rounded">
+                            CREDIÁRIO PRÓPRIO
                           </span>
-                        )}
-                      </span>
-                    </Link>
-                    {heroProducts.length > 1 && (
-                      <div className="flex gap-1.5">
-                        {heroProducts.map((p, i) => (
-                          <button
-                            key={p.id}
-                            type="button"
-                            aria-label={`Mostrar oferta ${i + 1}`}
-                            onClick={() => setHeroIdx(i)}
-                            className={cn('h-2 rounded-full transition-all', i === heroIdx % heroProducts.length ? 'w-6 bg-white' : 'w-2 bg-white/40 hover:bg-white/70')}
-                          />
-                        ))}
+                          <h1 className="text-2xl md:text-3xl xl:text-4xl font-extrabold leading-tight">
+                            Sua casa nova no crediário próprio
+                          </h1>
+                          <p className="text-blue-100 text-sm md:text-base">
+                            Móveis e eletros {settings.storeCity ? <>com entrega em {displayText(settings.storeCity)}</> : 'com entrega própria'}.
+                          </p>
+                          <div>
+                            <button type="button" tabIndex={active ? 0 : -1}
+                              onClick={() => goToCatalog(deals.length > 0 ? { onlySale: true, sort: 'discount' } : {})}
+                              className="bg-yellow-300 text-yellow-950 font-extrabold px-5 h-11 rounded-lg hover:bg-yellow-200">
+                              {deals.length > 0 ? 'Ver ofertas' : 'Ver produtos'}
+                            </button>
+                          </div>
+                        </div>
+                        {heroProduct && (() => {
+                          const img = heroProduct.imageUrls?.[0] || 'https://placehold.co/600x600.png';
+                          const inst = (heroProduct.maxInstallments ?? 1) > 1 ? heroProduct.maxInstallments! : 0;
+                          const off = Math.round(discountOf(heroProduct) * 100);
+                          return (
+                            <div className="hidden md:flex items-center justify-center h-full py-5 pr-6 lg:pr-10">
+                              <Link
+                                key={heroProduct.id}
+                                href={`/produtos/${heroProduct.id}`}
+                                tabIndex={active ? 0 : -1}
+                                className="group w-full max-w-[460px] h-full max-h-[220px] bg-white text-gray-900 rounded-2xl shadow-2xl overflow-hidden flex animate-in fade-in duration-500"
+                              >
+                                <span className="relative aspect-square h-full flex-shrink-0 bg-white">
+                                  <Image src={img} alt={heroProduct.name} fill
+                                    className="object-contain p-3 transition-transform duration-500 group-hover:scale-105"
+                                    sizes="220px" unoptimized={img.startsWith('data:')} />
+                                  {off > 0 && (
+                                    <span className="absolute top-2 left-2 bg-red-700 text-white text-xs font-extrabold px-1.5 py-0.5 rounded">-{off}%</span>
+                                  )}
+                                </span>
+                                <span className="flex-1 min-w-0 border-l px-4 py-3 flex flex-col justify-center gap-1">
+                                  <span className="text-sm font-semibold line-clamp-2">{heroProduct.name}</span>
+                                  {isSale(heroProduct) && (
+                                    <span className="text-xs text-gray-500 line-through">{formatCurrency(heroProduct.originalPrice!)}</span>
+                                  )}
+                                  <span className="text-xl font-extrabold leading-none">{formatCurrency(heroProduct.price)} <span className="text-xs font-semibold text-gray-600">à vista</span></span>
+                                  {inst > 0 && (
+                                    <span className="text-xs font-bold text-emerald-700">ou {inst}x de {formatCurrency(heroProduct.price / inst)}</span>
+                                  )}
+                                  <span className="text-xs font-bold text-primary mt-1">Ver produto →</span>
+                                </span>
+                              </Link>
+                            </div>
+                          );
+                        })()}
                       </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </section>
+                    );
+                  })}
+                </div>
+
+                {slides.length > 1 && (
+                  <>
+                    <button type="button" aria-label="Banner anterior" onClick={() => goSlide(slideIdx - 1)}
+                      className="hidden md:flex absolute z-20 left-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-white/95 text-gray-800 shadow-md items-center justify-center hover:bg-white">
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+                    <button type="button" aria-label="Próximo banner" onClick={() => goSlide(slideIdx + 1)}
+                      className="hidden md:flex absolute z-20 right-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-white/95 text-gray-800 shadow-md items-center justify-center hover:bg-white">
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                    <div className="flex md:absolute md:z-20 md:bottom-3 md:left-1/2 md:-translate-x-1/2 justify-center gap-1.5 pt-2.5 md:pt-0 md:bg-slate-900/35 md:px-2.5 md:py-1.5 md:rounded-full">
+                      {slides.map((s, i) => (
+                        <button key={s.id} type="button" aria-label={`Mostrar banner ${i + 1}`} aria-current={i === slideIdx}
+                          onClick={() => goSlide(i)}
+                          className={cn('h-2 rounded-full transition-all',
+                            i === slideIdx ? 'w-6 bg-primary md:bg-white' : 'w-2 bg-gray-300 md:bg-white/50 hover:md:bg-white/80')} />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </section>
+            )}
 
             {/* Vantagens */}
             <section aria-label="Vantagens" className="mx-3 md:mx-0 flex md:grid md:grid-cols-3 gap-2 md:gap-3 overflow-x-auto [scrollbar-width:none]">

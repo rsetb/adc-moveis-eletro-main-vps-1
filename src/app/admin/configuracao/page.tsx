@@ -34,6 +34,7 @@ import { maskPhone, onlyDigits } from '@/lib/utils';
 import { validatePixKey } from '@/lib/pix';
 import { getAsaasSettingsAction, updateAsaasSettingsAction, getCustomerCodeCounterAction, updateCustomerCodeCounterAction } from '@/app/actions/settings';
 import FreightAccessSettings from '@/components/FreightAccessSettings';
+import BannerSettingsCard from '@/components/BannerSettingsCard';
 
 const settingsSchema = z.object({
   storeName: z.string().min(3, 'O nome da loja é obrigatório.'),
@@ -1076,6 +1077,8 @@ export default function ConfiguracaoPage() {
           </AlertDialog>
         </CardContent>
       </Card>
+
+      <BannerSettingsCard />
 
       {/* Taxas de Entrega por Bairro */}
       <Card>
