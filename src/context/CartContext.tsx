@@ -28,7 +28,7 @@ const loadDataFromLocalStorage = (key: string) => {
 
 interface CartContextType {
   cartItems: CartItem[];
-  addToCart: (product: Product) => void;
+  addToCart: (product: Product, quantity?: number) => void;
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
@@ -67,29 +67,38 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     
   }, []);
 
-  const addToCart = (product: Product) => {
+  const addToCart = (product: Product, quantity: number = 1) => {
     if (product.stock < 1) {
       toast({ title: "Produto Esgotado", description: "Este produto está fora de estoque.", variant: "destructive" });
       return;
     }
 
-    const updatedCart = [...cartItems];
+    const qty = Math.max(1, Math.floor(quantity));
+    const updatedCart = cartItems.map(item => ({ ...item }));
     const existingItemIndex = updatedCart.findIndex(item => item.id === product.id);
 
     if (existingItemIndex > -1) {
       const existingItem = updatedCart[existingItemIndex];
       if (existingItem.quantity < product.stock) {
-        existingItem.quantity += 1;
+        const next = Math.min(existingItem.quantity + qty, product.stock);
+        if (next < existingItem.quantity + qty) {
+          toast({ title: "Limite de Estoque Atingido", description: `A quantidade máxima para este item é ${product.stock}.` });
+        }
+        existingItem.quantity = next;
       } else {
         toast({ title: "Limite de Estoque Atingido", description: `Você já tem a quantidade máxima (${product.stock}) deste item no carrinho.` });
         return;
       }
     } else {
+      const initialQty = Math.min(qty, product.stock);
+      if (initialQty < qty) {
+        toast({ title: "Limite de Estoque Atingido", description: `A quantidade máxima para este item é ${product.stock}.` });
+      }
       updatedCart.push({
         id: product.id,
         name: product.name,
         price: product.price,
-        quantity: 1,
+        quantity: initialQty,
         imageUrl: product.imageUrls?.[0] || 'https://placehold.co/100x100.png',
       });
     }

@@ -37,7 +37,11 @@ export default function StoreFloatingNav() {
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Falar no WhatsApp"
-          className="fixed z-50 right-4 bottom-20 md:bottom-6 h-14 pl-4 pr-5 rounded-full bg-green-700 hover:bg-green-800 text-white font-bold flex items-center gap-2 shadow-lg shadow-green-900/30 print-hidden"
+          className={cn(
+            'fixed z-50 right-4 bottom-20 md:bottom-6 h-14 pl-4 pr-5 rounded-full bg-green-700 hover:bg-green-800 text-white font-bold items-center gap-2 shadow-lg shadow-green-900/30 print-hidden',
+            // Na página de produto o celular já tem botão de WhatsApp e barra de compra fixa
+            pathname.startsWith('/produtos/') ? 'hidden md:flex' : 'flex'
+          )}
         >
           <WhatsAppIcon className="h-6 w-6" />
           <span className="text-[15px]">WhatsApp</span>
