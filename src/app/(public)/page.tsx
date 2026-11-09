@@ -281,15 +281,8 @@ export default function Home() {
   );
 
 
-  // Banner alterna entre as maiores ofertas (ou novidades, se não houver ofertas)
-  const heroProducts = useMemo(() => (deals.length > 0 ? deals : newest).slice(0, 5), [deals, newest]);
-  const [heroIdx, setHeroIdx] = useState(0);
-  useEffect(() => {
-    if (heroProducts.length < 2) return;
-    const t = setInterval(() => setHeroIdx(i => (i + 1) % heroProducts.length), 5000);
-    return () => clearInterval(t);
-  }, [heroProducts.length]);
-  const heroProduct = heroProducts[heroIdx % Math.max(heroProducts.length, 1)];
+  // Banner de ofertas: vitrine com as 3 maiores ofertas (ou novidades, se não houver ofertas)
+  const heroProducts = useMemo(() => (deals.length > 0 ? deals : newest).slice(0, 3), [deals, newest]);
 
   /* ---------- Banners cadastrados no admin ---------- */
   const [banners, setBanners] = useState<StoreBanner[] | null>(null);
@@ -505,63 +498,60 @@ export default function Home() {
                       );
                     }
 
-                    // Slide automático de ofertas
+                    // Slide automático de ofertas: vitrine amarela/vermelha com 3 produtos
+                    const hasDeals = deals.length > 0;
                     return (
                       <div key={slide.id} aria-hidden={!active}
-                        className={cn(layer, 'bg-blue-900 text-white grid md:grid-cols-[1.25fr_1fr] items-center lg:aspect-[4/1] min-h-0')}>
-                        <div className="p-6 md:px-10 md:py-5 lg:px-12 flex flex-col gap-2.5 md:gap-3">
-                          <span className="self-start bg-yellow-300 text-yellow-950 text-[11px] md:text-xs font-extrabold px-2.5 py-1 rounded">
+                        className={cn(layer,
+                          'flex flex-col md:flex-row md:items-center gap-4 md:gap-6 lg:gap-8 p-4 md:px-8 md:py-6 lg:px-11 lg:aspect-[4/1] min-h-0',
+                          'bg-[linear-gradient(180deg,#FACC15_0%,#FACC15_52%,#DC2626_52.2%,#B91C1C_100%)]',
+                          'md:bg-[linear-gradient(110deg,#FACC15_0%,#FACC15_36%,#DC2626_36.2%,#B91C1C_100%)]')}>
+                        <div className="md:w-[30%] lg:w-[32%] flex-shrink-0 flex flex-col gap-2 md:gap-2.5 text-gray-900">
+                          <span className="self-start bg-red-600 text-white text-[11px] md:text-xs font-black tracking-wide px-2.5 py-1 rounded">
                             CREDIÁRIO PRÓPRIO
                           </span>
-                          <h1 className="text-2xl md:text-3xl xl:text-4xl font-extrabold leading-tight">
-                            Sua casa nova no crediário próprio
+                          <h1 className="text-3xl md:text-4xl xl:text-5xl font-black leading-[0.95] tracking-tight">
+                            {hasDeals ? 'Ofertas' : 'Novidades'}<br className="hidden md:block" /> ADC
                           </h1>
-                          <p className="text-blue-100 text-sm md:text-base">
-                            Móveis e eletros {settings.storeCity ? <>com entrega em {displayText(settings.storeCity)}</> : 'com entrega própria'}.
+                          <p className="text-sm md:text-base font-semibold text-yellow-950">
+                            Pague à vista ou no crediário próprio.
                           </p>
                           <div>
                             <button type="button" tabIndex={active ? 0 : -1}
-                              onClick={() => goToCatalog(deals.length > 0 ? { onlySale: true, sort: 'discount' } : {})}
-                              className="bg-yellow-300 text-yellow-950 font-extrabold px-5 h-11 rounded-lg hover:bg-yellow-200">
-                              {deals.length > 0 ? 'Ver ofertas' : 'Ver produtos'}
+                              onClick={() => goToCatalog(hasDeals ? { onlySale: true, sort: 'discount' } : {})}
+                              className="bg-gray-900 text-white font-extrabold px-4 md:px-5 h-10 md:h-11 rounded-lg text-sm md:text-[15px] hover:bg-gray-800">
+                              {hasDeals ? 'Ver todas as ofertas' : 'Ver produtos'}
                             </button>
                           </div>
                         </div>
-                        {heroProduct && (() => {
-                          const img = heroProduct.imageUrls?.[0] || 'https://placehold.co/600x600.png';
-                          const inst = (heroProduct.maxInstallments ?? 1) > 1 ? heroProduct.maxInstallments! : 0;
-                          const off = Math.round(discountOf(heroProduct) * 100);
-                          return (
-                            <div className="hidden md:flex items-center justify-center h-full py-5 pr-6 lg:pr-10">
-                              <Link
-                                key={heroProduct.id}
-                                href={`/produtos/${heroProduct.id}`}
-                                tabIndex={active ? 0 : -1}
-                                className="group w-full max-w-[460px] h-full max-h-[220px] bg-white text-gray-900 rounded-2xl shadow-2xl overflow-hidden flex animate-in fade-in duration-500"
-                              >
-                                <span className="relative aspect-square h-full flex-shrink-0 bg-white">
-                                  <Image src={img} alt={heroProduct.name} fill
-                                    className="object-contain p-3 transition-transform duration-500 group-hover:scale-105"
-                                    sizes="220px" unoptimized={img.startsWith('data:')} />
+                        <div className="flex-1 min-w-0 grid grid-cols-3 gap-2 md:gap-3 lg:gap-4">
+                          {heroProducts.map(p => {
+                            const img = p.imageUrls?.[0] || 'https://placehold.co/600x600.png';
+                            const off = Math.round(discountOf(p) * 100);
+                            return (
+                              <Link key={p.id} href={`/produtos/${p.id}`} tabIndex={active ? 0 : -1}
+                                className="group bg-white text-gray-900 rounded-xl md:rounded-2xl overflow-hidden shadow-xl flex flex-col min-w-0">
+                                <span className="relative block aspect-square md:aspect-[4/3] bg-white border-b border-gray-100">
+                                  <Image src={img} alt={p.name} fill
+                                    className="object-contain p-2 md:p-3 transition-transform duration-500 group-hover:scale-105"
+                                    sizes="(max-width: 768px) 33vw, 260px" unoptimized={img.startsWith('data:')} />
                                   {off > 0 && (
-                                    <span className="absolute top-2 left-2 bg-red-700 text-white text-xs font-extrabold px-1.5 py-0.5 rounded">-{off}%</span>
+                                    <span className="absolute top-1.5 left-1.5 md:top-2 md:left-2 bg-red-600 text-white text-[10px] md:text-xs font-extrabold px-1.5 py-0.5 rounded">-{off}%</span>
                                   )}
                                 </span>
-                                <span className="flex-1 min-w-0 border-l px-4 py-3 flex flex-col justify-center gap-1">
-                                  <span className="text-sm font-semibold line-clamp-2">{heroProduct.name}</span>
-                                  {isSale(heroProduct) && (
-                                    <span className="text-xs text-gray-500 line-through">{formatCurrency(heroProduct.originalPrice!)}</span>
+                                <span className="px-2 py-1.5 md:px-3 md:py-2 flex flex-col gap-0.5 min-w-0">
+                                  <span className="text-[11px] md:text-sm font-semibold truncate">{p.name}</span>
+                                  {isSale(p) && (
+                                    <span className="hidden md:block text-[11px] text-gray-500 line-through">{formatCurrency(p.originalPrice!)}</span>
                                   )}
-                                  <span className="text-xl font-extrabold leading-none">{formatCurrency(heroProduct.price)} <span className="text-xs font-semibold text-gray-600">à vista</span></span>
-                                  {inst > 0 && (
-                                    <span className="text-xs font-bold text-emerald-700">ou {inst}x de {formatCurrency(heroProduct.price / inst)}</span>
-                                  )}
-                                  <span className="text-xs font-bold text-primary mt-1">Ver produto →</span>
+                                  <span className="text-xs md:text-lg font-black leading-tight">
+                                    {formatCurrency(p.price)} <span className="hidden md:inline text-[11px] font-medium text-gray-500">à vista</span>
+                                  </span>
                                 </span>
                               </Link>
-                            </div>
-                          );
-                        })()}
+                            );
+                          })}
+                        </div>
                       </div>
                     );
                   })}
